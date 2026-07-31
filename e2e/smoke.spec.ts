@@ -1,12 +1,14 @@
 import { expect, test } from '@playwright/test'
 
+const appUrl = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173/'
+
 test('starts a seeded world and advances a turn', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text())
   })
 
-  await page.goto('http://127.0.0.1:5173/')
+  await page.goto(appUrl)
   await expect(page.getByRole('heading', { name: 'REALMSEED' })).toBeVisible()
   await page.getByLabel('世界种子').fill('browser-smoke-seed')
   await page.getByRole('button', { name: /展开这个世界/ }).click()
@@ -32,7 +34,7 @@ test('starts a seeded world and advances a turn', async ({ page }) => {
 
 test('keeps the action interface usable on a phone viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('http://127.0.0.1:5173/')
+  await page.goto(appUrl)
   await page.getByRole('button', { name: /展开这个世界/ }).click()
   await expect(page.getByRole('button', { name: /休息/ })).toBeVisible()
   await expect(page.getByLabel('Realmseed 像素世界地图')).toBeVisible()
