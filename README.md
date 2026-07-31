@@ -88,7 +88,15 @@ python3 scripts/ingest_directional_assets.py
 - Move: `WASD`, arrow keys, direction pad, or click an adjacent tile
 - Talk: gain affection with an adjacent traveler and reputation with their faction
 - Interaction: adjacent people gain a speech bubble; click the bubble or person
-  to open the lower-center dialogue and trade counter
+  to open the lower-center dialogue and trade counter. Adjacency uses all eight
+  surrounding tiles, including diagonals.
+- Explorer UI: inventory, equipment, party, camps, and territory use five
+  compact tabs. Their rows feed one reusable top-left detail window instead of
+  expanding every dataset at once.
+- Action UI: founding, stationing, and resting share one consistent button
+  grammar with icon, action name, and cost/state caption.
+- Scene navigation: the cross-scene `INFINITE FRONTIER` mechanism is treated as
+  an advanced control and remains collapsed by default.
 - Inspect: click any visible person, monster, building, resource, road, or terrain
   tile to open its contextual detail card in the left column; element tiles are
   inspected before movement, while clicking an adjacent empty tile still moves

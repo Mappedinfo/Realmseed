@@ -84,6 +84,20 @@ describe('game simulation', () => {
     expect(next.agents.find((item) => item.id === agent.id)?.facing).toBe('left')
   })
 
+  it('allows dialogue with all eight surrounding tiles including diagonals', () => {
+    const state = flatState('diagonal-talk-check')
+    state.agents = [{
+      ...state.agents[0],
+      id: 'diagonal-neighbor',
+      x: state.player.x - 1,
+      y: state.player.y + 1,
+      affection: 0,
+    }]
+    const next = gameReducer(state, { type: 'TALK', agentId: 'diagonal-neighbor' })
+    expect(next.agents[0].affection).toBe(1)
+    expect(next.chronicle[0].text).toContain(state.agents[0].name)
+  })
+
   it('lets alerted monsters pursue slowly while changing facing', () => {
     let state = flatState('monster-chase-check')
     state.monsters = [{ id: 'hunter', species: 'boar', hp: 8, x: 26, y: 20, facing: 'up', alert: 3 }]

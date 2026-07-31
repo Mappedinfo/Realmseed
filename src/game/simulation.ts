@@ -1,6 +1,7 @@
 import type { Agent, Camp, CampBuildingKind, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, equipmentDefense, equipmentPower } from './combat'
+import { isWithinInteractionRange } from './geometry'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 
 export const STEPS_PER_STAMINA = 100
@@ -123,7 +124,9 @@ function beginBattle(
 }
 
 function interactableAgent(state: GameState, agentId?: string): Agent | undefined {
-  const candidates = state.agents.filter((agent) => agent.role !== 'follower' && distance(agent, state.player) <= 1)
+  const candidates = state.agents.filter(
+    (agent) => agent.role !== 'follower' && isWithinInteractionRange(agent, state.player),
+  )
   return agentId
     ? candidates.find((agent) => agent.id === agentId)
     : candidates.find((agent) => agent.role === 'wanderer') ?? candidates[0]

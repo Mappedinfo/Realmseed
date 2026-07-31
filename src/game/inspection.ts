@@ -1,4 +1,5 @@
 import type { GameState, Position, Terrain } from './types'
+import { isWithinInteractionRange } from './geometry'
 import { tileIndex } from './world'
 
 export interface InspectionDetail {
@@ -75,7 +76,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
   if (agent) {
     const faction = state.factions.find((item) => item.id === agent.factionId)
     const role = agent.role === 'villager' ? '驻守村民' : '旅行者'
-    const nearby = Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1
+    const nearby = isWithinInteractionRange(agent, state.player)
     return {
       ...base,
       category: '人物',

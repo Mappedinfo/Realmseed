@@ -12,14 +12,15 @@ const slotGlyph: Record<EquipmentSlot, string> = {
 export function EquipmentPanel({
   state,
   dispatch,
+  onInspect,
 }: {
   state: GameState
   dispatch: React.Dispatch<GameAction>
+  onInspect: (itemId: string) => void
 }) {
   const power = combatPowerSummary(state)
   return (
-    <div className="panel-section equipment-panel">
-      <h3>装备栏 <span>{state.equipment.filter((item) => item.equipped).length}</span></h3>
+    <div className="equipment-panel tab-panel-content">
       <div className="equipment-stats" aria-label="装备加成">
         <span>物 +{power.physical}</span>
         <span>法 +{power.magic}</span>
@@ -29,20 +30,22 @@ export function EquipmentPanel({
       </div>
       <div className="equipment-list">
         {state.equipment.map((item) => (
-          <button
-            key={item.id}
-            className={item.equipped ? 'is-equipped' : ''}
-            onClick={() => dispatch({ type: 'TOGGLE_EQUIPMENT', itemId: item.id })}
-            aria-pressed={item.equipped}
-            title={item.description}
-          >
-            <i aria-hidden="true">{slotGlyph[item.slot]}</i>
-            <span><strong>{item.name}</strong><small>{item.description}</small></span>
-            <b>{item.equipped ? '已装备' : '收纳'}</b>
-          </button>
+          <div key={item.id} className={`equipment-row ${item.equipped ? 'is-equipped' : ''}`}>
+            <button className="equipment-inspect" onClick={() => onInspect(item.id)}>
+              <i aria-hidden="true">{slotGlyph[item.slot]}</i>
+              <span><strong>{item.name}</strong><small>{item.kind ?? item.slot} · +{item.power || item.defense}</small></span>
+            </button>
+            <button
+              className="equipment-toggle"
+              onClick={() => dispatch({ type: 'TOGGLE_EQUIPMENT', itemId: item.id })}
+              aria-pressed={item.equipped}
+              title={item.equipped ? `卸下${item.name}` : `装备${item.name}`}
+            >
+              {item.equipped ? '卸下' : '装备'}
+            </button>
+          </div>
         ))}
       </div>
-      <p className="equipment-note">装备仅提供数值，不绘制在角色身体上。</p>
     </div>
   )
 }

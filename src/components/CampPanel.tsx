@@ -23,8 +23,7 @@ export function CampPanel({
     : false
 
   return (
-    <div className="panel-section camp-panel">
-      <h3>营地 <span>{state.camps.length}</span></h3>
+    <div className="camp-panel tab-panel-content">
       {state.camps.length === 0 ? (
         <p className="empty-copy">花费 8 金建立营地，随后移动 100 步可获得 1 格建筑额度。</p>
       ) : (
@@ -42,13 +41,7 @@ export function CampPanel({
             ))}
           </div>
           {selectedCamp ? (
-            <div className="camp-card">
-              <div className="camp-stats">
-                <span><b>{selectedCamp.population}</b>人口</span>
-                <span><b>{selectedCamp.defense}</b>防御</span>
-                <span><b>{selectedCamp.economy}</b>经济</span>
-                <span><b>{selectedCamp.controlRadius}</b>范围</span>
-              </div>
+            <div className="camp-operations">
               <button
                 className="return-camp"
                 disabled={!local || Boolean(state.battle)}

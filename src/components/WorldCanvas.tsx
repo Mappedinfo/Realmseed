@@ -19,6 +19,7 @@ import {
   type SpriteId,
 } from '../game/art'
 import { inspectPosition } from '../game/inspection'
+import { isWithinInteractionRange } from '../game/geometry'
 import { tileIndex } from '../game/world'
 
 const TILE = 32
@@ -507,7 +508,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       const y = origin.y + Math.floor(((event.clientY - rect.top) * scaleY) / TILE)
       if (x >= 0 && y >= 0 && x < state.world.size && y < state.world.size) {
         const agent = state.agents.find((item) => item.role !== 'follower' && item.x === x && item.y === y)
-        const canInteract = agent && Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1
+        const canInteract = agent && isWithinInteractionRange(agent, state.player)
         if (agent && canInteract) onAgentClick(agent.id)
         else onSelect({ x, y })
       }
@@ -518,7 +519,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const nearbyAgents = state.agents.filter(
     (agent) =>
       agent.role !== 'follower' &&
-      Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1 &&
+      isWithinInteractionRange(agent, state.player) &&
       agent.x >= origin.x &&
       agent.x < origin.x + VIEW_COLS &&
       agent.y >= origin.y &&

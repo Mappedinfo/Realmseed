@@ -70,11 +70,16 @@ Future art packs may replace the procedural primitives, but must preserve the
 3. Find coins, berry patches, and ruins, meet travelers, and fight monsters.
    Terrain and regional patches make berry abundance uneven; combat steps
    accumulate fatigue 1.5× faster.
-4. Click the bubble over an adjacent highlighted traveler to talk or trade.
+4. Click the bubble over a traveler in any of the eight surrounding tiles,
+   including diagonal neighbors, to talk or trade.
    Berries enter the left inventory, restore one stamina when eaten, and trade
    at a deterministic daily rate of 8–12 berries per gold.
    Clicking any map element also updates a persistent left-side inspection card
    with its identity, attributes, coordinates, usage, and interaction hint.
+   The same top-left window is reused by five compact tabs for inventory,
+   equipment, party, camps, and territory; detailed rows are not all expanded
+   simultaneously. Cross-scene navigation stays collapsed until explicitly
+   opened because it is an advanced world mechanism.
 5. Recruit a trusted traveler; the follower moves into the left party roster
    instead of occupying a world tile, while still contributing combat strength
    and party vision. Click roster entries to switch the top-left portrait.

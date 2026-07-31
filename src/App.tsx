@@ -2,8 +2,8 @@ import { useEffect, useMemo, useReducer, useState } from 'react'
 import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
 import { BattlePanel } from './components/BattlePanel'
-import { CampPanel } from './components/CampPanel'
-import { EquipmentPanel } from './components/EquipmentPanel'
+import { ExplorerTabs } from './components/ExplorerTabs'
+import type { ExplorerFocus, ExplorerTab } from './components/explorerFocus'
 import { InteractionPanel } from './components/InteractionPanel'
 import { MiniMap } from './components/MiniMap'
 import { SceneTransit } from './components/SceneTransit'
@@ -11,6 +11,7 @@ import { SelectionDetails } from './components/SelectionDetails'
 import { StartScreen } from './components/StartScreen'
 import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
+import { isWithinInteractionRange } from './game/geometry'
 import { gameReducer, visibleCounts } from './game/simulation'
 import type { BattleMode, GameState, MapSize } from './game/types'
 import { createGame } from './game/world'
@@ -28,19 +29,12 @@ function GameView({
 }) {
   const [state, dispatch] = useReducer(gameReducer, initialState)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
-  const [activePartyId, setActivePartyId] = useState('player')
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null)
+  const [explorerFocus, setExplorerFocus] = useState<ExplorerFocus>({ kind: 'player' })
+  const [activeExplorerTab, setActiveExplorerTab] = useState<ExplorerTab>('inventory')
   const counts = useMemo(() => visibleCounts(state), [state])
-  const followers = state.agents.filter((agent) => agent.role === 'follower')
-  const villagers = state.agents.filter((agent) => agent.role === 'villager')
-  const overlord = state.factions.find((faction) => faction.id === state.player.factionId)
-  const vassals = state.factions.filter((faction) => faction.isVassal)
-  const socialRank = overlord ? `${overlord.name}属臣` : vassals.length > 0 ? '独立领主' : '自由旅人'
   const activeAgent = state.agents.find((agent) => agent.id === activeAgentId)
-  const activePartyMember = activePartyId === 'player'
-    ? state.player
-    : followers.find((agent) => agent.id === activePartyId) ?? state.player
-  const activePortraitIndex = activePartyMember.role === 'player' ? 0 : 1
+  const activeAgentNearby = Boolean(activeAgent && isWithinInteractionRange(activeAgent, state.player))
   const nearest = state.agents
     .filter((agent) => agent.role === 'wanderer')
     .map((agent) => ({ agent, distance: Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) }))
@@ -51,12 +45,25 @@ function GameView({
   }
   const selectAgent = (agentId: string) => {
     const agent = state.agents.find((item) => item.id === agentId)
-    if (agent) dispatch({ type: 'SELECT', position: { x: agent.x, y: agent.y } })
-    setActiveAgentId(agentId)
+    if (agent) {
+      const position = { x: agent.x, y: agent.y }
+      dispatch({ type: 'SELECT', position })
+      setExplorerFocus({ kind: 'map', position })
+      if (isWithinInteractionRange(agent, state.player)) setActiveAgentId(agentId)
+    }
   }
   const selectPosition = (position: { x: number; y: number }) => {
     setActiveAgentId(null)
+    setExplorerFocus({ kind: 'map', position })
     dispatch({ type: 'SELECT', position })
+  }
+  const changeExplorerTab = (tab: ExplorerTab) => {
+    setActiveExplorerTab(tab)
+    if (tab === 'inventory') setExplorerFocus({ kind: 'inventory', item: 'berries' })
+    if (tab === 'equipment' && state.equipment[0]) setExplorerFocus({ kind: 'equipment', itemId: state.equipment[0].id })
+    if (tab === 'party') setExplorerFocus({ kind: 'player' })
+    if (tab === 'camps' && state.camps[0]) setExplorerFocus({ kind: 'camp', campId: state.camps[0].id })
+    if (tab === 'territory') setExplorerFocus({ kind: 'territory' })
   }
 
   useEffect(() => {
@@ -83,15 +90,8 @@ function GameView({
       return
     }
     if (!activeAgent) return
-    const distance = Math.abs(activeAgent.x - state.player.x) + Math.abs(activeAgent.y - state.player.y)
-    if (distance > 1) setActiveAgentId(null)
+    if (!isWithinInteractionRange(activeAgent, state.player)) setActiveAgentId(null)
   }, [activeAgent, state.battle, state.player.x, state.player.y])
-
-  useEffect(() => {
-    if (activePartyId !== 'player' && !followers.some((agent) => agent.id === activePartyId)) {
-      setActivePartyId('player')
-    }
-  }, [activePartyId, followers])
 
   return (
     <main className="game-shell">
@@ -134,18 +134,9 @@ function GameView({
 
       <div className="game-grid">
         <aside className="side-panel explorer-panel">
-          <p className="panel-kicker">PARTY · 点击切换头像</p>
-          <div
-            className="portrait party-sprite"
-            style={{
-              backgroundImage: `url(${import.meta.env.BASE_URL}assets/art/verdant-directional-characters.png)`,
-              backgroundPosition: `${-activePortraitIndex * 64}px 0`,
-            }}
-            role="img"
-            aria-label={`${activePartyMember.name} 的队伍头像`}
-          />
-          <h2>{activePartyMember.name}</h2>
-          <p className="free-banner">{socialRank}</p>
+          <p className="panel-kicker explorer-heading">FIELD DOSSIER · 详情窗口</p>
+
+          <SelectionDetails state={state} focus={explorerFocus} />
 
           <div className="resource-row">
             <div><span className="coin-dot">●</span><strong>{state.player.gold}</strong><small>金币</small></div>
@@ -157,65 +148,22 @@ function GameView({
             步数 {Math.floor(state.fatigue * 10) / 10}/100 · 战绩 {state.combatWins} · 上限 {state.player.maxStamina}
           </p>
 
-          <SelectionDetails state={state} />
-
-          <div className="panel-section inventory-panel">
-            <h3>物品栏 <span>{state.player.berries}</span></h3>
-            <button
-              className="inventory-item"
-              onClick={() => dispatch({ type: 'EAT_BERRY' })}
-              disabled={state.player.berries <= 0 || state.player.stamina >= state.player.maxStamina}
-              title="食用 1 枚野果，恢复 1 点体力"
-            >
-              <span className="berry-cluster" aria-hidden="true">●</span>
-              <span><strong>野果</strong><small>食用恢复 1 体力</small></span>
-              <b>×{state.player.berries}</b>
-              <em>{state.player.stamina < state.player.maxStamina ? '食用' : '体力充足'}</em>
-            </button>
-            <p className="inventory-rate">各地行情约为 10 果 = 1 金，产量受地形与区域影响。</p>
-          </div>
-
-          <EquipmentPanel state={state} dispatch={dispatch} />
-
-          <div className="panel-section party-panel">
-            <h3>队内角色 <span>{followers.length + 1}</span></h3>
-            <div className="party-roster">
-              <button
-                className={activePartyId === 'player' ? 'is-active' : ''}
-                onClick={() => setActivePartyId('player')}
-              >
-                <span>◆</span><b>{state.player.name}</b><small>队长</small>
-              </button>
-              {followers.map((agent) => (
-                <button
-                  className={activePartyId === agent.id ? 'is-active' : ''}
-                  key={agent.id}
-                  onClick={() => setActivePartyId(agent.id)}
-                >
-                  <span>♟</span><b>{agent.name}</b><small>随行 · 场景中隐藏</small>
-                </button>
-              ))}
-            </div>
-            {followers.length === 0 ? <p className="empty-copy">与旅人建立 3 点好感后可招募。</p> : null}
-          </div>
-
-          <CampPanel
+          <ExplorerTabs
             state={state}
+            dispatch={dispatch}
+            activeTab={activeExplorerTab}
             selectedCampId={selectedCampId}
+            onTabChange={changeExplorerTab}
+            onFocus={setExplorerFocus}
             onSelectCamp={(campId) => {
               setSelectedCampId(campId)
               const camp = state.camps.find((item) => item.id === campId)
+              setExplorerFocus({ kind: 'camp', campId })
               if (camp && camp.sceneX === state.world.sceneX && camp.sceneY === state.world.sceneY) {
-                selectPosition({ x: camp.x, y: camp.y })
+                dispatch({ type: 'SELECT', position: { x: camp.x, y: camp.y } })
               }
             }}
-            dispatch={dispatch}
           />
-
-          <div className="panel-section">
-            <h3>领地 / 附属 <span>{villagers.length} / {vassals.length}</span></h3>
-            <p className="empty-copy">{vassals.length ? `附属贡金 +${vassals.length * 2} 金` : '尚未建立附属契约。'}</p>
-          </div>
         </aside>
 
         <section className="map-column">
@@ -226,7 +174,7 @@ function GameView({
             onAgentClick={selectAgent}
             onSelect={selectPosition}
           />
-          {!state.battle && activeAgent ? (
+          {!state.battle && activeAgent && activeAgentNearby ? (
             <InteractionPanel
               state={state}
               target={activeAgent}
