@@ -24,6 +24,8 @@ if (!titleBackground.includes('verdant-world-scene.webp')) {
   throw new Error(`Generated title scene is not active: ${titleBackground}`)
 }
 
+await page.locator('#world-seed').fill('interaction-3')
+await page.getByText('小地图', { exact: true }).click()
 await page.getByRole('button', { name: /展开这个世界/ }).click()
 await page.locator('canvas[aria-label="Realmseed 像素世界地图"]').waitFor()
 await page.waitForTimeout(800)
@@ -44,6 +46,34 @@ const canvasStats = await canvas.evaluate((element) => {
   return { width: element.width, height: element.height, nonTransparent, sampledUniqueColors: colors.size }
 })
 
+const bubble = page.locator('.talk-bubble').first()
+await bubble.waitFor()
+const bubbleLabel = await bubble.getAttribute('aria-label')
+await bubble.click()
+const interaction = page.locator('.interaction-panel')
+await interaction.waitFor()
+
+const inventory = page.locator('.inventory-item')
+const berriesBefore = Number((await inventory.locator('b').innerText()).replace(/\D/g, ''))
+const goldBefore = Number(await page.locator('.resource-row strong').first().innerText())
+const marketText = await interaction.locator('.market-rate strong').innerText()
+const rate = Number(marketText.match(/\d+/)?.[0])
+if (rate < 8 || rate > 12) throw new Error(`Unexpected berry exchange rate: ${marketText}`)
+
+await interaction.getByRole('button', { name: /花 1 金购买/ }).click()
+const berriesAfter = Number((await inventory.locator('b').innerText()).replace(/\D/g, ''))
+const goldAfter = Number(await page.locator('.resource-row strong').first().innerText())
+if (berriesAfter !== berriesBefore + rate || goldAfter !== goldBefore - 1) {
+  throw new Error(`Trade did not update inventory: ${berriesBefore}/${goldBefore} -> ${berriesAfter}/${goldAfter}, rate ${rate}`)
+}
+await interaction.getByRole('button', { name: /^交谈/ }).click()
+await page.screenshot({ path: '/private/tmp/realmseed-trade-panel.png', fullPage: true })
+
+await page.setViewportSize({ width: 720, height: 1100 })
+await page.waitForTimeout(200)
+if (!(await page.locator('.inventory-panel').isVisible())) throw new Error('Inventory is hidden on the mobile layout')
+await page.screenshot({ path: '/private/tmp/realmseed-trade-mobile.png', fullPage: true })
+
 const requiredAssets = [
   'verdant-generated-preview.png',
   'verdant-generated-terrain.png',
@@ -57,5 +87,10 @@ for (const asset of requiredAssets) {
 }
 if (failures.length) throw new Error(`Browser failures:\n${failures.join('\n')}`)
 
-console.log(JSON.stringify({ titleBackground, canvasStats, assetResponses: responses }, null, 2))
+console.log(JSON.stringify({
+  titleBackground,
+  canvasStats,
+  interaction: { bubbleLabel, marketText, berriesBefore, berriesAfter, goldBefore, goldAfter },
+  assetResponses: responses,
+}, null, 2))
 await browser.close()

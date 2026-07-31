@@ -33,6 +33,14 @@ describe('procedural world', () => {
     expect(foodTiles.every((tile) => tile.terrain !== 'water' && tile.terrain !== 'mountain')).toBe(true)
   })
 
+  it('keeps regional berry abundance near the ten-berries-per-coin economy', () => {
+    const worlds = ['market-a', 'market-b', 'market-c'].map((seed) => createWorld(seed, 'large'))
+    const berries = worlds.flatMap((world) => world.tiles).reduce((sum, tile) => sum + (tile.food ?? 0), 0)
+    const coins = worlds.flatMap((world) => world.tiles).reduce((sum, tile) => sum + tile.coin, 0)
+    expect(berries / coins).toBeGreaterThan(7)
+    expect(berries / coins).toBeLessThan(14)
+  })
+
   it('starts with three fog states available after exploration', () => {
     const state = createGame('fog-check', 'small')
     expect(state.fog.some((level) => level === 2)).toBe(true)

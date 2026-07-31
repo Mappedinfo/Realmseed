@@ -78,13 +78,18 @@ python3 scripts/ingest_generated_assets.py
 
 - Move: `WASD`, arrow keys, direction pad, or click an adjacent tile
 - Talk: gain affection with an adjacent traveler and reputation with their faction
+- Interaction: adjacent people gain a speech bubble; click the bubble or person
+  to open the lower-center dialogue and trade counter
 - Recruit: requires 3 affection and 5 gold
 - Build camp: requires 8 gold
 - Station: turn a follower into a villager at a camp; the village stays lit and
   produces 1 gold each rest
 - Stamina: ordinary movement spends 1 point per 100 steps; combat steps count
   1.5×, and deterministic enemy hits cost only 0 or 1 point
-- Food: seeded pickups are consumed immediately and restore 1–2 stamina
+- Berries: terrain-weighted pickups enter the left inventory; click to consume
+  one berry and restore 1 stamina
+- Trade: each nearby person offers a deterministic daily rate of 8–12 berries
+  per gold, centered on the 10:1 world economy
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world

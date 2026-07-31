@@ -11,13 +11,11 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
         <button onClick={() => dispatch({ type: 'MOVE', direction: 'right' })} aria-label="向右">▶</button>
       </div>
       <div className="action-buttons">
-        <button onClick={() => dispatch({ type: 'TALK' })}><span>✦</span> 交谈</button>
-        <button onClick={() => dispatch({ type: 'RECRUIT' })}><span>♟</span> 招募 <small>5 金</small></button>
         <button onClick={() => dispatch({ type: 'FOUND_CAMP' })}><span>⌂</span> 建营 <small>8 金</small></button>
         <button onClick={() => dispatch({ type: 'STATION_FOLLOWER' })} disabled={followers === 0}><span>⚑</span> 驻守</button>
         <button onClick={() => dispatch({ type: 'REST' })}><span>☾</span> 休息</button>
       </div>
-      <p className="keyboard-hint">移动 100 步消耗 1 体力 · 战斗步数 ×1.5 · 食物自动恢复</p>
+      <p className="keyboard-hint">点击邻近人物的气泡进行交谈或交易 · 移动 100 步消耗 1 体力</p>
     </section>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gameReducer } from './simulation'
+import { berryExchangeRate, gameReducer } from './simulation'
 import { createGame, isPassable } from './world'
 
 function passableDirection(state: ReturnType<typeof createGame>) {
@@ -65,15 +65,49 @@ describe('game simulation', () => {
     expect(next.chronicle[0].text).toContain('自动扎营')
   })
 
-  it('automatically consumes gathered food to restore stamina', () => {
+  it('puts gathered berries into inventory for manual use', () => {
     const state = flatState('food-check')
     state.player.stamina = 5
+    const initialBerries = state.player.berries
     const index = state.player.y * state.world.size + state.player.x + 1
     state.world.tiles[index].food = 2
     const next = gameReducer(state, { type: 'MOVE', direction: 'right' })
-    expect(next.player.stamina).toBe(7)
+    expect(next.player.stamina).toBe(5)
+    expect(next.player.berries).toBe(initialBerries + 2)
     expect(next.world.tiles[index].food).toBe(0)
-    expect(next.chronicle[0].text).toContain('自动恢复 2 点体力')
+    expect(next.chronicle[0].text).toContain('放入左侧物品栏')
+  })
+
+  it('eats one berry to restore one stamina', () => {
+    const state = flatState('eat-berry-check')
+    state.player.stamina = 5
+    state.player.berries = 2
+    const next = gameReducer(state, { type: 'EAT_BERRY' })
+    expect(next.player.stamina).toBe(6)
+    expect(next.player.berries).toBe(1)
+  })
+
+  it('trades berries with an adjacent agent at a deterministic 8–12 rate', () => {
+    const state = flatState('berry-trade-check')
+    const trader = state.agents[0]
+    trader.x = 21
+    trader.y = 20
+    trader.berries = 30
+    trader.gold = 3
+    const rate = berryExchangeRate(state, trader.id)
+    expect(rate).toBeGreaterThanOrEqual(8)
+    expect(rate).toBeLessThanOrEqual(12)
+    expect(berryExchangeRate(state, trader.id)).toBe(rate)
+
+    const bought = gameReducer(state, { type: 'TRADE_BERRIES', agentId: trader.id, direction: 'buy' })
+    expect(bought.player.gold).toBe(state.player.gold - 1)
+    expect(bought.player.berries).toBe(state.player.berries + rate)
+    expect(bought.agents[0].berries).toBe(30 - rate)
+
+    bought.player.berries = rate
+    const sold = gameReducer(bought, { type: 'TRADE_BERRIES', agentId: trader.id, direction: 'sell' })
+    expect(sold.player.gold).toBe(bought.player.gold + 1)
+    expect(sold.player.berries).toBe(0)
   })
 
   it('rest restores stamina', () => {

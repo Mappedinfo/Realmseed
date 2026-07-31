@@ -28,8 +28,15 @@ function distance(a: Position, b: Position): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 }
 
-function nearestAgent(state: GameState): Agent | undefined {
-  return state.agents.find((agent) => agent.role === 'wanderer' && distance(agent, state.player) <= 1)
+function interactableAgent(state: GameState, agentId?: string): Agent | undefined {
+  const candidates = state.agents.filter((agent) => distance(agent, state.player) <= 1)
+  return agentId
+    ? candidates.find((agent) => agent.id === agentId)
+    : candidates.find((agent) => agent.role === 'wanderer') ?? candidates[0]
+}
+
+export function berryExchangeRate(state: Pick<GameState, 'gameId' | 'day'>, agentId: string): number {
+  return 8 + (hashString(`${state.gameId}:berry-market:${state.day}:${agentId}`) % 5)
 }
 
 function followerStep(state: GameState, agent: Agent): Agent {
@@ -111,6 +118,7 @@ function move(state: GameState, direction: Direction): GameState {
   const index = tileIndex(state.world, x, y)
   const tile = tiles[index]
   let gold = state.player.gold
+  let berries = state.player.berries
   let stamina = state.player.stamina
   let maxStamina = state.player.maxStamina
   let fatigue = state.fatigue
@@ -130,13 +138,10 @@ function move(state: GameState, direction: Direction): GameState {
 
   if ((tile.food ?? 0) > 0) {
     const food = tile.food ?? 0
-    const recovered = Math.min(food, maxStamina - stamina)
-    stamina = Math.min(maxStamina, stamina + food)
+    berries += food
     chronicle = log(
       { ...state, chronicle },
-      recovered > 0
-        ? `采到 ${food} 份野外食物，自动恢复 ${recovered} 点体力。`
-        : `采到 ${food} 份野外食物，但体力已经充足。`,
+      `采到 ${food} 枚野果，已经放入左侧物品栏。`,
       'good',
     )
     tile.food = 0
@@ -170,7 +175,7 @@ function move(state: GameState, direction: Direction): GameState {
 
   const next = finishTurn(state, {
     world: { ...state.world, tiles },
-    player: { ...state.player, x, y, gold, stamina, maxStamina },
+    player: { ...state.player, x, y, gold, berries, stamina, maxStamina },
     fatigue,
     combatWins,
     monsters,
@@ -216,9 +221,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       return finishTurn(state, patched)
     }
+    case 'EAT_BERRY': {
+      if (state.player.berries <= 0) {
+        return { ...state, chronicle: log(state, '物品栏里已经没有野果了。', 'danger') }
+      }
+      if (state.player.stamina >= state.player.maxStamina) {
+        return { ...state, chronicle: log(state, '体力充足，先把野果留在行囊里。') }
+      }
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          berries: state.player.berries - 1,
+          stamina: Math.min(state.player.maxStamina, state.player.stamina + 1),
+        },
+        chronicle: log(state, '吃下一枚野果，恢复 1 点体力。', 'good'),
+      }
+    }
     case 'TALK': {
       if (state.player.stamina <= 0) return automaticRest(state)
-      const target = nearestAgent(state)
+      const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '附近没有可以交谈的旅人。') }
       const exertion = addFatigue(state, state.player.stamina, TALK_STEP_COST)
       const agents = state.agents.map((agent) =>
@@ -227,17 +249,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const factions = state.factions.map((faction) =>
         faction.id === target.factionId ? { ...faction, relation: Math.min(100, faction.relation + 5) } : faction,
       )
-      return finishTurn(state, {
+      return {
+        ...state,
         agents,
         factions,
         player: { ...state.player, stamina: exertion.stamina },
         fatigue: exertion.fatigue,
         chronicle: log(state, `你与 ${target.name} 分享了旅途见闻。好感 +1，阵营声望 +5。`, 'good'),
-      })
+      }
     }
     case 'RECRUIT': {
-      const target = nearestAgent(state)
+      const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '附近没有可招募的旅人。') }
+      if (target.role !== 'wanderer') return { ...state, chronicle: log(state, `${target.name} 已经有自己的职责。`) }
       if (target.affection < 3) return { ...state, chronicle: log(state, `${target.name} 还不够信任你（需要 3 点好感）。`, 'danger') }
       if (state.player.gold < 5) return { ...state, chronicle: log(state, '准备行装至少需要 5 金。', 'danger') }
       return {
@@ -245,6 +269,35 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         player: { ...state.player, gold: state.player.gold - 5 },
         agents: state.agents.map((agent) => (agent.id === target.id ? { ...agent, role: 'follower' } : agent)),
         chronicle: log(state, `${target.name} 成为你的第一位随从。探索视野与战力提升。`, 'good'),
+      }
+    }
+    case 'TRADE_BERRIES': {
+      const target = interactableAgent(state, action.agentId)
+      if (!target) return { ...state, chronicle: log(state, '交易对象已经离开身边。', 'danger') }
+      const rate = berryExchangeRate(state, target.id)
+      if (action.direction === 'buy') {
+        if (state.player.gold < 1) return { ...state, chronicle: log(state, '购买野果需要 1 金。', 'danger') }
+        if (target.berries < rate) return { ...state, chronicle: log(state, `${target.name} 的野果存货不足。`, 'danger') }
+        return {
+          ...state,
+          player: { ...state.player, gold: state.player.gold - 1, berries: state.player.berries + rate },
+          agents: state.agents.map((agent) =>
+            agent.id === target.id ? { ...agent, gold: agent.gold + 1, berries: agent.berries - rate } : agent,
+          ),
+          chronicle: log(state, `用 1 金向 ${target.name} 买下 ${rate} 枚野果。`, 'good'),
+        }
+      }
+      if (state.player.berries < rate) {
+        return { ...state, chronicle: log(state, `出售一份需要凑齐 ${rate} 枚野果。`, 'danger') }
+      }
+      if (target.gold < 1) return { ...state, chronicle: log(state, `${target.name} 暂时没有金币收购野果。`, 'danger') }
+      return {
+        ...state,
+        player: { ...state.player, gold: state.player.gold + 1, berries: state.player.berries - rate },
+        agents: state.agents.map((agent) =>
+          agent.id === target.id ? { ...agent, gold: agent.gold - 1, berries: agent.berries + rate } : agent,
+        ),
+        chronicle: log(state, `向 ${target.name} 出售 ${rate} 枚野果，获得 1 金。`, 'good'),
       }
     }
     case 'FOUND_CAMP': {

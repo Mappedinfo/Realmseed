@@ -33,6 +33,7 @@ export interface Agent extends Position {
   stamina: number
   maxStamina: number
   gold: number
+  berries: number
 }
 
 export interface Monster extends Position {
@@ -88,8 +89,10 @@ export type GameAction =
   | { type: 'MOVE'; direction: Direction }
   | { type: 'SELECT'; position: Position }
   | { type: 'REST' }
-  | { type: 'TALK' }
-  | { type: 'RECRUIT' }
+  | { type: 'TALK'; agentId?: string }
+  | { type: 'RECRUIT'; agentId?: string }
+  | { type: 'EAT_BERRY' }
+  | { type: 'TRADE_BERRIES'; agentId: string; direction: 'buy' | 'sell' }
   | { type: 'FOUND_CAMP' }
   | { type: 'STATION_FOLLOWER' }
   | { type: 'PLEDGE_FACTION'; factionId: string }

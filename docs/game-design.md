@@ -67,9 +67,12 @@ Future art packs may replace the procedural primitives, but must preserve the
 
 1. Choose a total seed and per-scene size.
 2. Reveal land by walking; every 100 ordinary steps spend one stamina.
-3. Find coins, food, and ruins, meet travelers, and fight monsters. Food
-   restores stamina immediately; combat steps accumulate fatigue 1.5× faster.
-4. Talk to increase affection and faction reputation.
+3. Find coins, berry patches, and ruins, meet travelers, and fight monsters.
+   Terrain and regional patches make berry abundance uneven; combat steps
+   accumulate fatigue 1.5× faster.
+4. Click the bubble over an adjacent highlighted traveler to talk or trade.
+   Berries enter the left inventory, restore one stamina when eaten, and trade
+   at a deterministic daily rate of 8–12 berries per gold.
 5. Recruit a trusted traveler; follower AI trails the player and contributes
    combat strength and vision.
 6. Build a camp, station a follower as a villager, and create permanent light
@@ -82,8 +85,9 @@ Future art packs may replace the procedural primitives, but must preserve the
 
 | System | Prototype rule | Planned depth |
 |---|---|---|
-| Coins | pickups, recruitment/building costs, taxes, tribute | markets and production chains |
-| Stamina | 100-step cost, 1.5× combat fatigue, 0/1 hit loss, food recovery, exhausted rest to 3 | equipment and biome modifiers |
+| Coins | sparse pickups, berry trading, recruitment/building costs, taxes, tribute | markets and production chains |
+| Inventory | manual berry consumption; person-to-person 8–12:1 exchange | item types, weight, crafting |
+| Stamina | 100-step cost, 1.5× combat fatigue, 0/1 hit loss, berry recovery, exhausted rest to 3 | equipment and biome modifiers |
 | Affection | 0–5 per traveler; 3 enables recruitment | memories, preferences, conflicts |
 | Followers | trail, reveal, fight, or become villagers | gather, guard, scout, craft |
 | Factions | reputation, fealty, oath breaking, vassalage | diplomacy, war, borders |

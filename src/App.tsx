@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from 'react'
 import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
+import { InteractionPanel } from './components/InteractionPanel'
 import { MiniMap } from './components/MiniMap'
 import { SceneTransit } from './components/SceneTransit'
 import { StartScreen } from './components/StartScreen'
@@ -22,12 +23,14 @@ function GameView({
   onNewWorld: () => void
 }) {
   const [state, dispatch] = useReducer(gameReducer, initialState)
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const counts = useMemo(() => visibleCounts(state), [state])
   const followers = state.agents.filter((agent) => agent.role === 'follower')
   const villagers = state.agents.filter((agent) => agent.role === 'villager')
   const overlord = state.factions.find((faction) => faction.id === state.player.factionId)
   const vassals = state.factions.filter((faction) => faction.isVassal)
   const socialRank = overlord ? `${overlord.name}属臣` : vassals.length > 0 ? '独立领主' : '自由旅人'
+  const activeAgent = state.agents.find((agent) => agent.id === activeAgentId)
   const nearest = state.agents
     .filter((agent) => agent.role === 'wanderer')
     .map((agent) => ({ agent, distance: Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) }))
@@ -49,6 +52,12 @@ function GameView({
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  useEffect(() => {
+    if (!activeAgent) return
+    const distance = Math.abs(activeAgent.x - state.player.x) + Math.abs(activeAgent.y - state.player.y)
+    if (distance > 1) setActiveAgentId(null)
+  }, [activeAgent, state.player.x, state.player.y])
 
   return (
     <main className="game-shell">
@@ -95,6 +104,22 @@ function GameView({
             步数 {Math.floor(state.fatigue * 10) / 10}/100 · 战绩 {state.combatWins} · 上限 {state.player.maxStamina}
           </p>
 
+          <div className="panel-section inventory-panel">
+            <h3>物品栏 <span>{state.player.berries}</span></h3>
+            <button
+              className="inventory-item"
+              onClick={() => dispatch({ type: 'EAT_BERRY' })}
+              disabled={state.player.berries <= 0 || state.player.stamina >= state.player.maxStamina}
+              title="食用 1 枚野果，恢复 1 点体力"
+            >
+              <span className="berry-cluster" aria-hidden="true">●</span>
+              <span><strong>野果</strong><small>食用恢复 1 体力</small></span>
+              <b>×{state.player.berries}</b>
+              <em>{state.player.stamina < state.player.maxStamina ? '食用' : '体力充足'}</em>
+            </button>
+            <p className="inventory-rate">各地行情约为 10 果 = 1 金，产量受地形与区域影响。</p>
+          </div>
+
           <div className="panel-section">
             <h3>同行者 <span>{followers.length}</span></h3>
             {followers.length === 0 ? <p className="empty-copy">与旅人建立 3 点好感后可招募。</p> : followers.map((agent) => <p className="person-row" key={agent.id}>♟ {agent.name}</p>)}
@@ -112,7 +137,22 @@ function GameView({
         </aside>
 
         <section className="map-column">
-          <WorldCanvas state={state} theme={theme} onSelect={(position) => dispatch({ type: 'SELECT', position })} />
+          <WorldCanvas
+            state={state}
+            theme={theme}
+            activeAgentId={activeAgentId}
+            onAgentClick={setActiveAgentId}
+            onSelect={(position) => dispatch({ type: 'SELECT', position })}
+          />
+          {activeAgent ? (
+            <InteractionPanel
+              state={state}
+              target={activeAgent}
+              faction={state.factions.find((faction) => faction.id === activeAgent.factionId)}
+              dispatch={dispatch}
+              onClose={() => setActiveAgentId(null)}
+            />
+          ) : null}
           <ActionDock state={state} dispatch={dispatch} />
         </section>
 

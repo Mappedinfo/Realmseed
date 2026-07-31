@@ -127,7 +127,17 @@ function drawPerson(
   color: string,
   isPlayer = false,
   role: 'wanderer' | 'villager' | 'follower' = 'wanderer',
+  active = false,
 ) {
+  context.save()
+  const outline = isPlayer ? '#ffe676' : active ? '#ffffff' : color
+  context.filter = [
+    `drop-shadow(1px 0 0 ${outline})`,
+    `drop-shadow(-1px 0 0 ${outline})`,
+    `drop-shadow(0 1px 0 ${outline})`,
+    `drop-shadow(0 -1px 0 ${outline})`,
+    'drop-shadow(1px 1px 0 rgba(5, 10, 7, .9))',
+  ].join(' ')
   if (generatedCharacters) {
     const id = isPlayer ? 'player' : role
     drawGeneratedCell(context, generatedCharacters, generatedCharacterIndex[id], x, y)
@@ -139,6 +149,7 @@ function drawPerson(
       context.lineWidth = 1
       context.strokeRect(x + 2.5, y + 1.5, 27, 29)
     }
+    context.restore()
     return
   }
   if (atlas) {
@@ -152,6 +163,7 @@ function drawPerson(
       context.lineWidth = 1
       context.strokeRect(x + 4.5, y + 1.5, 23, 29)
     }
+    context.restore()
     return
   }
   const ox = x + 10
@@ -168,6 +180,7 @@ function drawPerson(
     context.lineWidth = 1
     context.strokeRect(ox - 2, oy - 4, 16, 30)
   }
+  context.restore()
 }
 
 function drawMonster(
@@ -248,10 +261,12 @@ function drawStructure(
 interface WorldCanvasProps {
   state: GameState
   theme: ArtTheme
+  activeAgentId: string | null
+  onAgentClick: (agentId: string) => void
   onSelect: (position: Position) => void
 }
 
-export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
+export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const atlasRef = useRef<HTMLImageElement | null>(null)
   const generatedTerrainRef = useRef<HTMLImageElement | null>(null)
@@ -348,7 +363,17 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
           if (agent) {
             const color = state.factions.find((faction) => faction.id === agent.factionId)?.color ?? '#eee'
             const role = agent.role === 'villager' || agent.role === 'follower' ? agent.role : 'wanderer'
-            drawPerson(context, atlasRef.current, generatedCharactersRef.current, screenX, screenY, color, false, role)
+            drawPerson(
+              context,
+              atlasRef.current,
+              generatedCharactersRef.current,
+              screenX,
+              screenY,
+              color,
+              false,
+              role,
+              agent.id === activeAgentId,
+            )
           }
         }
 
@@ -372,7 +397,7 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
       context.lineWidth = 2
       context.strokeRect(sx + 2, sy + 2, TILE - 4, TILE - 4)
     }
-  }, [assetRevision, origin.x, origin.y, state])
+  }, [activeAgentId, assetRevision, origin.x, origin.y, state])
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -381,9 +406,23 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
       const scaleY = event.currentTarget.height / rect.height
       const x = origin.x + Math.floor(((event.clientX - rect.left) * scaleX) / TILE)
       const y = origin.y + Math.floor(((event.clientY - rect.top) * scaleY) / TILE)
-      if (x >= 0 && y >= 0 && x < state.world.size && y < state.world.size) onSelect({ x, y })
+      if (x >= 0 && y >= 0 && x < state.world.size && y < state.world.size) {
+        const agent = state.agents.find((item) => item.x === x && item.y === y)
+        const canInteract = agent && Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1
+        if (agent && canInteract) onAgentClick(agent.id)
+        else onSelect({ x, y })
+      }
     },
-    [onSelect, origin.x, origin.y, state.world.size],
+    [onAgentClick, onSelect, origin.x, origin.y, state.agents, state.player.x, state.player.y, state.world.size],
+  )
+
+  const nearbyAgents = state.agents.filter(
+    (agent) =>
+      Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1 &&
+      agent.x >= origin.x &&
+      agent.x < origin.x + VIEW_COLS &&
+      agent.y >= origin.y &&
+      agent.y < origin.y + VIEW_ROWS,
   )
 
   return (
@@ -397,6 +436,22 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
         aria-label="Realmseed 像素世界地图"
       />
       <div className="scanlines" aria-hidden="true" />
+      {nearbyAgents.map((agent) => {
+        const left = (((agent.x - origin.x) * TILE + TILE / 2) / (VIEW_COLS * TILE)) * 100
+        const top = (((agent.y - origin.y) * TILE + 5) / (VIEW_ROWS * TILE)) * 100
+        return (
+          <button
+            key={agent.id}
+            className={`talk-bubble ${agent.id === activeAgentId ? 'is-active' : ''}`}
+            style={{ left: `${left}%`, top: `${top}%` }}
+            onClick={() => onAgentClick(agent.id)}
+            aria-label={`与 ${agent.name} 交谈或交易`}
+            title={`与 ${agent.name} 交谈或交易`}
+          >
+            <span>…</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

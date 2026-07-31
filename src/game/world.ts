@@ -100,12 +100,23 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
     for (let x = 0; x < size; x += 1) {
       const terrain = terrainAt(sceneSeed, x, y, size)
       const traversable = terrain !== 'water' && terrain !== 'mountain'
-      const roll = random()
+      const berryBaseChance: Record<Terrain, number> = {
+        meadow: 0.045,
+        forest: 0.072,
+        marsh: 0.058,
+        sand: 0.018,
+        water: 0,
+        mountain: 0,
+      }
+      const berryPatch = 0.7 + valueNoise(`${sceneSeed}:berry-patch`, x, y, 9) * 0.6
+      const berryRoll = random()
+      const coinRoll = random()
+      const structureRoll = random()
       tiles.push({
         terrain,
-        coin: traversable && roll > 0.946 ? 1 + Math.floor(random() * 4) : 0,
-        food: traversable && roll >= 0.012 && roll < 0.03 ? 1 + Math.floor(random() * 2) : 0,
-        structure: traversable && roll < 0.009 ? 'ruin' : undefined,
+        coin: traversable && coinRoll < 0.009 ? 1 : 0,
+        food: traversable && berryRoll < berryBaseChance[terrain] * berryPatch ? 1 + Math.floor(random() * 3) : 0,
+        structure: traversable && structureRoll < 0.009 ? 'ruin' : undefined,
       })
     }
   }
@@ -179,6 +190,7 @@ export function createScene(
     stamina: 7,
     maxStamina: 7,
     gold: 2 + Math.floor(random() * 8),
+    berries: 8 + Math.floor(random() * 24),
   }))
   const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
     id: `monster-${sceneId}-${index}`,
@@ -226,6 +238,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     stamina: 12,
     maxStamina: 12,
     gold: 7,
+    berries: 4,
   }
   const fog = new Array<FogLevel>(world.tiles.length).fill(0)
   const initial: GameState = {
