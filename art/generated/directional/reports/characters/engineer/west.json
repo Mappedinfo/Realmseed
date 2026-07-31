@@ -1,0 +1,37 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/engineer/west.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/engineer/west.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/engineer/west.png",
+  "source_size": [
+    133,
+    129
+  ],
+  "foreground_bbox": [
+    23,
+    6,
+    111,
+    120
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "auto",
+  "key_color": [
+    25,
+    184,
+    19
+  ],
+  "foreground_pixels": 378,
+  "transparent_pixels": 646,
+  "alpha_values": [
+    0,
+    255
+  ],
+  "postprocess": {
+    "horizontal_flip": true
+  }
+}

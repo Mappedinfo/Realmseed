@@ -5,6 +5,7 @@ import {
   atlasUrl,
   directionalCharactersUrl,
   directionalMonstersUrl,
+  directionalRoleIndex,
   directionalRow,
   spriteIndex,
   type ArtTheme,
@@ -41,6 +42,18 @@ describe('pixel art contract', () => {
     expect(directionalManifest.postprocess.horizontal_flip).toEqual({
       characters: ['west'],
       monsters: [],
+    })
+    expect(directionalManifest.runtime_layout.columns.characters).toHaveLength(16)
+    expect(directionalManifest.preview_outputs.new_roles_characters).toMatch(/new-roles-characters\.png$/)
+    expect(directionalRoleIndex).toEqual({
+      explorer: 8,
+      swordsman: 9,
+      mystic: 10,
+      priest: 11,
+      ranger: 12,
+      engineer: 13,
+      'caravan-merchant': 14,
+      bard: 15,
     })
   })
 })

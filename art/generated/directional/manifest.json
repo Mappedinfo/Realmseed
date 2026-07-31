@@ -4,6 +4,90 @@
     "rows": 4,
     "columns": 4
   },
+  "source_sheets": [
+    {
+      "group": "characters",
+      "file": "ChatGPT Image 2026年7月31日 13_38_46 (1).png",
+      "names": [
+        "traveler",
+        "keeper",
+        "farmer",
+        "scout"
+      ],
+      "grid_area": null,
+      "key_mode": "white"
+    },
+    {
+      "group": "characters",
+      "file": "ChatGPT Image 2026年7月31日 13_38_46 (2).png",
+      "names": [
+        "merchant",
+        "healer",
+        "guard",
+        "scholar"
+      ],
+      "grid_area": null,
+      "key_mode": "white"
+    },
+    {
+      "group": "monsters",
+      "file": "ChatGPT Image 2026年7月31日 13_38_48 (3).png",
+      "names": [
+        "slime",
+        "boar",
+        "wisp",
+        "rock-crab"
+      ],
+      "grid_area": null,
+      "key_mode": "white"
+    },
+    {
+      "group": "monsters",
+      "file": "ChatGPT Image 2026年7月31日 13_38_48 (4).png",
+      "names": [
+        "marsh-crawler",
+        "ember-moth",
+        "moon-jelly",
+        "seed-guardian"
+      ],
+      "grid_area": null,
+      "key_mode": "white"
+    },
+    {
+      "group": "characters",
+      "file": "new-roles-characters-monsters-2026-07-31.png",
+      "names": [
+        "explorer",
+        "swordsman",
+        "mystic",
+        "priest"
+      ],
+      "grid_area": [
+        116,
+        84,
+        638,
+        600
+      ],
+      "key_mode": "auto"
+    },
+    {
+      "group": "characters",
+      "file": "new-roles-characters-monsters-2026-07-31.png",
+      "names": [
+        "ranger",
+        "engineer",
+        "caravan-merchant",
+        "bard"
+      ],
+      "grid_area": [
+        762,
+        84,
+        1292,
+        600
+      ],
+      "key_mode": "auto"
+    }
+  ],
   "source_column_order": [
     "south",
     "north",
@@ -21,7 +105,15 @@
         "merchant",
         "healer",
         "guard",
-        "scholar"
+        "scholar",
+        "explorer",
+        "swordsman",
+        "mystic",
+        "priest",
+        "ranger",
+        "engineer",
+        "caravan-merchant",
+        "bard"
       ],
       "monsters": [
         "slime",
@@ -44,6 +136,9 @@
   "runtime_outputs": {
     "characters": "public/assets/art/verdant-directional-characters.png",
     "monsters": "public/assets/art/verdant-directional-monsters.png"
+  },
+  "preview_outputs": {
+    "new_roles_characters": "art/generated/directional/previews/new-roles-characters.png"
   },
   "postprocess": {
     "horizontal_flip": {

@@ -1,0 +1,37 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/bard/west.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/bard/west.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/bard/west.png",
+  "source_size": [
+    133,
+    129
+  ],
+  "foreground_bbox": [
+    21,
+    4,
+    111,
+    119
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "auto",
+  "key_color": [
+    26,
+    186,
+    19
+  ],
+  "foreground_pixels": 380,
+  "transparent_pixels": 644,
+  "alpha_values": [
+    0,
+    255
+  ],
+  "postprocess": {
+    "horizontal_flip": true
+  }
+}

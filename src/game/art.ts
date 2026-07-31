@@ -112,6 +112,19 @@ export const directionalCharacterIndex = {
   follower: 1,
 } as const
 
+// Newly ingested role art is kept addressable without changing the four
+// currently simulated world roles. Future NPC jobs can opt into these columns.
+export const directionalRoleIndex = {
+  explorer: 8,
+  swordsman: 9,
+  mystic: 10,
+  priest: 11,
+  ranger: 12,
+  engineer: 13,
+  'caravan-merchant': 14,
+  bard: 15,
+} as const
+
 export const directionalMonsterIndex = {
   slime: 0,
   boar: 1,

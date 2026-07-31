@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/mystic/south.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/mystic/south.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/mystic/south.png",
+  "source_size": [
+    130,
+    129
+  ],
+  "foreground_bbox": [
+    0,
+    2,
+    105,
+    129
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "auto",
+  "key_color": [
+    26,
+    185,
+    20
+  ],
+  "foreground_pixels": 355,
+  "transparent_pixels": 669,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build four-direction Realmseed character and monster atlases.
 
-The four user-provided 4x4 sheets are preserved in
-art/generated/directional/raw. Each source row is one identity and the source
-columns are south, north, west, east.
+The user-provided sheets are preserved in art/generated/directional/raw. Most
+sources are strict 4x4 sheets. The 2026-07-31 combined role/monster board has
+titles and row labels, so its two character panels declare explicit grid areas.
+Each extracted source row is one identity and the columns are south/front,
+north/back, west/left, east/right.
 """
 
 from __future__ import annotations
@@ -55,6 +57,22 @@ SHEETS = [
         "names": ["marsh-crawler", "ember-moth", "moon-jelly", "seed-guardian"],
         "colors": 30,
     },
+    {
+        "group": "characters",
+        "file": "new-roles-characters-monsters-2026-07-31.png",
+        "names": ["explorer", "swordsman", "mystic", "priest"],
+        "colors": 30,
+        "grid_area": (116, 84, 638, 600),
+        "key_mode": "auto",
+    },
+    {
+        "group": "characters",
+        "file": "new-roles-characters-monsters-2026-07-31.png",
+        "names": ["ranger", "engineer", "caravan-merchant", "bard"],
+        "colors": 30,
+        "grid_area": (762, 84, 1292, 600),
+        "key_mode": "auto",
+    },
 ]
 
 
@@ -79,6 +97,8 @@ def main() -> None:
     processed: dict[tuple[str, str, str], Path] = {}
     for spec in SHEETS:
         source = Image.open(RAW / spec["file"]).convert("RGBA")
+        if spec.get("grid_area"):
+            source = source.crop(spec["grid_area"])
         names_by_group[spec["group"]].extend(spec["names"])
         for row, name in enumerate(spec["names"]):
             for column, direction in enumerate(DIRECTIONS):
@@ -97,7 +117,7 @@ def main() -> None:
                     grid=(32, 32),
                     scale=8,
                     colors=spec["colors"],
-                    key_mode="white",
+                    key_mode=spec.get("key_mode", "white"),
                     source_padding=4,
                     logical_padding=1,
                     transparent_threshold=14,
@@ -119,8 +139,9 @@ def main() -> None:
                 processed[(spec["group"], name, direction)] = logical
 
     runtime: dict[str, str] = {}
+    previews: dict[str, str] = {}
     for group, names in names_by_group.items():
-        atlas = Image.new("RGBA", (8 * 32, 4 * 32), (0, 0, 0, 0))
+        atlas = Image.new("RGBA", (len(names) * 32, 4 * 32), (0, 0, 0, 0))
         for column, name in enumerate(names):
             for row, direction in enumerate(DIRECTIONS):
                 sprite = Image.open(processed[(group, name, direction)]).convert("RGBA")
@@ -131,11 +152,29 @@ def main() -> None:
             PREVIEWS / f"verdant-directional-{group}.png",
             optimize=True,
         )
+        if group == "characters" and len(names) > 8:
+            new_roles = atlas.crop((8 * 32, 0, len(names) * 32, atlas.height))
+            new_roles_preview = PREVIEWS / "new-roles-characters.png"
+            new_roles.resize(
+                (new_roles.width * 4, new_roles.height * 4),
+                Image.Resampling.NEAREST,
+            ).save(new_roles_preview, optimize=True)
+            previews["new_roles_characters"] = str(new_roles_preview.relative_to(ROOT))
         runtime[group] = str(output.relative_to(ROOT))
 
     manifest = {
         "source_directory": str(RAW.relative_to(ROOT)),
         "source_grid": {"rows": 4, "columns": 4},
+        "source_sheets": [
+            {
+                "group": spec["group"],
+                "file": spec["file"],
+                "names": spec["names"],
+                "grid_area": spec.get("grid_area"),
+                "key_mode": spec.get("key_mode", "white"),
+            }
+            for spec in SHEETS
+        ],
         "source_column_order": DIRECTIONS,
         "runtime_layout": {
             "cell": 32,
@@ -143,6 +182,7 @@ def main() -> None:
             "rows": DIRECTIONS,
         },
         "runtime_outputs": runtime,
+        "preview_outputs": previews,
         "postprocess": {
             "horizontal_flip": {
                 "characters": ["west"],

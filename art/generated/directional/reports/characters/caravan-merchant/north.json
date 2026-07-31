@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/caravan-merchant/north.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/caravan-merchant/north.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/caravan-merchant/north.png",
+  "source_size": [
+    133,
+    129
+  ],
+  "foreground_bbox": [
+    17,
+    10,
+    102,
+    120
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "auto",
+  "key_color": [
+    25,
+    185,
+    19
+  ],
+  "foreground_pixels": 418,
+  "transparent_pixels": 606,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/swordsman/south.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/swordsman/south.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/swordsman/south.png",
+  "source_size": [
+    130,
+    129
+  ],
+  "foreground_bbox": [
+    18,
+    6,
+    103,
+    129
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "auto",
+  "key_color": [
+    26,
+    184,
+    19
+  ],
+  "foreground_pixels": 343,
+  "transparent_pixels": 681,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

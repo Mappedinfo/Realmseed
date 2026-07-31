@@ -1,0 +1,37 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/priest/west.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/priest/west.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/priest/west.png",
+  "source_size": [
+    131,
+    129
+  ],
+  "foreground_bbox": [
+    26,
+    8,
+    93,
+    120
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "auto",
+  "key_color": [
+    26,
+    186,
+    20
+  ],
+  "foreground_pixels": 336,
+  "transparent_pixels": 688,
+  "alpha_values": [
+    0,
+    255
+  ],
+  "postprocess": {
+    "horizontal_flip": true
+  }
+}
