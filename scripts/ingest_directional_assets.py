@@ -26,6 +26,10 @@ REPORTS = BASE / "reports"
 PUBLIC = ROOT / "public/assets/art"
 
 DIRECTIONS = ["south", "north", "west", "east"]
+# GPT Image produced the character "west" column facing screen-right. Keep the
+# immutable source crop, then normalize only that derived output by mirroring it.
+# Monster west/east columns are already correct and must not be flipped.
+HORIZONTAL_FLIP_OUTPUTS = {("characters", "west")}
 SHEETS = [
     {
         "group": "characters",
@@ -102,6 +106,16 @@ def main() -> None:
                     contrast=1.06,
                     despill=True,
                 )
+                if (spec["group"], direction) in HORIZONTAL_FLIP_OUTPUTS:
+                    for output_path in (logical, preview):
+                        image = Image.open(output_path).convert("RGBA")
+                        image.transpose(Image.Transpose.FLIP_LEFT_RIGHT).save(output_path, optimize=True)
+                    report_data = json.loads(report.read_text(encoding="utf-8"))
+                    report_data["postprocess"] = {"horizontal_flip": True}
+                    report.write_text(
+                        json.dumps(report_data, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
                 processed[(spec["group"], name, direction)] = logical
 
     runtime: dict[str, str] = {}
@@ -129,6 +143,12 @@ def main() -> None:
             "rows": DIRECTIONS,
         },
         "runtime_outputs": runtime,
+        "postprocess": {
+            "horizontal_flip": {
+                "characters": ["west"],
+                "monsters": [],
+            },
+        },
         "policy": {
             "raw_sources_are_immutable": True,
             "white_background_is_removed": True,

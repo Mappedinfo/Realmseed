@@ -30,6 +30,9 @@ references to a specific commercial game.
   **256×128 px**; generated character atlas: **256×32 px**.
 - Four-direction character and monster atlases: **256×128 px**, eight
   identities across columns and south/north/west/east across rows.
+- Character `west` source poses are normalized with a horizontal flip after
+  extraction because the generated source faces screen-right. Raw cells remain
+  immutable, and monster directions are not flipped.
 - Palette caps: **64 colors** per generated terrain tile and **24–32 colors**
   per generated sprite.
 - No runtime smoothing, sub-pixel placement, blur, or CSS filtering.

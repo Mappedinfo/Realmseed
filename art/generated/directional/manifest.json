@@ -45,6 +45,14 @@
     "characters": "public/assets/art/verdant-directional-characters.png",
     "monsters": "public/assets/art/verdant-directional-monsters.png"
   },
+  "postprocess": {
+    "horizontal_flip": {
+      "characters": [
+        "west"
+      ],
+      "monsters": []
+    }
+  },
   "policy": {
     "raw_sources_are_immutable": true,
     "white_background_is_removed": true,

@@ -9,6 +9,7 @@ import {
   spriteIndex,
   type ArtTheme,
 } from './art'
+import directionalManifest from '../../art/generated/directional/manifest.json'
 
 describe('pixel art contract', () => {
   it('keeps every sprite in a unique atlas cell', () => {
@@ -37,5 +38,9 @@ describe('pixel art contract', () => {
     expect(directionalCharactersUrl()).toMatch(/verdant-directional-characters\.png$/)
     expect(directionalMonstersUrl()).toMatch(/verdant-directional-monsters\.png$/)
     expect(directionalRow).toEqual({ down: 0, up: 1, left: 2, right: 3 })
+    expect(directionalManifest.postprocess.horizontal_flip).toEqual({
+      characters: ['west'],
+      monsters: [],
+    })
   })
 })

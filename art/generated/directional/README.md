@@ -17,6 +17,11 @@ background, converts each subject to a palette-limited transparent 32×32
 sprite, and packs two runtime atlases. Runtime atlas columns are identities and
 rows are directions. `manifest.json` is the authoritative layout contract.
 
+The generated character sheets contain a screen-right-facing pose in the
+source `west` column. The ingestion pipeline preserves the immutable source
+crop and horizontally mirrors only the derived character `west` sprites.
+Monster left/right source poses are already correct and are not mirrored.
+
 The source drawings are direction references rather than final animation
 frames. Movement animation currently comes from whole-pixel bobbing; later
 walk-cycle sheets can extend each direction without changing game state.

@@ -30,5 +30,8 @@
   "alpha_values": [
     0,
     255
-  ]
+  ],
+  "postprocess": {
+    "horizontal_flip": true
+  }
 }
