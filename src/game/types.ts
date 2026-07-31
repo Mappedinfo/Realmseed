@@ -2,7 +2,8 @@ export type Terrain = 'meadow' | 'forest' | 'water' | 'mountain' | 'marsh' | 'sa
 export type FogLevel = 0 | 1 | 2
 export type MapSize = 'small' | 'large'
 export type Structure = 'camp' | 'village' | 'ruin' | 'waystone' | 'camp-building'
-export type CampBuildingKind = 'house' | 'watchtower' | 'market'
+export type CampBuildingKind = 'house' | 'farm' | 'watchtower' | 'market' | 'workshop' | 'shrine'
+export type AgentSkillId = 'scout' | 'forager' | 'guard' | 'medic' | 'trader' | 'duelist'
 export type BattleMode = 'duel' | 'field'
 export type AttackRange = 'melee' | 'ranged'
 export type DamageKind = 'physical' | 'magic' | 'firearm' | 'explosive'
@@ -51,6 +52,10 @@ export interface Agent extends Position {
   berries: number
   facing?: Direction
   homeCampId?: string
+  skill: AgentSkillId
+  skillLevel: 1 | 2 | 3
+  lastChallengeDay?: number
+  challengeWon?: boolean
 }
 
 export interface Camp extends Position {
@@ -59,8 +64,11 @@ export interface Camp extends Position {
   sceneX: number
   sceneY: number
   population: number
+  housing: number
   defense: number
   economy: number
+  food: number
+  morale: number
   controlRadius: number
   buildings: { x: number; y: number; kind: CampBuildingKind }[]
 }
@@ -137,6 +145,7 @@ export interface GameState {
   camps: Camp[]
   constructionSteps: number
   buildingCredits: number
+  challengeMarks: Record<AgentSkillId, number>
   gameId: string
 }
 
@@ -147,6 +156,7 @@ export type GameAction =
   | { type: 'SELECT'; position: Position }
   | { type: 'REST' }
   | { type: 'TALK'; agentId?: string }
+  | { type: 'CHALLENGE_AGENT'; agentId: string }
   | { type: 'RECRUIT'; agentId?: string }
   | { type: 'EAT_BERRY' }
   | { type: 'TRADE_BERRIES'; agentId: string; direction: 'buy' | 'sell' }

@@ -1,7 +1,9 @@
-import type { Agent, Camp, CampBuildingKind, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
+import type { Agent, Camp, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, equipmentDefense, equipmentPower } from './combat'
+import { buildingCount, campBuildingDefinitions, campDailyYield, campRestRecovery } from './camps'
 import { isWithinInteractionRange } from './geometry'
+import { agentSkills, challengeChance, partyBonuses } from './skills'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 
 export const STEPS_PER_STAMINA = 100
@@ -132,8 +134,16 @@ function interactableAgent(state: GameState, agentId?: string): Agent | undefine
     : candidates.find((agent) => agent.role === 'wanderer') ?? candidates[0]
 }
 
-export function berryExchangeRate(state: Pick<GameState, 'gameId' | 'day'>, agentId: string): number {
-  return 8 + (hashString(`${state.gameId}:berry-market:${state.day}:${agentId}`) % 5)
+export function berryExchangeRate(
+  state: Pick<GameState, 'gameId' | 'day'> & Partial<Pick<GameState, 'agents'>>,
+  agentId: string,
+  direction?: 'buy' | 'sell',
+): number {
+  const base = 8 + (hashString(`${state.gameId}:berry-market:${state.day}:${agentId}`) % 5)
+  const bonus = state.agents ? partyBonuses(state.agents).tradeRate : 0
+  if (direction === 'buy') return base + bonus
+  if (direction === 'sell') return Math.max(6, base - bonus)
+  return base
 }
 
 function followerStep(state: GameState, agent: Agent): Agent {
@@ -228,7 +238,9 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   if (revealed.battle || revealed.player.stamina <= 0) return revealed
   const attacker = revealed.monsters.find((monster) => {
     if ((monster.alert ?? 0) <= 0 || distance(monster, revealed.player) > 1) return false
-    return hashString(`${revealed.gameId}:ambush:${revealed.day}:${monster.id}`) % 100 < MONSTER_AMBUSH_PERCENT
+    const localDefense = campAt(revealed, revealed.player)?.defense ?? 0
+    const ambushChance = Math.max(8, MONSTER_AMBUSH_PERCENT - localDefense * 4)
+    return hashString(`${revealed.gameId}:ambush:${revealed.day}:${monster.id}`) % 100 < ambushChance
   })
   return attacker
     ? beginBattle(revealed, attacker, `${monsterName(attacker.species)}逼近并发起攻击！`)
@@ -249,13 +261,18 @@ function addFatigue(
 }
 
 function automaticRest(state: GameState): GameState {
+  const localCamp = campAt(state, state.player)
+  const recovery = Math.min(
+    state.player.maxStamina,
+    campRestRecovery(localCamp) + partyBonuses(state.agents).recovery,
+  )
   return finishTurn(state, {
     player: {
       ...state.player,
-      stamina: Math.min(EXHAUSTED_REST_RECOVERY, state.player.maxStamina),
+      stamina: recovery,
     },
     fatigue: 0,
-    chronicle: log(state, `体力归零，队伍自动扎营休整，恢复到 ${Math.min(EXHAUSTED_REST_RECOVERY, state.player.maxStamina)} 点体力。`, 'good'),
+    chronicle: log(state, `体力归零，队伍自动扎营休整，恢复到 ${recovery} 点体力。`, 'good'),
   })
 }
 
@@ -311,7 +328,7 @@ function move(state: GameState, direction: Direction): GameState {
   }
 
   if ((tile.food ?? 0) > 0) {
-    const food = tile.food ?? 0
+    const food = (tile.food ?? 0) + partyBonuses(state.agents).forage
     berries += food
     chronicle = log(
       { ...state, chronicle },
@@ -358,25 +375,34 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'REST': {
       if (state.battle) return { ...state, chronicle: log(state, '战斗中无法扎营休息。', 'danger') }
-      const villageIncome = Math.max(
-        state.agents.filter((agent) => agent.role === 'villager').length,
-        state.camps.reduce((sum, camp) => sum + camp.economy, 0),
+      const settlementYield = state.camps.reduce(
+        (total, camp) => {
+          const daily = campDailyYield(camp)
+          return { gold: total.gold + daily.gold, berries: total.berries + daily.berries }
+        },
+        { gold: 0, berries: 0 },
       )
       const vassalIncome = state.factions.filter((faction) => faction.isVassal).length * 2
-      const goldIncome = villageIncome + vassalIncome
+      const goldIncome = settlementYield.gold + vassalIncome
+      const localCamp = campAt(state, state.player)
+      const exhaustedRecovery = Math.min(
+        state.player.maxStamina,
+        campRestRecovery(localCamp) + partyBonuses(state.agents).recovery,
+      )
       const patched = {
         player: {
           ...state.player,
           stamina: state.player.stamina <= 0
-            ? Math.min(EXHAUSTED_REST_RECOVERY, state.player.maxStamina)
+            ? exhaustedRecovery
             : state.player.maxStamina,
           gold: state.player.gold + goldIncome,
+          berries: state.player.berries + settlementYield.berries,
         },
         fatigue: 0,
         chronicle: log(
           state,
-          goldIncome > 0
-            ? `营地度过一夜。村庄税收 ${villageIncome} 金，附属贡金 ${vassalIncome} 金。`
+          goldIncome > 0 || settlementYield.berries > 0
+            ? `领地结算：营地收入 ${settlementYield.gold} 金、食物盈余 ${settlementYield.berries} 果，附属贡金 ${vassalIncome} 金。`
             : '篝火熄灭前，体力已经恢复。',
           'good',
         ),
@@ -425,8 +451,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.player.stamina < move.staminaCost) {
         return { ...state, chronicle: log(state, `${move.name}需要 ${move.staminaCost} 点体力。`, 'danger') }
       }
-      const followerBonus = Math.min(2, state.agents.filter((agent) => agent.role === 'follower').length)
-      const damage = move.power + equipmentPower(state.equipment, move.kind) + followerBonus
+      const bonuses = partyBonuses(state.agents)
+      const localCamp = campAt(state, state.player)
+      const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
+      const damage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
       const remainingHp = Math.max(0, monster.hp - damage)
       const exertion = addFatigue(
         state,
@@ -456,7 +484,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       const rawHit = hashString(`${state.gameId}:counter:${state.day}:${monster.id}:${state.battle.round}`) % 2
       const blockRoll = hashString(`${state.gameId}:block:${state.day}:${monster.id}:${state.battle.round}`) % 100
-      const blocked = rawHit > 0 && blockRoll < equipmentDefense(state.equipment) * 20
+      const blocked = rawHit > 0 && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
       const hit = blocked ? 0 : rawHit
       const stamina = Math.max(0, exertion.stamina - hit)
       return {
@@ -509,6 +537,59 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         chronicle: log(state, `你与 ${target.name} 分享了旅途见闻。好感 +1，阵营声望 +5。`, 'good'),
       }
     }
+    case 'CHALLENGE_AGENT': {
+      if (state.battle) return { ...state, chronicle: log(state, '战斗中无法进行友好切磋。', 'danger') }
+      const target = interactableAgent(state, action.agentId)
+      if (!target || target.role !== 'wanderer') {
+        return { ...state, chronicle: log(state, '挑战对象已经离开，或不再是自由旅人。', 'danger') }
+      }
+      if (target.lastChallengeDay === state.day) {
+        return { ...state, chronicle: log(state, `${target.name} 今天已经接受过你的挑战。`) }
+      }
+      if (target.challengeWon) {
+        return { ...state, chronicle: log(state, `${target.name} 已经认可你通过了这项试炼。`) }
+      }
+      if (state.player.stamina <= 0) return automaticRest(state)
+      const chance = challengeChance(state, target)
+      const roll = hashString(`${state.gameId}:challenge:${state.day}:${target.id}`) % 100
+      const success = roll < chance
+      const definition = agentSkills[target.skill]
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          stamina: Math.max(0, state.player.stamina - 1),
+          gold: state.player.gold + (success ? target.skillLevel : 0),
+          facing: facingToward(state.player, target),
+        },
+        agents: state.agents.map((agent) =>
+          agent.id === target.id
+            ? {
+                ...agent,
+                affection: Math.min(5, agent.affection + (success ? 2 : 0)),
+                lastChallengeDay: state.day,
+                challengeWon: agent.challengeWon || success,
+                facing: facingToward(agent, state.player),
+              }
+            : agent,
+        ),
+        factions: state.factions.map((faction) =>
+          faction.id === target.factionId && success
+            ? { ...faction, relation: Math.min(100, faction.relation + 8) }
+            : faction,
+        ),
+        challengeMarks: success
+          ? { ...state.challengeMarks, [target.skill]: state.challengeMarks[target.skill] + 1 }
+          : state.challengeMarks,
+        chronicle: log(
+          state,
+          success
+            ? `${definition.challenge}获胜！${target.name}认可你的本领：好感 +2、${definition.name}印记 +1、获得 ${target.skillLevel} 金。`
+            : `${definition.challenge}未能通过。${target.name}建议你积累战绩与专精后再来。`,
+          success ? 'good' : 'danger',
+        ),
+      }
+    }
     case 'RECRUIT': {
       const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '附近没有可招募的旅人。') }
@@ -525,7 +606,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'TRADE_BERRIES': {
       const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '交易对象已经离开身边。', 'danger') }
-      const rate = berryExchangeRate(state, target.id)
+      const rate = berryExchangeRate(state, target.id, action.direction)
       if (action.direction === 'buy') {
         if (state.player.gold < 1) return { ...state, chronicle: log(state, '购买野果需要 1 金。', 'danger') }
         if (target.berries < rate) return { ...state, chronicle: log(state, `${target.name} 的野果存货不足。`, 'danger') }
@@ -564,8 +645,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         sceneX: state.world.sceneX,
         sceneY: state.world.sceneY,
         population: 1,
+        housing: 3,
         defense: 1,
         economy: 1,
+        food: 2,
+        morale: 3,
         controlRadius: 3,
         buildings: [],
       }
@@ -592,6 +676,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!follower) return { ...state, chronicle: log(state, '你还没有可以驻守的随从。', 'danger') }
       if (tile.structure !== 'camp') return { ...state, chronicle: log(state, '随从只能在已建立的营地驻守。', 'danger') }
       const camp = state.camps.find((item) => item.id === tile.campId)
+      if (!camp) return state
+      if (camp.population >= camp.housing) {
+        return { ...state, chronicle: log(state, `${camp.name}没有空余床位，请先修建旅人居所。`, 'danger') }
+      }
+      const stationGain: Record<Agent['skill'], Partial<Pick<Camp, 'defense' | 'economy' | 'food' | 'morale' | 'controlRadius'>>> = {
+        scout: { controlRadius: 1 },
+        forager: { food: follower.skillLevel },
+        guard: { defense: follower.skillLevel },
+        medic: { morale: follower.skillLevel },
+        trader: { economy: follower.skillLevel },
+        duelist: { defense: Math.ceil(follower.skillLevel / 2) },
+      }
+      const gain = stationGain[follower.skill]
       const next = {
         ...state,
         agents: state.agents.map((agent) =>
@@ -600,11 +697,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             : agent,
         ),
         camps: state.camps.map((item) =>
-          item.id === camp?.id
-            ? { ...item, population: item.population + 1, defense: item.defense + 1, economy: item.economy + 1 }
+          item.id === camp.id
+            ? {
+                ...item,
+                population: item.population + 1,
+                defense: item.defense + (gain.defense ?? 0),
+                economy: item.economy + (gain.economy ?? 0),
+                food: item.food + (gain.food ?? 0),
+                morale: item.morale + (gain.morale ?? 0),
+                controlRadius: Math.min(7, item.controlRadius + (gain.controlRadius ?? 0)),
+              }
             : item,
         ),
-        chronicle: log(state, `${follower.name} 留守营地。这里将永久保持明亮，并每天产出 1 金。`, 'good'),
+        chronicle: log(
+          state,
+          `${follower.name} 以${agentSkills[follower.skill].title}身份留守${camp.name}，专长开始影响营地运营。`,
+          'good',
+        ),
       }
       return { ...next, fog: revealFog(next) }
     }
@@ -621,13 +730,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!isPassable(state.world, state.selected.x, state.selected.y) || tile.structure) {
         return { ...state, chronicle: log(state, '该格无法修建营地建筑。', 'danger') }
       }
-      const gains: Record<CampBuildingKind, Pick<Camp, 'population' | 'defense' | 'economy'>> = {
-        house: { population: 2, defense: 0, economy: 0 },
-        watchtower: { population: 0, defense: 2, economy: 0 },
-        market: { population: 0, defense: 0, economy: 2 },
+      const definition = campBuildingDefinitions[action.kind]
+      if (state.player.gold < definition.cost) {
+        return { ...state, chronicle: log(state, `修建${definition.name}还需要 ${definition.cost} 金。`, 'danger') }
       }
-      const gain = gains[action.kind]
-      const labels: Record<CampBuildingKind, string> = { house: '居所', watchtower: '哨塔', market: '集市' }
+      const gain = definition.gains
       const tiles = state.world.tiles.map((item, itemIndex) =>
         itemIndex === index
           ? { ...item, structure: 'camp-building' as const, campId: camp.id, buildingKind: action.kind }
@@ -640,16 +747,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           item.id === camp.id
             ? {
                 ...item,
-                population: item.population + gain.population,
+                housing: item.housing + gain.housing,
                 defense: item.defense + gain.defense,
                 economy: item.economy + gain.economy,
-                controlRadius: action.kind === 'watchtower' ? Math.min(6, item.controlRadius + 1) : item.controlRadius,
+                food: item.food + gain.food,
+                morale: item.morale + gain.morale,
+                controlRadius: Math.min(7, item.controlRadius + gain.controlRadius),
                 buildings: [...item.buildings, { ...state.selected!, kind: action.kind }],
               }
             : item,
         ),
+        player: { ...state.player, gold: state.player.gold - definition.cost },
         buildingCredits: state.buildingCredits - 1,
-        chronicle: log(state, `${camp.name}建成一格${labels[action.kind]}。`, 'good'),
+        chronicle: log(state, `${camp.name}建成${definition.name}：${definition.summary}。`, 'good'),
       }
       return { ...next, fog: revealFog(next) }
     }

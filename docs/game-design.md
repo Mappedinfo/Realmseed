@@ -80,15 +80,23 @@ Future art packs may replace the procedural primitives, but must preserve the
    equipment, party, camps, and territory; detailed rows are not all expanded
    simultaneously. Cross-scene navigation stays collapsed until explicitly
    opened because it is an advanced world mechanism.
-5. Recruit a trusted traveler; the follower moves into the left party roster
+5. Each traveler owns a seeded level 1–3 specialty: scout, forager, guard,
+   medic, trader, or duelist. A one-time specialty challenge displays its real
+   success chance. Winning grants trust, reputation, gold, and a permanent
+   matching mastery mark. Recruit a trusted traveler; the follower moves into the left party roster
    instead of occupying a world tile, while still contributing combat strength
-   and party vision. Click roster entries to switch the top-left portrait.
-6. Build a camp to create a highlighted control radius and inspect population,
-   defense, economy, buildings, and range from the left camp list. The entire
+   plus their specialty bonus. Click roster entries to switch the top-left portrait.
+6. Build a camp to create a highlighted control radius and inspect population
+   versus housing, food, defense, economy, morale, buildings, daily output, and
+   range from the left camp list. The entire
    control radius remains permanently visible after the party leaves, and a
    watchtower expands that live vision together with the control range.
 7. Walk 100 successful steps after founding a camp to earn one building tile.
-   Select a controlled empty tile for a house, watchtower, or market. Same-scene
+   Select a controlled empty tile for one of six functional facilities: lodge,
+   farm, watchtower, market, workshop, or shrine. Lodges gate resident capacity;
+   farms create food surplus; defense suppresses local ambush; economy settles
+   gold; workshops grant local combat damage; morale improves exhausted rest.
+   Same-scene
    camps automatically connect by passable roads; roads use 0.35 movement fatigue,
    and the camp list can run shortest-path return navigation.
 8. Swear fealty to a trusted faction for expedition support, or remain
@@ -103,8 +111,9 @@ Future art packs may replace the procedural primitives, but must preserve the
 | Inventory | manual berry consumption; person-to-person 8–12:1 exchange | item types, weight, crafting |
 | Stamina | 100-step cost, 1.5× combat fatigue, 0/1 hit loss, berry recovery, exhausted rest to 3 | equipment and biome modifiers |
 | Affection | 0–5 per traveler; 3 enables recruitment | memories, preferences, conflicts |
-| Followers | hidden party roster, switchable portrait, reveal, fight, or become villagers | gather, guard, scout, craft |
-| Camps | population, defense, economy, radius, 100-step building credits, roads, auto-path | production queues and sieges |
+| Traveler skills | six seeded specialties, level/difficulty, one-time deterministic challenge, permanent mastery marks | challenge stories and training |
+| Followers | hidden roster; specialty aggregation into vision, forage, guard, recovery, trade, and damage | selectable jobs and field actions |
+| Camps | housing, population, food, defense, economy, morale, six functional buildings, daily output, radius, roads, auto-path | production queues and sieges |
 | Combat | field/duel presentation, six categorized moves, numeric equipment | status effects and tactical positioning |
 | Factions | reputation, fealty, oath breaking, vassalage | diplomacy, war, borders |
 | Monsters | three seeded species, simple HP, victory raises max stamina to a cap of 30 | behaviors, drops, bosses |
@@ -116,6 +125,8 @@ Future art packs may replace the procedural primitives, but must preserve the
 - Code is MIT licensed.
 - Bundled music must be CC0 or otherwise explicitly redistributable, with source
   and license recorded in `THIRD_PARTY.md`.
+- Exploration and battle use separate CC0 loops. The single user-controlled
+  audio channel changes source with encounter state and returns after combat.
 - No private simulation replay, user record, or server credential belongs in a
   public build.
 - New data packs should be browser-readable JSON and independently removable.

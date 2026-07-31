@@ -1,10 +1,5 @@
-import type { CampBuildingKind, GameAction, GameState } from '../game/types'
-
-const buildingOptions: { kind: CampBuildingKind; name: string; effect: string }[] = [
-  { kind: 'house', name: '居所', effect: '人口 +2' },
-  { kind: 'watchtower', name: '哨塔', effect: '防御 +2 · 范围 +1' },
-  { kind: 'market', name: '集市', effect: '经济 +2' },
-]
+import { campBuildingDefinitions, campBuildingKinds, campDailyYield } from '../game/camps'
+import type { GameAction, GameState } from '../game/types'
 
 export function CampPanel({
   state,
@@ -42,6 +37,17 @@ export function CampPanel({
           </div>
           {selectedCamp ? (
             <div className="camp-operations">
+              <div className="camp-operation-grid">
+                <span><b>{selectedCamp.population}/{selectedCamp.housing}</b><small>人口/容量</small></span>
+                <span><b>{selectedCamp.food}</b><small>食物</small></span>
+                <span><b>{selectedCamp.defense}</b><small>防御</small></span>
+                <span><b>{selectedCamp.economy}</b><small>经济</small></span>
+                <span><b>{selectedCamp.morale}</b><small>士气</small></span>
+                <span><b>{selectedCamp.controlRadius}</b><small>控制范围</small></span>
+              </div>
+              <p className="camp-yield-line">
+                每日结算：+{campDailyYield(selectedCamp).gold} 金 · +{campDailyYield(selectedCamp).berries} 果
+              </p>
               <button
                 className="return-camp"
                 disabled={!local || Boolean(state.battle)}
@@ -51,16 +57,22 @@ export function CampPanel({
               </button>
               <p className="build-progress">建设勘察 {state.constructionSteps}/100 · 可建 {state.buildingCredits} 格</p>
               <div className="camp-buildings">
-                {buildingOptions.map((option) => (
+                {campBuildingKinds.map((kind) => {
+                  const option = campBuildingDefinitions[kind]
+                  return (
                   <button
                     key={option.kind}
-                    disabled={!local || state.buildingCredits <= 0 || !state.selected || Boolean(state.battle)}
+                    disabled={!local || state.buildingCredits <= 0 || !state.selected || Boolean(state.battle) || state.player.gold < option.cost}
                     onClick={() => dispatch({ type: 'BUILD_CAMP_TILE', kind: option.kind })}
-                    title="先点击地图中营地高亮范围内的空格"
+                    title={`${option.detail}；先点击地图中营地高亮范围内的空格`}
                   >
-                    <b>{option.name}</b><small>{option.effect}</small>
+                    <i>{option.glyph}</i>
+                    <b>{option.name}</b>
+                    <small>{option.summary}</small>
+                    <em>{option.cost} 金 · 1 格</em>
                   </button>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ) : null}

@@ -268,6 +268,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .audio-button span { color: var(--gold); margin-right: 5px; }
 .audio-button.is-playing { border-color: var(--leaf); }
+.audio-button.is-battle {
+  color: #ffe0b3;
+  border-color: #cf754f;
+  box-shadow: inset 0 -2px 0 rgba(207, 117, 79, .28);
+}
 
 .game-grid {
   display: grid;
@@ -443,6 +448,19 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 @keyframes tab-in { from { opacity: .35; transform: translateY(2px); } }
 .tab-note { margin: 8px 0 0; color: #7f8c80; font-size: var(--font-xs); line-height: 1.5; }
 .party-roster, .camp-list { display: grid; gap: 5px; }
+.party-bonus-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin-bottom: 4px;
+  padding: 6px;
+  background: #101914;
+  border: 1px solid #334237;
+}
+.party-bonus-board span { padding: 4px 2px; text-align: center; background: #18241d; }
+.party-bonus-board b, .party-bonus-board small { display: block; }
+.party-bonus-board b { color: var(--gold); font-size: var(--font-xs); }
+.party-bonus-board small { margin-top: 2px; color: #7f8c80; font-size: 9px; }
 .party-roster button, .camp-list button {
   width: 100%;
   display: grid;
@@ -464,6 +482,17 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .camp-list button { grid-template-columns: 1fr; }
 .camp-operations { margin-top: 8px; padding: 8px; background: #17221b; border: 1px solid #344238; }
+.camp-operation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.camp-operation-grid span {
+  padding: 5px 2px;
+  text-align: center;
+  background: #111b15;
+  border: 1px solid #2e3d32;
+}
+.camp-operation-grid b, .camp-operation-grid small { display: block; }
+.camp-operation-grid b { color: var(--gold); font-size: var(--font-sm); }
+.camp-operation-grid small { margin-top: 2px; color: #768479; font-size: 9px; }
+.camp-yield-line { margin: 6px 0 0; color: #8fa28f; font-size: var(--font-xs); text-align: center; }
 .camp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
 .camp-stats span { color: #718078; font-size: 7px; text-align: center; }
 .camp-stats b { display: block; color: var(--gold); font-size: 13px; }
@@ -477,11 +506,22 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .return-camp:disabled, .camp-buildings button:disabled { opacity: .42; cursor: not-allowed; }
 .build-progress { margin: 8px 0 6px; color: #a7b4a3; font-size: var(--font-xs); }
-.camp-buildings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
-.camp-buildings button { padding: 5px 2px; color: #cbd4c5; background: #202e24; border: 1px solid #3b4b3d; }
-.camp-buildings b, .camp-buildings small { display: block; }
+.camp-buildings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.camp-buildings button {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 1px 5px;
+  padding: 6px;
+  color: #cbd4c5;
+  text-align: left;
+  background: #202e24;
+  border: 1px solid #3b4b3d;
+}
+.camp-buildings i { grid-row: 1 / 4; align-self: center; color: var(--gold); font-size: 15px; font-style: normal; }
+.camp-buildings b, .camp-buildings small, .camp-buildings em { display: block; }
 .camp-buildings b { font-size: var(--font-xs); }
-.camp-buildings small { margin-top: 2px; color: #879388; font-size: 8px; line-height: 1.3; }
+.camp-buildings small { margin-top: 2px; color: #879388; font-size: 9px; line-height: 1.3; }
+.camp-buildings em { margin-top: 2px; color: #b79d62; font-size: 9px; font-style: normal; }
 .compact-item-row {
   display: grid;
   grid-template-columns: 1fr 54px;
@@ -789,7 +829,45 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .dialogue-copy button:disabled, .trade-counter button:disabled { opacity: .34; cursor: not-allowed; }
 .dialogue-copy button small { color: inherit; opacity: .7; }
+.roadside-challenge {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 38px 1fr 112px;
+  gap: 9px;
+  align-items: center;
+  padding: 9px;
+  background:
+    linear-gradient(90deg, rgba(223, 129, 95, .11), transparent 55%),
+    #111b16;
+  border: 1px solid #485948;
+}
+.challenge-glyph {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: #f0ba70;
+  background: #2a241d;
+  border: 1px solid #9b6742;
+  font-size: 18px;
+}
+.roadside-challenge div:nth-child(2) { display: grid; gap: 2px; }
+.roadside-challenge span { color: #9eaa99; font-size: var(--font-xs); }
+.roadside-challenge strong { color: #eee1c4; font-size: var(--font-sm); }
+.roadside-challenge small { color: #849184; font-size: 9px; line-height: 1.35; }
+.roadside-challenge em { color: #d2a968; font-size: 9px; font-style: normal; }
+.roadside-challenge > button {
+  min-height: 42px;
+  color: #f0d7ae;
+  background: #3a2b20;
+  border: 1px solid #8f6344;
+  font-size: var(--font-sm);
+}
+.roadside-challenge > button small { display: block; margin-top: 3px; color: inherit; opacity: .65; }
+.roadside-challenge > button:disabled { opacity: .38; cursor: not-allowed; }
 .trade-counter {
+  grid-column: 3;
+  grid-row: 1;
   display: grid;
   grid-template-columns: 1.25fr 1fr 1fr;
   gap: 6px;
@@ -1128,7 +1206,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   .map-panel-head { display: block; }
   .fog-legend { flex-direction: column; }
   .interaction-panel { grid-template-columns: 1fr 1.6fr; }
-  .trade-counter { grid-column: 1 / -1; padding: 10px 0 0; border-left: 0; border-top: 1px dotted #526050; }
+  .trade-counter { grid-column: 1 / -1; grid-row: auto; padding: 10px 0 0; border-left: 0; border-top: 1px dotted #526050; }
   .field-combat-bar { grid-template-columns: 1fr; }
   .field-target { border-right: 0; border-bottom: 1px solid #3d4b3f; }
 }
@@ -1157,6 +1235,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   .art-theme-control { padding-left: 0; }
   .interaction-panel { grid-template-columns: 1fr; }
   .dialogue-copy, .trade-counter { padding: 10px 0 0; border-left: 0; border-top: 1px dotted #526050; }
+  .roadside-challenge { grid-template-columns: 36px 1fr; }
+  .roadside-challenge > button { grid-column: 1 / -1; }
   .trade-counter { grid-template-columns: 1fr 1fr; }
   .market-rate { grid-column: 1 / -1; }
   .combat-move-grid, .field-combat-bar .combat-move-grid { grid-template-columns: 1fr 1fr; }

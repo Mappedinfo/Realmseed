@@ -23,11 +23,12 @@ directly to GitHub Pages.
 - stamina, coins, affection, recruitment, camps, buildings, roads, and settlement income
 - recruited followers leave the crowded world canvas and move into a clickable
   party roster with switchable portraits
-- camps with visible control ranges, population, defense, economy, buildings,
-  construction progress, and automatic return paths
+- six functional camp buildings with housing, food, defense, economy, morale,
+  control range, daily yields, construction progress, and automatic return paths
 - automatic passable roads between same-scene camps with reduced movement fatigue
 - faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
-- three AI factions, wandering agents, followers, and monsters
+- three AI factions, wandering agents with six seeded specialties, followers,
+  skill challenges, and monsters
 - four-direction characters, probabilistic monster alerts and pursuit
 - persistent default plus per-encounter field/duel combat modes
 - melee/ranged physical, magic, firearm, and explosive moves with equipment bonuses
@@ -38,7 +39,7 @@ directly to GitHub Pages.
   palette reduction, and strict 32×32 atlas packing
 - original 16×16 source atlases as fallbacks for the Ember and Moonlit themes
 - three selectable art directions that can be switched without restarting the world
-- optional CC0 music with a visible playback control
+- optional CC0 exploration and chiptune battle music with automatic encounter switching
 
 ## Architecture
 
@@ -50,6 +51,8 @@ src/
 │   ├── world.ts         terrain, society, monster, and fog generation
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
 │   ├── combat.ts        moves, damage categories, and equipment values
+│   ├── camps.ts         building definitions, yields, and recovery
+│   ├── skills.ts        traveler challenges and party bonus aggregation
 │   ├── art.ts           canonical sprite-atlas contract
 │   └── types.ts         domain contracts
 ├── App.tsx              application composition
@@ -65,6 +68,9 @@ The full product and system rationale is documented in
 The three visual directions, pixel contract, generation prompts, and
 normalization pipeline are documented in
 [`docs/art-direction.md`](docs/art-direction.md).
+The production prompt for the settlement heart, six facilities, road gate, and
+settlement key art is in
+[`art/prompts/camp-settlement-gpt-image-2.md`](art/prompts/camp-settlement-gpt-image-2.md).
 
 ## Local development
 
@@ -102,29 +108,38 @@ python3 scripts/ingest_directional_assets.py
   inspected before movement, while clicking an adjacent empty tile still moves
 - Recruit: requires 3 affection and 5 gold
 - Party: recruited followers are hidden from the world canvas; click the left
-  roster to switch the top-left portrait, which defaults to the player
+  roster to switch the top-left portrait, which defaults to the player. Scout,
+  forager, guard, medic, trader, and duelist levels respectively improve vision,
+  gathering, block chance, exhausted recovery, berry rates, and damage.
+- Challenge: every wanderer presents a specialty-matched one-time trial.
+  Displayed odds derive from stamina capacity, combat wins, matching mastery
+  marks, and NPC skill level. Victory costs 1 stamina and grants 2 affection,
+  8 faction reputation, one permanent mastery mark, and skill-level gold.
 - Build camp: requires 8 gold and creates a highlighted, permanently visible
   control radius; watchtowers expand both control and permanent vision in real time
 - Construction: after founding a camp, each 100 successful movement steps grant
-  one building tile; select a highlighted empty tile, then build a house,
-  watchtower, or market
+  one building tile; select a highlighted empty tile, then build a traveler
+  lodge, forest farm, watchtower, market, workshop, or ember shrine. Each also
+  has a 1–4 gold cost and a documented operational effect.
 - Camp navigation: select a camp in the left list to inspect its attributes or
   auto-path home; same-scene camps automatically receive passable roads
 - Roads: road tiles spend only 0.35 movement fatigue instead of 1
-- Station: turn a follower into a villager at a camp; the village stays lit and
-  produces 1 gold each rest
+- Station: turn a follower into a resident only when housing is available.
+  Their specialty contributes defense, economy, food, morale, or control range.
 - Stamina: ordinary movement spends 1 point per 100 steps; combat steps count
   1.5×, and deterministic enemy hits cost only 0 or 1 point
 - Berries: terrain-weighted pickups enter the left inventory; click to consume
   one berry and restore 1 stamina
 - Trade: each nearby person offers a deterministic daily rate of 8–12 berries
-  per gold, centered on the 10:1 world economy
+  per gold, centered on the 10:1 world economy; trader followers improve buying
+  and selling in opposite directions.
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world
 - Combat: choose map-direct or left/right duel as the persistent default, then
   temporarily override it per encounter; six moves cover melee/ranged and all
-  four damage categories
+  four damage categories. Enabling game music automatically switches from the
+  exploration loop to the CC0 chiptune battle loop for the encounter.
 - Equipment: equip numerical bonuses in the left panel without drawing gear on
   the character sprite
 - Scene travel: accumulate 25 steps of fatigue to take a waystone route to the adjacent
@@ -145,8 +160,8 @@ path is automatically set to `/Realmseed/` in GitHub Actions.
 
 1. Persist the infinite scene cache and several seed worlds with IndexedDB.
 2. Add faction wars, settlement ownership, and negotiated tribute rates.
-3. Expand follower AI from trailing/guarding into gathering and combat jobs.
-4. Add buildings, production chains, quests, and boss monsters.
+3. Expand follower specialties into selectable jobs and individual field actions.
+4. Add production queues, quests, and boss monsters.
 5. Split world simulation into a Web Worker for maps larger than 256×256.
 6. Add mod-friendly JSON content packs and localization.
 

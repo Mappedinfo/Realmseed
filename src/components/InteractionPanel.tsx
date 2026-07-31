@@ -1,4 +1,5 @@
 import { berryExchangeRate } from '../game/simulation'
+import { agentSkills, challengeChance } from '../game/skills'
 import type { Agent, Faction, GameAction, GameState } from '../game/types'
 
 export function InteractionPanel({
@@ -14,7 +15,10 @@ export function InteractionPanel({
   dispatch: React.Dispatch<GameAction>
   onClose: () => void
 }) {
-  const rate = berryExchangeRate(state, target.id)
+  const buyRate = berryExchangeRate(state, target.id, 'buy')
+  const sellRate = berryExchangeRate(state, target.id, 'sell')
+  const skill = agentSkills[target.skill]
+  const chance = challengeChance(state, target)
   const trustLine =
     target.affection >= 3
       ? '“你走过的路，我愿意一起走。”'
@@ -46,23 +50,42 @@ export function InteractionPanel({
         ) : null}
       </div>
 
+      {target.role === 'wanderer' ? (
+        <div className="roadside-challenge">
+          <div className="challenge-glyph" aria-hidden="true">{skill.glyph}</div>
+          <div>
+            <span>{skill.title} · 等级 {target.skillLevel}</span>
+            <strong>{skill.challenge}</strong>
+            <small>{skill.description}</small>
+            <em>胜率 {chance}% · 胜利：好感 +2 / {skill.name}印记 +1 / {target.skillLevel} 金</em>
+          </div>
+          <button
+            onClick={() => dispatch({ type: 'CHALLENGE_AGENT', agentId: target.id })}
+            disabled={target.challengeWon || target.lastChallengeDay === state.day || state.player.stamina <= 0}
+          >
+            {target.challengeWon ? '已通过' : target.lastChallengeDay === state.day ? '今日已试' : '发起挑战'}
+            <small>消耗 1 体力</small>
+          </button>
+        </div>
+      ) : null}
+
       <div className="trade-counter">
         <div className="market-rate">
           <span>今日行情</span>
-          <strong>{rate} <i>野果</i> = 1 <i>金币</i></strong>
+          <strong>买入 {buyRate} / 卖出 {sellRate} <i>果/金</i></strong>
           <small>商人库存：{target.berries} 果 / {target.gold} 金</small>
         </div>
         <button
           onClick={() => dispatch({ type: 'TRADE_BERRIES', agentId: target.id, direction: 'sell' })}
-          disabled={state.player.berries < rate || target.gold < 1}
+          disabled={state.player.berries < sellRate || target.gold < 1}
         >
-          出售 {rate} 果 <span>+1 金</span>
+          出售 {sellRate} 果 <span>+1 金</span>
         </button>
         <button
           onClick={() => dispatch({ type: 'TRADE_BERRIES', agentId: target.id, direction: 'buy' })}
-          disabled={state.player.gold < 1 || target.berries < rate}
+          disabled={state.player.gold < 1 || target.berries < buyRate}
         >
-          花 1 金购买 <span>+{rate} 果</span>
+          花 1 金购买 <span>+{buyRate} 果</span>
         </button>
       </div>
 

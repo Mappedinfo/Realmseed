@@ -127,7 +127,7 @@ function GameView({
               <option value="duel">左右回合</option>
             </select>
           </label>
-          <AudioControl />
+          <AudioControl battleActive={Boolean(state.battle)} />
           <button onClick={onNewWorld}>新世界</button>
         </div>
       </header>

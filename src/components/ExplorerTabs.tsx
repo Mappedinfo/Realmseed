@@ -1,4 +1,5 @@
 import type { GameAction, GameState } from '../game/types'
+import { agentSkills, partyBonuses } from '../game/skills'
 import { CampPanel } from './CampPanel'
 import { EquipmentPanel } from './EquipmentPanel'
 import type { ExplorerFocus, ExplorerTab } from './explorerFocus'
@@ -31,6 +32,7 @@ export function ExplorerTabs({
   const followers = state.agents.filter((agent) => agent.role === 'follower')
   const villagers = state.agents.filter((agent) => agent.role === 'villager')
   const vassals = state.factions.filter((faction) => faction.isVassal)
+  const bonuses = partyBonuses(state.agents)
   const counts: Record<ExplorerTab, number> = {
     inventory: state.player.berries,
     equipment: state.equipment.filter((item) => item.equipped).length,
@@ -95,12 +97,21 @@ export function ExplorerTabs({
 
         {activeTab === 'party' ? (
           <div className="tab-panel-content party-roster">
+            <div className="party-bonus-board" aria-label="随行队伍加成">
+              <span><b>⚔ +{bonuses.combatPower}</b><small>伤害</small></span>
+              <span><b>▣ +{bonuses.guardChance}%</b><small>格挡</small></span>
+              <span><b>⌖ +{bonuses.vision}</b><small>视野</small></span>
+              <span><b>❧ +{bonuses.forage}</b><small>采集</small></span>
+              <span><b>✚ +{bonuses.recovery}</b><small>休整</small></span>
+              <span><b>◇ +{bonuses.tradeRate}</b><small>议价</small></span>
+            </div>
             <button onClick={() => onFocus({ kind: 'player' })}>
               <span>◆</span><b>{state.player.name}</b><small>队长 · 当前控制</small>
             </button>
             {followers.map((agent) => (
               <button key={agent.id} onClick={() => onFocus({ kind: 'party', agentId: agent.id })}>
-                <span>♟</span><b>{agent.name}</b><small>随行队友 · 地图中隐藏</small>
+                <span>{agentSkills[agent.skill].glyph}</span><b>{agent.name}</b>
+                <small>{agentSkills[agent.skill].title} Lv.{agent.skillLevel} · {agentSkills[agent.skill].followerEffect}</small>
               </button>
             ))}
             {followers.length === 0 ? <p className="empty-copy">与旅人建立 3 点好感后可招募。</p> : null}

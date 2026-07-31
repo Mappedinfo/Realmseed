@@ -30,6 +30,8 @@ describe('map inspection', () => {
       maxStamina: 7,
       gold: 4,
       berries: 9,
+      skill: 'trader',
+      skillLevel: 2,
     }]
     const person = inspectPosition(state, { x: 12, y: 10 })
     expect(person.name).toBe('Mira Fern')
@@ -51,8 +53,11 @@ describe('map inspection', () => {
       sceneX: 0,
       sceneY: 0,
       population: 4,
+      housing: 6,
       defense: 3,
       economy: 5,
+      food: 4,
+      morale: 4,
       controlRadius: 4,
       buildings: [{ x: 16, y: 15, kind: 'market' }],
     }]
@@ -73,7 +78,7 @@ describe('map inspection', () => {
     const camp = inspectPosition(state, { x: 15, y: 15 })
     expect(camp.category).toBe('建筑')
     expect(camp.stats.find((item) => item.label === '经济')?.value).toBe(5)
-    expect(inspectPosition(state, { x: 16, y: 15 }).name).toBe('营地集市')
+    expect(inspectPosition(state, { x: 16, y: 15 }).name).toBe('篷布集市')
     state.player.x = 15
     state.player.y = 15
     expect(inspectPosition(state, state.player).name).toBe('青苔营地')

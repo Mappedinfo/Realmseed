@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { berryExchangeRate, gameReducer } from './simulation'
+import { hashString } from './rng'
 import { createGame, isPassable, revealFog } from './world'
 
 function passableDirection(state: ReturnType<typeof createGame>) {
@@ -196,6 +197,38 @@ describe('game simulation', () => {
     expect(sold.player.berries).toBe(0)
   })
 
+  it('applies trader follower leverage differently to buying and selling', () => {
+    const state = flatState('trader-rate-check')
+    state.agents[0].role = 'follower'
+    state.agents[0].skill = 'trader'
+    state.agents[0].skillLevel = 3
+    const targetId = state.agents[1].id
+    const base = berryExchangeRate({ gameId: state.gameId, day: state.day }, targetId)
+    expect(berryExchangeRate(state, targetId, 'buy')).toBe(base + 2)
+    expect(berryExchangeRate(state, targetId, 'sell')).toBe(Math.max(6, base - 2))
+  })
+
+  it('resolves a nearby traveler skill challenge into permanent mastery and trust', () => {
+    const state = flatState('traveler-challenge-check')
+    const target = state.agents[0]
+    state.agents = [target]
+    target.x = state.player.x + 1
+    target.y = state.player.y
+    target.skill = 'duelist'
+    target.skillLevel = 1
+    state.challengeMarks.duelist = 100
+    while (hashString(`${state.gameId}:challenge:${state.day}:${target.id}`) % 100 >= 85) state.day += 1
+    const beforeGold = state.player.gold
+    const beforeStamina = state.player.stamina
+    const next = gameReducer(state, { type: 'CHALLENGE_AGENT', agentId: target.id })
+    expect(next.agents[0].challengeWon).toBe(true)
+    expect(next.agents[0].affection).toBe(2)
+    expect(next.challengeMarks.duelist).toBe(101)
+    expect(next.player.gold).toBe(beforeGold + 1)
+    expect(next.player.stamina).toBe(beforeStamina - 1)
+    expect(next.factions.find((faction) => faction.id === target.factionId)?.relation).toBe(8)
+  })
+
   it('rest restores stamina', () => {
     const state = createGame('rest-check', 'small')
     state.player.stamina = 1
@@ -270,12 +303,35 @@ describe('game simulation', () => {
     const tile = built.world.tiles[built.player.y * built.world.size + built.player.x + 1]
     expect(tile.structure).toBe('camp-building')
     expect(tile.buildingKind).toBe('watchtower')
-    expect(built.camps[0].defense).toBe(3)
+    expect(built.camps[0].defense).toBe(4)
     expect(built.camps[0].controlRadius).toBe(4)
     expect(built.buildingCredits).toBe(0)
     built.player = { ...built.player, x: built.player.x + 10, y: built.player.y + 10 }
     const expandedFog = revealFog(built)
     expect(expandedFog[built.camps[0].y * built.world.size + built.camps[0].x + 4]).toBe(2)
+  })
+
+  it('uses farms for food surplus and houses for stationing capacity', () => {
+    let state = flatState('camp-operations-check')
+    state.player.gold = 30
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    state.buildingCredits = 2
+    state.selected = { x: state.player.x + 1, y: state.player.y }
+    state = gameReducer(state, { type: 'BUILD_CAMP_TILE', kind: 'farm' })
+    expect(state.camps[0].food).toBe(5)
+    expect(state.camps[0].economy).toBe(2)
+    expect(state.player.gold).toBe(20)
+
+    state.selected = { x: state.player.x - 1, y: state.player.y }
+    state = gameReducer(state, { type: 'BUILD_CAMP_TILE', kind: 'house' })
+    expect(state.camps[0].housing).toBe(6)
+    expect(state.camps[0].morale).toBe(4)
+
+    const berries = state.player.berries
+    const gold = state.player.gold
+    state = gameReducer(state, { type: 'REST' })
+    expect(state.player.gold).toBe(gold + 1)
+    expect(state.player.berries).toBe(berries + 4)
   })
 
   it('connects two camps by road and auto-paths home with lower fatigue', () => {
@@ -332,7 +388,7 @@ describe('game simulation', () => {
     expect(vassalized.player.gold).toBe(10)
 
     const rested = gameReducer(vassalized, { type: 'REST' })
-    expect(rested.player.gold).toBe(13)
+    expect(rested.player.gold).toBe(12)
     expect(rested.chronicle[0].text).toContain('附属贡金 2 金')
   })
 

@@ -1,5 +1,7 @@
 import { directionalCharacterIndex, directionalCharactersUrl, directionalRow } from '../game/art'
 import { inspectPosition, type InspectionDetail } from '../game/inspection'
+import { campDailyYield } from '../game/camps'
+import { agentSkills } from '../game/skills'
 import type { Agent, EquipmentSlot, GameState } from '../game/types'
 import type { ExplorerFocus } from './explorerFocus'
 
@@ -45,18 +47,23 @@ function mapDetail(detail: InspectionDetail, state: GameState): DetailView {
 function personDetail(state: GameState, agent: Agent, isPlayer = false): DetailView {
   const faction = state.factions.find((item) => item.id === agent.factionId)
   const role = isPlayer ? '远征队长' : agent.role === 'follower' ? '随行队友' : agent.role === 'villager' ? '驻守村民' : '旅行者'
+  const skill = agentSkills[agent.skill]
+  const masteryMarks = Object.values(state.challengeMarks).reduce((total, value) => total + value, 0)
   return {
     category: '人物',
     meta: isPlayer ? '当前控制角色' : faction?.name ?? '自由角色',
     name: agent.name,
     icon: isPlayer ? '◆' : '♟',
-    description: isPlayer ? '队伍的当前领队与所有远征行动的执行者。' : `${role}，可为探索、战斗与营地提供支持。`,
+    description: isPlayer ? '队伍的当前领队与所有远征行动的执行者。' : `${skill.title}。${skill.description}`,
     stats: [
       { label: '身份', value: role },
       { label: '体力', value: `${agent.stamina}/${agent.maxStamina}` },
       { label: '金币', value: agent.gold },
       { label: '野果', value: agent.berries },
+      ...(isPlayer ? [{ label: '专精印记', value: masteryMarks }] : []),
       ...(!isPlayer ? [{ label: '好感', value: `${agent.affection}/5` }] : []),
+      ...(!isPlayer ? [{ label: '专长', value: `${skill.name} Lv.${agent.skillLevel}` }] : []),
+      ...(!isPlayer ? [{ label: '挑战', value: agent.challengeWon ? '已通过' : '未通过' }] : []),
     ],
     hint: isPlayer ? '点击地图目标可切换这个展示窗口。' : '随行队友隐藏在地图角色层中，可在队伍标签页切换查看。',
     tone: 'good',
@@ -113,6 +120,7 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
   if (focus.kind === 'camp') {
     const camp = state.camps.find((item) => item.id === focus.campId)
     if (camp) {
+      const daily = campDailyYield(camp)
       return {
         category: '营地',
         meta: `场景 ${camp.sceneX},${camp.sceneY}`,
@@ -120,13 +128,15 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
         icon: '⌂',
         description: '永久照亮控制范围，并作为建筑、道路与人口经营的中心。',
         stats: [
-          { label: '人口', value: camp.population },
+          { label: '人口', value: `${camp.population}/${camp.housing}` },
+          { label: '食物', value: camp.food },
           { label: '防御', value: camp.defense },
           { label: '经济', value: camp.economy },
+          { label: '士气', value: camp.morale },
           { label: '范围', value: camp.controlRadius },
           { label: '建筑', value: camp.buildings.length },
         ],
-        hint: `建设勘察 ${state.constructionSteps}/100 · 可建 ${state.buildingCredits} 格`,
+        hint: `每日 +${daily.gold} 金/+${daily.berries} 果 · 建设 ${state.constructionSteps}/100 · 可建 ${state.buildingCredits} 格`,
         tone: 'good',
       }
     }

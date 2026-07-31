@@ -1,5 +1,6 @@
 import { hashString, pick, seededRandom } from './rng'
 import { starterEquipment } from './combat'
+import { agentSkillIds, partyBonuses } from './skills'
 import type { Agent, Direction, Faction, FogLevel, GameState, MapSize, Monster, Position, SceneSnapshot, Terrain, Tile, World } from './types'
 
 const firstNames = ['Ari', 'Bram', 'Cleo', 'Dara', 'Eli', 'Fenn', 'Gale', 'Hana', 'Ivo', 'Juno', 'Kiri', 'Lark', 'Mira', 'Nox', 'Orin', 'Pia', 'Quin', 'Rhea', 'Sora', 'Tavi']
@@ -144,8 +145,9 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
 
 export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps'>): FogLevel[] {
   const next = state.fog.map((level) => (level === 2 ? 1 : level)) as FogLevel[]
+  const bonuses = partyBonuses(state.agents)
   const sources = [
-    { x: state.player.x, y: state.player.y, radius: 4 },
+    { x: state.player.x, y: state.player.y, radius: 4 + bonuses.vision },
     ...state.agents
       .filter((agent) => agent.role === 'follower' || agent.role === 'villager')
       .map((agent) => ({ x: agent.x, y: agent.y, radius: agent.role === 'villager' ? 3 : 2 })),
@@ -205,6 +207,8 @@ export function createScene(
     gold: 2 + Math.floor(random() * 8),
     berries: 8 + Math.floor(random() * 24),
     facing: pick(random, ['up', 'down', 'left', 'right'] as const),
+    skill: pick(random, agentSkillIds),
+    skillLevel: (1 + Math.floor(random() * 3)) as 1 | 2 | 3,
   }))
   const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
     id: `monster-${sceneId}-${index}`,
@@ -256,6 +260,8 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     gold: 12,
     berries: 4,
     facing: 'down',
+    skill: 'scout',
+    skillLevel: 1,
   }
   const fog = new Array<FogLevel>(world.tiles.length).fill(0)
   const initial: GameState = {
@@ -281,6 +287,14 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     camps: [],
     constructionSteps: 0,
     buildingCredits: 0,
+    challengeMarks: {
+      scout: 0,
+      forager: 0,
+      guard: 0,
+      medic: 0,
+      trader: 0,
+      duelist: 0,
+    },
     gameId: `${seed}-${mapSize}`,
   }
   initial.fog = revealFog(initial)

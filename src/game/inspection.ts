@@ -1,5 +1,7 @@
 import type { GameState, Position, Terrain } from './types'
+import { campBuildingDefinitions, campDailyYield } from './camps'
 import { isWithinInteractionRange } from './geometry'
+import { agentSkills } from './skills'
 import { tileIndex } from './world'
 
 export interface InspectionDetail {
@@ -21,12 +23,6 @@ const terrainNames: Record<Terrain, string> = {
   marsh: '湿地',
   sand: '沙地',
 }
-
-const buildingNames = {
-  house: '营地居所',
-  watchtower: '营地哨塔',
-  market: '营地集市',
-} as const
 
 const monsterNames = {
   slime: '苔泥团',
@@ -77,17 +73,20 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
     const faction = state.factions.find((item) => item.id === agent.factionId)
     const role = agent.role === 'villager' ? '驻守村民' : '旅行者'
     const nearby = isWithinInteractionRange(agent, state.player)
+    const skill = agentSkills[agent.skill]
     return {
       ...base,
       category: '人物',
       name: agent.name,
       icon: agent.role === 'villager' ? '⚑' : '♟',
-      description: `${faction?.name ?? '无阵营'}的${role}。`,
+      description: `${faction?.name ?? '无阵营'}的${role}，专长是${skill.name}。`,
       stats: [
         { label: '身份', value: role },
         { label: '好感', value: `${agent.affection}/5` },
         { label: '金币', value: agent.gold },
         { label: '野果', value: agent.berries },
+        { label: '专长', value: `${skill.title} Lv.${agent.skillLevel}` },
+        { label: '挑战', value: agent.challengeWon ? '已通过' : '未通过' },
       ],
       hint: nearby ? '位于交谈距离内，可点击气泡对话或交易。' : '靠近到周围 1 格后可以交谈。',
       tone: nearby ? 'good' : 'neutral',
@@ -116,26 +115,24 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
     const camp = tile.campId ? state.camps.find((item) => item.id === tile.campId) : undefined
     if (tile.structure === 'camp-building') {
       const kind = tile.buildingKind ?? 'house'
-      const effects = {
-        house: '提供 2 人口容量',
-        watchtower: '提供 2 防御并扩大控制范围',
-        market: '提供 2 点营地经济',
-      } as const
+      const definition = campBuildingDefinitions[kind]
       return {
         ...base,
         category: '建筑',
-        name: buildingNames[kind],
-        icon: kind === 'watchtower' ? '♜' : kind === 'market' ? '¤' : '⌂',
-        description: effects[kind],
+        name: definition.name,
+        icon: definition.glyph,
+        description: definition.detail,
         stats: [
           { label: '所属', value: camp?.name ?? '未知营地' },
-          { label: '类型', value: buildingNames[kind] },
+          { label: '效果', value: definition.summary },
+          { label: '成本', value: `${definition.cost} 金 / 1 格` },
           { label: '坐标', value: `${position.x}, ${position.y}` },
         ],
         tone: 'good',
       }
     }
     if (tile.structure === 'camp' && camp) {
+      const daily = campDailyYield(camp)
       return {
         ...base,
         category: '建筑',
@@ -143,11 +140,14 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
         icon: '⌂',
         description: '远征队的控制中心；控制范围内可以消耗额度修建建筑。',
         stats: [
-          { label: '人口', value: camp.population },
+          { label: '人口', value: `${camp.population}/${camp.housing}` },
+          { label: '食物', value: camp.food },
           { label: '防御', value: camp.defense },
           { label: '经济', value: camp.economy },
+          { label: '士气', value: camp.morale },
           { label: '范围', value: camp.controlRadius },
           { label: '建筑', value: camp.buildings.length },
+          { label: '日产', value: `${daily.gold} 金 / ${daily.berries} 果` },
         ],
         hint: '可在下方营地列表查看并自动寻路返回。',
         tone: 'good',
