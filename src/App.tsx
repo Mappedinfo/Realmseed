@@ -7,6 +7,7 @@ import { EquipmentPanel } from './components/EquipmentPanel'
 import { InteractionPanel } from './components/InteractionPanel'
 import { MiniMap } from './components/MiniMap'
 import { SceneTransit } from './components/SceneTransit'
+import { SelectionDetails } from './components/SelectionDetails'
 import { StartScreen } from './components/StartScreen'
 import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
@@ -47,6 +48,15 @@ function GameView({
   const setCombatPreference = (mode: BattleMode) => {
     window.localStorage.setItem('realmseed-combat-mode', mode)
     dispatch({ type: 'SET_COMBAT_PREFERENCE', mode })
+  }
+  const selectAgent = (agentId: string) => {
+    const agent = state.agents.find((item) => item.id === agentId)
+    if (agent) dispatch({ type: 'SELECT', position: { x: agent.x, y: agent.y } })
+    setActiveAgentId(agentId)
+  }
+  const selectPosition = (position: { x: number; y: number }) => {
+    setActiveAgentId(null)
+    dispatch({ type: 'SELECT', position })
   }
 
   useEffect(() => {
@@ -147,6 +157,8 @@ function GameView({
             步数 {Math.floor(state.fatigue * 10) / 10}/100 · 战绩 {state.combatWins} · 上限 {state.player.maxStamina}
           </p>
 
+          <SelectionDetails state={state} />
+
           <div className="panel-section inventory-panel">
             <h3>物品栏 <span>{state.player.berries}</span></h3>
             <button
@@ -194,7 +206,7 @@ function GameView({
               setSelectedCampId(campId)
               const camp = state.camps.find((item) => item.id === campId)
               if (camp && camp.sceneX === state.world.sceneX && camp.sceneY === state.world.sceneY) {
-                dispatch({ type: 'SELECT', position: { x: camp.x, y: camp.y } })
+                selectPosition({ x: camp.x, y: camp.y })
               }
             }}
             dispatch={dispatch}
@@ -211,8 +223,8 @@ function GameView({
             state={state}
             theme={theme}
             activeAgentId={activeAgentId}
-            onAgentClick={setActiveAgentId}
-            onSelect={(position) => dispatch({ type: 'SELECT', position })}
+            onAgentClick={selectAgent}
+            onSelect={selectPosition}
           />
           {!state.battle && activeAgent ? (
             <InteractionPanel

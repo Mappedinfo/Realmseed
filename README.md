@@ -89,6 +89,9 @@ python3 scripts/ingest_directional_assets.py
 - Talk: gain affection with an adjacent traveler and reputation with their faction
 - Interaction: adjacent people gain a speech bubble; click the bubble or person
   to open the lower-center dialogue and trade counter
+- Inspect: click any visible person, monster, building, resource, road, or terrain
+  tile to open its contextual detail card in the left column; element tiles are
+  inspected before movement, while clicking an adjacent empty tile still moves
 - Recruit: requires 3 affection and 5 gold
 - Party: recruited followers are hidden from the world canvas; click the left
   roster to switch the top-left portrait, which defaults to the player

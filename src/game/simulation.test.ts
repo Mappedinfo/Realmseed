@@ -140,6 +140,16 @@ describe('game simulation', () => {
     expect(next.chronicle[0].text).toContain('放入左侧物品栏')
   })
 
+  it('selects an adjacent map element for inspection without moving onto it', () => {
+    const state = flatState('inspect-before-move')
+    const target = { x: state.player.x + 1, y: state.player.y }
+    state.world.tiles[target.y * state.world.size + target.x].food = 3
+    const next = gameReducer(state, { type: 'SELECT', position: target })
+    expect(next.player.x).toBe(state.player.x)
+    expect(next.selected).toEqual(target)
+    expect(next.world.tiles[target.y * state.world.size + target.x].food).toBe(3)
+  })
+
   it('eats one berry to restore one stamina', () => {
     const state = flatState('eat-berry-check')
     state.player.stamina = 5

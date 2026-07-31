@@ -18,6 +18,7 @@ import {
   type ArtTheme,
   type SpriteId,
 } from '../game/art'
+import { inspectPosition } from '../game/inspection'
 import { tileIndex } from '../game/world'
 
 const TILE = 32
@@ -527,6 +528,24 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       monster.y < origin.y + VIEW_ROWS &&
       state.fog[tileIndex(state.world, monster.x, monster.y)] === 2,
   )
+  const inspectablePositions = new Map<string, Position>()
+  state.world.tiles.forEach((tile, index) => {
+    if (!tile.structure && !tile.road && tile.coin <= 0 && (tile.food ?? 0) <= 0) return
+    const position = { x: index % state.world.size, y: Math.floor(index / state.world.size) }
+    inspectablePositions.set(`${position.x},${position.y}`, position)
+  })
+  state.monsters.forEach((monster) => inspectablePositions.set(`${monster.x},${monster.y}`, monster))
+  state.agents
+    .filter((agent) => agent.role !== 'follower')
+    .forEach((agent) => inspectablePositions.set(`${agent.x},${agent.y}`, agent))
+  const visibleTargets = [...inspectablePositions.values()].filter(
+    (position) =>
+      position.x >= origin.x &&
+      position.x < origin.x + VIEW_COLS &&
+      position.y >= origin.y &&
+      position.y < origin.y + VIEW_ROWS &&
+      state.fog[tileIndex(state.world, position.x, position.y)] > 0,
+  )
 
   return (
     <div className="world-frame">
@@ -538,6 +557,27 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         onClick={handleClick}
         aria-label="Realmseed 像素世界地图"
       />
+      {visibleTargets.map((position) => {
+        const detail = inspectPosition(state, position)
+        const agent = state.agents.find(
+          (item) => item.role !== 'follower' && item.x === position.x && item.y === position.y,
+        )
+        return (
+          <button
+            key={`${position.x},${position.y}`}
+            className="map-inspect-target"
+            style={{
+              left: `${((position.x - origin.x) / VIEW_COLS) * 100}%`,
+              top: `${((position.y - origin.y) / VIEW_ROWS) * 100}%`,
+              width: `${100 / VIEW_COLS}%`,
+              height: `${100 / VIEW_ROWS}%`,
+            }}
+            onClick={() => agent ? onAgentClick(agent.id) : onSelect(position)}
+            aria-label={`查看${detail.name}详情`}
+            title={`查看${detail.name}详情`}
+          />
+        )
+      })}
       <div className="scanlines" aria-hidden="true" />
       {nearbyAgents.map((agent) => {
         const left = (((agent.x - origin.x) * TILE + TILE / 2) / (VIEW_COLS * TILE)) * 100

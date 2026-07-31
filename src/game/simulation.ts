@@ -337,6 +337,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'MOVE':
       return move(state, action.direction)
     case 'SELECT': {
+      const tile = state.world.tiles[tileIndex(state.world, action.position.x, action.position.y)]
+      const hasMapElement =
+        Boolean(tile.structure || tile.road || tile.coin > 0 || (tile.food ?? 0) > 0) ||
+        state.agents.some(
+          (agent) => agent.role !== 'follower' && agent.x === action.position.x && agent.y === action.position.y,
+        ) ||
+        state.monsters.some((monster) => monster.x === action.position.x && monster.y === action.position.y)
+      if (hasMapElement) return { ...state, selected: action.position }
       const dx = action.position.x - state.player.x
       const dy = action.position.y - state.player.y
       if (Math.abs(dx) + Math.abs(dy) === 1) {
