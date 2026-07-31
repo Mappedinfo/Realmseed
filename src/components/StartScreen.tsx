@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { artThemes, atlasPreviewUrl, type ArtTheme } from '../game/art'
+import { useState, type CSSProperties } from 'react'
+import { artThemes, atlasPreviewUrl, generatedSceneUrl, type ArtTheme } from '../game/art'
 import { randomSeed } from '../game/rng'
 import type { MapSize } from '../game/types'
 
@@ -13,7 +13,12 @@ export function StartScreen({ onStart }: StartScreenProps) {
   const [theme, setTheme] = useState<ArtTheme>('verdant')
 
   return (
-    <main className="title-screen">
+    <main
+      className="title-screen"
+      style={{
+        '--title-scene': theme === 'verdant' ? `url("${generatedSceneUrl()}")` : 'none',
+      } as CSSProperties}
+    >
       <div className="title-mist title-mist-a" />
       <div className="title-mist title-mist-b" />
       <section className="title-card">

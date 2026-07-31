@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/resources/05-wood.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/resources/wood.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/resources/wood.png",
+  "source_size": [
+    313,
+    627
+  ],
+  "foreground_bbox": [
+    37,
+    64,
+    281,
+    293
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 24,
+  "actual_colors": 24,
+  "key_mode": "auto",
+  "key_color": [
+    3,
+    249,
+    9
+  ],
+  "foreground_pixels": 414,
+  "transparent_pixels": 610,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

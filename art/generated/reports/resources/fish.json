@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/resources/03-fish.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/resources/fish.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/resources/fish.png",
+  "source_size": [
+    314,
+    627
+  ],
+  "foreground_bbox": [
+    3,
+    316,
+    270,
+    533
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 24,
+  "actual_colors": 24,
+  "key_mode": "auto",
+  "key_color": [
+    4,
+    248,
+    10
+  ],
+  "foreground_pixels": 309,
+  "transparent_pixels": 715,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

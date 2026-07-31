@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/monsters/02-wisp.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/monsters/wisp.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/monsters/wisp.png",
+  "source_size": [
+    313,
+    627
+  ],
+  "foreground_bbox": [
+    63,
+    210,
+    223,
+    467
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 28,
+  "actual_colors": 28,
+  "key_mode": "auto",
+  "key_color": [
+    5,
+    249,
+    8
+  ],
+  "foreground_pixels": 202,
+  "transparent_pixels": 822,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

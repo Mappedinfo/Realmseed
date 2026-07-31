@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { artThemes, atlasUrl, spriteIndex, type ArtTheme } from './art'
+import { artThemes, atlasPreviewUrl, atlasUrl, spriteIndex, type ArtTheme } from './art'
 
 describe('pixel art contract', () => {
   it('keeps every sprite in a unique atlas cell', () => {
@@ -16,5 +16,11 @@ describe('pixel art contract', () => {
     for (const theme of themes) {
       expect(atlasUrl(theme)).toMatch(new RegExp(`realmseed-atlas-${theme}\\.png$`))
     }
+  })
+
+  it('uses the generated hybrid preview for Verdant only', () => {
+    expect(atlasPreviewUrl('verdant')).toMatch(/verdant-generated-preview\.png$/)
+    expect(atlasPreviewUrl('ember')).toMatch(/realmseed-atlas-ember-preview\.png$/)
+    expect(atlasPreviewUrl('moonlit')).toMatch(/realmseed-atlas-moonlit-preview\.png$/)
   })
 })

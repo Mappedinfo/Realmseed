@@ -1,0 +1,211 @@
+{
+  "source_directory": "art/generated/raw",
+  "grid": {
+    "rows": 2,
+    "columns": 4
+  },
+  "runtime_outputs": {
+    "terrain": "public/assets/art/verdant-generated-terrain.png",
+    "objects": "public/assets/art/verdant-generated-objects.png",
+    "characters": "public/assets/art/verdant-generated-characters.png",
+    "theme_preview": "public/assets/art/verdant-generated-preview.png",
+    "world_scene": "public/assets/art/verdant-world-scene.webp"
+  },
+  "detected_components": [
+    {
+      "bbox": [
+        0,
+        0,
+        936,
+        977
+      ],
+      "area": 695623
+    },
+    {
+      "bbox": [
+        42,
+        1020,
+        235,
+        1219
+      ],
+      "area": 22921
+    },
+    {
+      "bbox": [
+        291,
+        1008,
+        445,
+        1219
+      ],
+      "area": 20199
+    },
+    {
+      "bbox": [
+        509,
+        1018,
+        681,
+        1217
+      ],
+      "area": 15906
+    },
+    {
+      "bbox": [
+        1101,
+        1096,
+        1208,
+        1210
+      ],
+      "area": 7188
+    },
+    {
+      "bbox": [
+        1028,
+        626,
+        1132,
+        730
+      ],
+      "area": 5853
+    },
+    {
+      "bbox": [
+        881,
+        1131,
+        989,
+        1211
+      ],
+      "area": 4838
+    },
+    {
+      "bbox": [
+        748,
+        1043,
+        833,
+        1114
+      ],
+      "area": 4756
+    },
+    {
+      "bbox": [
+        1037,
+        490,
+        1126,
+        561
+      ],
+      "area": 4638
+    },
+    {
+      "bbox": [
+        750,
+        1141,
+        839,
+        1214
+      ],
+      "area": 4464
+    },
+    {
+      "bbox": [
+        997,
+        286,
+        1059,
+        392
+      ],
+      "area": 4317
+    },
+    {
+      "bbox": [
+        1116,
+        106,
+        1184,
+        196
+      ],
+      "area": 3694
+    },
+    {
+      "bbox": [
+        875,
+        1041,
+        943,
+        1110
+      ],
+      "area": 3464
+    },
+    {
+      "bbox": [
+        1045,
+        798,
+        1107,
+        894
+      ],
+      "area": 3038
+    },
+    {
+      "bbox": [
+        987,
+        1052,
+        1047,
+        1116
+      ],
+      "area": 2615
+    },
+    {
+      "bbox": [
+        1115,
+        288,
+        1179,
+        340
+      ],
+      "area": 1994
+    },
+    {
+      "bbox": [
+        992,
+        105,
+        1053,
+        174
+      ],
+      "area": 1532
+    },
+    {
+      "bbox": [
+        1126,
+        334,
+        1179,
+        391
+      ],
+      "area": 1436
+    },
+    {
+      "bbox": [
+        1002,
+        142,
+        1055,
+        179
+      ],
+      "area": 849
+    },
+    {
+      "bbox": [
+        436,
+        1143,
+        460,
+        1189
+      ],
+      "area": 751
+    },
+    {
+      "bbox": [
+        219,
+        1138,
+        250,
+        1174
+      ],
+      "area": 665
+    }
+  ],
+  "policy": {
+    "raw_sources_are_immutable": true,
+    "terrain_cell": 32,
+    "sprite_cell": 32,
+    "runtime_people": "processed generated 32px pixel characters"
+  }
+}

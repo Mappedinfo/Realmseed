@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/buildings/05-bridge.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/buildings/bridge.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/buildings/bridge.png",
+  "source_size": [
+    313,
+    627
+  ],
+  "foreground_bbox": [
+    22,
+    67,
+    288,
+    329
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 32,
+  "actual_colors": 32,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 723,
+  "transparent_pixels": 301,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

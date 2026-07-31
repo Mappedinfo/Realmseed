@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/characters/04-merchant.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/characters/merchant.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/characters/merchant.png",
+  "source_size": [
+    314,
+    627
+  ],
+  "foreground_bbox": [
+    65,
+    63,
+    269,
+    365
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 24,
+  "actual_colors": 24,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 356,
+  "transparent_pixels": 668,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

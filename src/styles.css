@@ -34,8 +34,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   overflow: hidden;
   padding: 44px 20px;
   background:
-    linear-gradient(rgba(13, 22, 18, .16), rgba(13, 22, 18, .92)),
+    linear-gradient(rgba(8, 16, 13, .46), rgba(8, 16, 13, .91)),
     repeating-linear-gradient(0deg, transparent 0 23px, rgba(255,255,255,.015) 24px),
+    var(--title-scene) center / cover no-repeat,
     radial-gradient(circle at 50% 10%, #446b55 0, #21362c 28%, #111713 65%);
 }
 

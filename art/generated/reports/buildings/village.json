@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/buildings/02-village.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/buildings/village.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/buildings/village.png",
+  "source_size": [
+    313,
+    627
+  ],
+  "foreground_bbox": [
+    8,
+    228,
+    313,
+    557
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 32,
+  "actual_colors": 32,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 537,
+  "transparent_pixels": 487,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

@@ -25,8 +25,11 @@ directly to GitHub Pages.
 - faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
 - three AI factions, wandering agents, followers, and monsters
 - responsive pixel UI with a full-world minimap
-- 32×32 terrain cells and higher-detail characters, monsters, buildings, and waystones
-- deterministic 16×16 source atlas, nearest-neighbor rendered on a strict 32×32 grid
+- a hybrid Verdant art pack: detailed 32×32 terrain beneath processed pixel
+  characters, monsters, buildings, resources, and waystones
+- deterministic white/green-screen removal, grid splitting, object extraction,
+  palette reduction, and strict 32×32 atlas packing
+- original 16×16 source atlases as fallbacks for the Ember and Moonlit themes
 - three selectable art directions that can be switched without restarting the world
 - optional CC0 music with a visible playback control
 
@@ -68,6 +71,7 @@ Quality checks:
 npm test
 npm run build
 python3 scripts/build_pixel_atlas.py
+python3 scripts/ingest_generated_assets.py
 ```
 
 ## Controls

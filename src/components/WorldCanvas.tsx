@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameState, Position, Terrain } from '../game/types'
-import { ART_CELL, atlasUrl, spriteIndex, type ArtTheme, type SpriteId } from '../game/art'
+import {
+  ART_CELL,
+  GENERATED_CELL,
+  atlasUrl,
+  generatedCharacterIndex,
+  generatedCharactersUrl,
+  generatedObjectIndex,
+  generatedObjectsUrl,
+  generatedTerrainUrl,
+  spriteIndex,
+  type ArtTheme,
+  type SpriteId,
+} from '../game/art'
 import { tileIndex } from '../game/world'
 
 const TILE = 32
@@ -28,6 +40,18 @@ function drawSprite(
   context.drawImage(atlas, sourceX, sourceY, ART_CELL, ART_CELL, x, y, TILE, TILE)
 }
 
+function drawGeneratedCell(
+  context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement,
+  index: number,
+  x: number,
+  y: number,
+) {
+  const sourceX = (index % 8) * GENERATED_CELL
+  const sourceY = Math.floor(index / 8) * GENERATED_CELL
+  context.drawImage(atlas, sourceX, sourceY, GENERATED_CELL, GENERATED_CELL, x, y, TILE, TILE)
+}
+
 function pixelRect(
   context: CanvasRenderingContext2D,
   color: string,
@@ -43,14 +67,19 @@ function pixelRect(
 function drawTile(
   context: CanvasRenderingContext2D,
   atlas: HTMLImageElement | null,
+  generatedTerrain: HTMLImageElement | null,
   terrain: Terrain,
   x: number,
   y: number,
   worldX: number,
   worldY: number,
 ) {
+  const variant = Math.abs((worldX * 17 + worldY * 31) % 2) as 0 | 1
+  if (generatedTerrain) {
+    drawGeneratedCell(context, generatedTerrain, spriteIndex[`${terrain}-${variant}`], x, y)
+    return
+  }
   if (atlas) {
-    const variant = Math.abs((worldX * 17 + worldY * 31) % 2) as 0 | 1
     drawSprite(context, atlas, `${terrain}-${variant}`, x, y)
     return
   }
@@ -92,12 +121,26 @@ function drawTile(
 function drawPerson(
   context: CanvasRenderingContext2D,
   atlas: HTMLImageElement | null,
+  generatedCharacters: HTMLImageElement | null,
   x: number,
   y: number,
   color: string,
   isPlayer = false,
   role: 'wanderer' | 'villager' | 'follower' = 'wanderer',
 ) {
+  if (generatedCharacters) {
+    const id = isPlayer ? 'player' : role
+    drawGeneratedCell(context, generatedCharacters, generatedCharacterIndex[id], x, y)
+    if (!isPlayer) {
+      context.fillStyle = color
+      context.fillRect(x + 27, y + 3, 3, 3)
+    } else {
+      context.strokeStyle = '#fff0a6'
+      context.lineWidth = 1
+      context.strokeRect(x + 2.5, y + 1.5, 27, 29)
+    }
+    return
+  }
   if (atlas) {
     drawSprite(context, atlas, isPlayer ? 'player' : role, x, y)
     if (!isPlayer) {
@@ -127,9 +170,20 @@ function drawPerson(
   }
 }
 
-function drawMonster(context: CanvasRenderingContext2D, atlas: HTMLImageElement | null, x: number, y: number, species: string) {
+function drawMonster(
+  context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement | null,
+  generatedObjects: HTMLImageElement | null,
+  x: number,
+  y: number,
+  species: 'slime' | 'boar' | 'wisp',
+) {
+  if (generatedObjects) {
+    drawGeneratedCell(context, generatedObjects, generatedObjectIndex[species], x, y)
+    return
+  }
   if (atlas) {
-    drawSprite(context, atlas, species as 'slime' | 'boar' | 'wisp', x, y)
+    drawSprite(context, atlas, species, x, y)
     return
   }
   const colors = species === 'slime' ? ['#7e66a8', '#ab8ed2'] : species === 'boar' ? ['#714b39', '#a76b4d'] : ['#4ea0a7', '#8bd0c8']
@@ -140,7 +194,11 @@ function drawMonster(context: CanvasRenderingContext2D, atlas: HTMLImageElement 
   pixelRect(context, '#e9f4dc', x + 20, y + 17, 3, 3)
 }
 
-function drawFood(context: CanvasRenderingContext2D, x: number, y: number) {
+function drawFood(context: CanvasRenderingContext2D, generatedObjects: HTMLImageElement | null, x: number, y: number) {
+  if (generatedObjects) {
+    drawGeneratedCell(context, generatedObjects, generatedObjectIndex.food, x, y)
+    return
+  }
   pixelRect(context, 'rgba(10, 17, 13, .35)', x + 17, y + 24, 12, 2)
   pixelRect(context, '#315d45', x + 22, y + 9, 3, 7)
   pixelRect(context, '#9fc96d', x + 19, y + 8, 4, 3)
@@ -149,9 +207,20 @@ function drawFood(context: CanvasRenderingContext2D, x: number, y: number) {
   pixelRect(context, '#a84f45', x + 24, y + 19, 3, 4)
 }
 
-function drawStructure(context: CanvasRenderingContext2D, atlas: HTMLImageElement | null, x: number, y: number, structure: string) {
+function drawStructure(
+  context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement | null,
+  generatedObjects: HTMLImageElement | null,
+  x: number,
+  y: number,
+  structure: 'camp' | 'village' | 'ruin' | 'waystone',
+) {
+  if (generatedObjects) {
+    drawGeneratedCell(context, generatedObjects, generatedObjectIndex[structure], x, y)
+    return
+  }
   if (atlas) {
-    drawSprite(context, atlas, structure as 'camp' | 'village' | 'ruin' | 'waystone', x, y)
+    drawSprite(context, atlas, structure, x, y)
     return
   }
   if (structure === 'waystone') {
@@ -185,7 +254,10 @@ interface WorldCanvasProps {
 export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const atlasRef = useRef<HTMLImageElement | null>(null)
-  const [atlasReady, setAtlasReady] = useState(false)
+  const generatedTerrainRef = useRef<HTMLImageElement | null>(null)
+  const generatedObjectsRef = useRef<HTMLImageElement | null>(null)
+  const generatedCharactersRef = useRef<HTMLImageElement | null>(null)
+  const [assetRevision, setAssetRevision] = useState(0)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
     y: Math.max(0, Math.min(state.world.size - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
@@ -193,15 +265,36 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
 
   useEffect(() => {
     atlasRef.current = null
-    setAtlasReady(false)
+    generatedTerrainRef.current = null
+    generatedObjectsRef.current = null
+    generatedCharactersRef.current = null
+    setAssetRevision((revision) => revision + 1)
+    const images: HTMLImageElement[] = []
+    const load = (url: string, target: { current: HTMLImageElement | null }) => {
+      const image = new Image()
+      images.push(image)
+      image.onload = () => {
+        target.current = image
+        setAssetRevision((revision) => revision + 1)
+      }
+      image.src = url
+    }
     const atlas = new Image()
+    images.push(atlas)
     atlas.onload = () => {
       atlasRef.current = atlas
-      setAtlasReady(true)
+      setAssetRevision((revision) => revision + 1)
     }
     atlas.src = atlasUrl(theme)
+    if (theme === 'verdant') {
+      load(generatedTerrainUrl(), generatedTerrainRef)
+      load(generatedObjectsUrl(), generatedObjectsRef)
+      load(generatedCharactersUrl(), generatedCharactersRef)
+    }
     return () => {
-      atlas.onload = null
+      images.forEach((image) => {
+        image.onload = null
+      })
     }
   }, [theme])
 
@@ -231,25 +324,31 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
           continue
         }
         const tile = state.world.tiles[index]
-        drawTile(context, atlasRef.current, tile.terrain, screenX, screenY, worldX, worldY)
-        if (tile.structure) drawStructure(context, atlasRef.current, screenX, screenY, tile.structure)
+        drawTile(context, atlasRef.current, generatedTerrainRef.current, tile.terrain, screenX, screenY, worldX, worldY)
+        if (tile.structure) {
+          drawStructure(context, atlasRef.current, generatedObjectsRef.current, screenX, screenY, tile.structure)
+        }
         if (tile.coin > 0 && fog === 2) {
-          if (atlasRef.current) drawSprite(context, atlasRef.current, 'coin', screenX, screenY)
+          if (generatedObjectsRef.current) {
+            drawGeneratedCell(context, generatedObjectsRef.current, generatedObjectIndex.coin, screenX, screenY)
+          } else if (atlasRef.current) drawSprite(context, atlasRef.current, 'coin', screenX, screenY)
           else {
             pixelRect(context, '#f4d35e', screenX + 10, screenY + 10, 5, 5)
             pixelRect(context, '#fff1a4', screenX + 11, screenY + 10, 2, 2)
           }
         }
-        if ((tile.food ?? 0) > 0 && fog === 2) drawFood(context, screenX, screenY)
+        if ((tile.food ?? 0) > 0 && fog === 2) drawFood(context, generatedObjectsRef.current, screenX, screenY)
 
         if (fog === 2) {
           const monster = state.monsters.find((item) => item.x === worldX && item.y === worldY)
-          if (monster) drawMonster(context, atlasRef.current, screenX, screenY, monster.species)
+          if (monster) {
+            drawMonster(context, atlasRef.current, generatedObjectsRef.current, screenX, screenY, monster.species)
+          }
           const agent = state.agents.find((item) => item.x === worldX && item.y === worldY)
           if (agent) {
             const color = state.factions.find((faction) => faction.id === agent.factionId)?.color ?? '#eee'
             const role = agent.role === 'villager' || agent.role === 'follower' ? agent.role : 'wanderer'
-            drawPerson(context, atlasRef.current, screenX, screenY, color, false, role)
+            drawPerson(context, atlasRef.current, generatedCharactersRef.current, screenX, screenY, color, false, role)
           }
         }
 
@@ -264,7 +363,7 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
 
     const playerX = (state.player.x - origin.x) * TILE
     const playerY = (state.player.y - origin.y) * TILE
-    drawPerson(context, atlasRef.current, playerX, playerY, '#f4d35e', true)
+    drawPerson(context, atlasRef.current, generatedCharactersRef.current, playerX, playerY, '#f4d35e', true)
 
     if (state.selected) {
       const sx = (state.selected.x - origin.x) * TILE
@@ -273,7 +372,7 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
       context.lineWidth = 2
       context.strokeRect(sx + 2, sy + 2, TILE - 4, TILE - 4)
     }
-  }, [atlasReady, origin.x, origin.y, state])
+  }, [assetRevision, origin.x, origin.y, state])
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {

@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/monsters/01-boar.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/monsters/boar.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/monsters/boar.png",
+  "source_size": [
+    313,
+    627
+  ],
+  "foreground_bbox": [
+    53,
+    245,
+    289,
+    471
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 28,
+  "actual_colors": 28,
+  "key_mode": "auto",
+  "key_color": [
+    4,
+    249,
+    8
+  ],
+  "foreground_pixels": 441,
+  "transparent_pixels": 583,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

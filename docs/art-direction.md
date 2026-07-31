@@ -2,27 +2,34 @@
 
 ## Production directions
 
-Realmseed ships three comparable directions on the same pixel contract:
+Realmseed ships three comparable directions. Verdant Relic now demonstrates a
+hybrid production direction; Ember Frontier and Moonlit Tide retain the
+original compact atlas contract:
 
-- **Verdant Relic** — earthy green, muted teal water, warm settlements, and
-  cyan supernatural landmarks.
+- **Verdant Relic** — relatively detailed 32×32 generated terrain under
+  palette-limited pixel characters, monsters, resources, and buildings.
 - **Ember Frontier** — ochre grass, iron-blue water, old-plum shadows, red
   travel scarves, camp pennants, and warmer settlement landmarks.
 - **Moonlit Tide** — blue-green foliage, deep water, lavender stone, coral
   travel ribbons, bioluminescent flowers, and shrine moon-signs.
 
-The start screen previews all three, and the in-game header can swap atlases
+The start screen previews all three, and the in-game header can swap art packs
 without regenerating the world. This keeps seed, terrain, agents, economy, and
-fog identical while isolating the visual choice. The corresponding concept
-prompts are retained in `art/prompts/`; they are original production briefs
-rather than references to a specific commercial game.
+fog identical while isolating the visual choice. Verdant also uses the supplied
+full-world scene as its title backdrop. The corresponding concept prompts are
+retained in `art/prompts/`; they are original production briefs rather than
+references to a specific commercial game.
 
 ## Pixel contract
 
-- Logical terrain and sprite cell: **16×16 px**.
-- Runtime display cell: **32×32 px**, exact 2× nearest-neighbor scaling.
+- Original logical terrain and sprite cell: **16×16 px**.
+- Generated Verdant terrain and sprite cell: **32×32 px**.
+- Runtime display cell: **32×32 px**, with image smoothing disabled.
 - Atlas: **128×48 px**, eight columns and three rows, one file per direction.
-- Hard palette cap for generated concepts: **24 colors** per processed image.
+- Generated terrain atlas: **256×64 px**; generated object atlas:
+  **256×128 px**; generated character atlas: **256×32 px**.
+- Palette caps: **64 colors** per generated terrain tile and **24–32 colors**
+  per generated sprite.
 - No runtime smoothing, sub-pixel placement, blur, or CSS filtering.
 - Terrain occupies the full cell; structures and actors use transparency.
 - Actors reserve the bottom two rows for a consistent contact shadow.
@@ -31,8 +38,21 @@ rather than references to a specific commercial game.
 
 ## Generation and normalization
 
-The image-generation prompts live under `art/prompts/`. A generated image is
-only a source concept; it is never shipped directly. Normalize a useful crop:
+The image-generation prompts live under `art/prompts/`. Supplied source images
+are preserved under `art/generated/raw/` and are never edited in place. To
+reproduce the currently shipped Verdant pack:
+
+```bash
+python3 scripts/ingest_generated_assets.py
+```
+
+The intake performs exact grid splitting, border-connected white/green
+background removal, chroma spill cleanup, alpha cropping, palette reduction,
+and deterministic atlas packing. It also extracts review crops from the mixed
+concept board with connected-component detection. Intermediate cells, previews,
+reports, and the build manifest live under `art/generated/`.
+
+For one-off concept normalization, use:
 
 ```bash
 python3 scripts/pixelize_concept.py concept.png \
@@ -48,9 +68,7 @@ The process is deterministic:
 4. quantize without dithering;
 5. upscale with nearest-neighbor only.
 
-For production sprites, use the normalized concept as a color and silhouette
-reference, redraw into the 16×16 contract, then regenerate all checked-in
-atlases:
+The original hand-built 16×16 atlases can still be regenerated independently:
 
 ```bash
 python3 scripts/build_pixel_atlas.py

@@ -1,10 +1,11 @@
 import type { Structure, Terrain } from './types'
 
 export const ART_CELL = 16
+export const GENERATED_CELL = 32
 export type ArtTheme = 'verdant' | 'ember' | 'moonlit'
 
 export const artThemes: Record<ArtTheme, { name: string; caption: string; accent: string }> = {
-  verdant: { name: '森林遗迹', caption: '苔色、麦金与青蓝魔法', accent: '#66d2bd' },
+  verdant: { name: '森林遗迹', caption: '细节地表与像素角色', accent: '#66d2bd' },
   ember: { name: '余烬边境', caption: '赭土、旧铁与营火微光', accent: '#e36d42' },
   moonlit: { name: '月潮海岸', caption: '深海、珊瑚与月下遗迹', accent: '#52d5ca' },
 }
@@ -53,5 +54,43 @@ export function atlasUrl(theme: ArtTheme): string {
 }
 
 export function atlasPreviewUrl(theme: ArtTheme): string {
+  if (theme === 'verdant') {
+    return `${import.meta.env.BASE_URL}assets/art/verdant-generated-preview.png`
+  }
   return `${import.meta.env.BASE_URL}assets/art/realmseed-atlas-${theme}-preview.png`
 }
+
+export function generatedTerrainUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-generated-terrain.png`
+}
+
+export function generatedObjectsUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-generated-objects.png`
+}
+
+export function generatedCharactersUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-generated-characters.png`
+}
+
+export function generatedSceneUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-world-scene.webp`
+}
+
+export const generatedCharacterIndex = {
+  player: 0,
+  wanderer: 4,
+  villager: 2,
+  follower: 1,
+} as const
+
+export const generatedObjectIndex = {
+  camp: 12,
+  village: 13,
+  ruin: 14,
+  waystone: 15,
+  slime: 20,
+  boar: 21,
+  wisp: 22,
+  coin: 23,
+  food: 24,
+} as const

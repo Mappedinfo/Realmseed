@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/cells/monsters/00-slime.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/processed/monsters/slime.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/previews/monsters/slime.png",
+  "source_size": [
+    314,
+    627
+  ],
+  "foreground_bbox": [
+    63,
+    265,
+    284,
+    452
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 28,
+  "actual_colors": 28,
+  "key_mode": "auto",
+  "key_color": [
+    5,
+    249,
+    8
+  ],
+  "foreground_pixels": 398,
+  "transparent_pixels": 626,
+  "alpha_values": [
+    0,
+    255
+  ]
+}
