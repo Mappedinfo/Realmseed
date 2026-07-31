@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GameState, Position, Terrain } from '../game/types'
+import type { Direction, GameState, Position, Structure, Terrain } from '../game/types'
 import {
   ART_CELL,
   GENERATED_CELL,
   atlasUrl,
+  directionalCharacterIndex,
+  directionalCharactersUrl,
+  directionalMonsterIndex,
+  directionalMonstersUrl,
+  directionalRow,
   generatedCharacterIndex,
   generatedCharactersUrl,
   generatedObjectIndex,
@@ -50,6 +55,27 @@ function drawGeneratedCell(
   const sourceX = (index % 8) * GENERATED_CELL
   const sourceY = Math.floor(index / 8) * GENERATED_CELL
   context.drawImage(atlas, sourceX, sourceY, GENERATED_CELL, GENERATED_CELL, x, y, TILE, TILE)
+}
+
+function drawDirectionalCell(
+  context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement,
+  column: number,
+  facing: Direction,
+  x: number,
+  y: number,
+) {
+  context.drawImage(
+    atlas,
+    column * GENERATED_CELL,
+    directionalRow[facing] * GENERATED_CELL,
+    GENERATED_CELL,
+    GENERATED_CELL,
+    x,
+    y,
+    TILE,
+    TILE,
+  )
 }
 
 function pixelRect(
@@ -121,12 +147,14 @@ function drawTile(
 function drawPerson(
   context: CanvasRenderingContext2D,
   atlas: HTMLImageElement | null,
+  directionalCharacters: HTMLImageElement | null,
   generatedCharacters: HTMLImageElement | null,
   x: number,
   y: number,
   color: string,
   isPlayer = false,
   role: 'wanderer' | 'villager' | 'follower' = 'wanderer',
+  facing: Direction = 'down',
   active = false,
 ) {
   context.save()
@@ -138,6 +166,16 @@ function drawPerson(
     `drop-shadow(0 -1px 0 ${outline})`,
     'drop-shadow(1px 1px 0 rgba(5, 10, 7, .9))',
   ].join(' ')
+  if (directionalCharacters) {
+    const id = isPlayer ? 'player' : role
+    drawDirectionalCell(context, directionalCharacters, directionalCharacterIndex[id], facing, x, y)
+    if (!isPlayer) {
+      context.fillStyle = color
+      context.fillRect(x + 27, y + 3, 3, 3)
+    }
+    context.restore()
+    return
+  }
   if (generatedCharacters) {
     const id = isPlayer ? 'player' : role
     drawGeneratedCell(context, generatedCharacters, generatedCharacterIndex[id], x, y)
@@ -186,11 +224,17 @@ function drawPerson(
 function drawMonster(
   context: CanvasRenderingContext2D,
   atlas: HTMLImageElement | null,
+  directionalMonsters: HTMLImageElement | null,
   generatedObjects: HTMLImageElement | null,
   x: number,
   y: number,
   species: 'slime' | 'boar' | 'wisp',
+  facing: Direction = 'down',
 ) {
+  if (directionalMonsters) {
+    drawDirectionalCell(context, directionalMonsters, directionalMonsterIndex[species], facing, x, y)
+    return
+  }
   if (generatedObjects) {
     drawGeneratedCell(context, generatedObjects, generatedObjectIndex[species], x, y)
     return
@@ -226,8 +270,14 @@ function drawStructure(
   generatedObjects: HTMLImageElement | null,
   x: number,
   y: number,
-  structure: 'camp' | 'village' | 'ruin' | 'waystone',
+  structure: Structure,
 ) {
+  if (structure === 'camp-building') {
+    pixelRect(context, '#513c2e', x + 5, y + 17, 22, 11)
+    pixelRect(context, '#d69a52', x + 4, y + 12, 24, 6)
+    pixelRect(context, '#f0d38b', x + 14, y + 19, 5, 9)
+    return
+  }
   if (generatedObjects) {
     drawGeneratedCell(context, generatedObjects, generatedObjectIndex[structure], x, y)
     return
@@ -272,6 +322,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const generatedTerrainRef = useRef<HTMLImageElement | null>(null)
   const generatedObjectsRef = useRef<HTMLImageElement | null>(null)
   const generatedCharactersRef = useRef<HTMLImageElement | null>(null)
+  const directionalCharactersRef = useRef<HTMLImageElement | null>(null)
+  const directionalMonstersRef = useRef<HTMLImageElement | null>(null)
   const [assetRevision, setAssetRevision] = useState(0)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
@@ -283,6 +335,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
     generatedTerrainRef.current = null
     generatedObjectsRef.current = null
     generatedCharactersRef.current = null
+    directionalCharactersRef.current = null
+    directionalMonstersRef.current = null
     setAssetRevision((revision) => revision + 1)
     const images: HTMLImageElement[] = []
     const load = (url: string, target: { current: HTMLImageElement | null }) => {
@@ -305,6 +359,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       load(generatedTerrainUrl(), generatedTerrainRef)
       load(generatedObjectsUrl(), generatedObjectsRef)
       load(generatedCharactersUrl(), generatedCharactersRef)
+      load(directionalCharactersUrl(), directionalCharactersRef)
+      load(directionalMonstersUrl(), directionalMonstersRef)
     }
     return () => {
       images.forEach((image) => {
@@ -340,6 +396,21 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         }
         const tile = state.world.tiles[index]
         drawTile(context, atlasRef.current, generatedTerrainRef.current, tile.terrain, screenX, screenY, worldX, worldY)
+        const controllingCamp = state.camps.find(
+          (camp) =>
+            camp.sceneX === state.world.sceneX &&
+            camp.sceneY === state.world.sceneY &&
+            Math.abs(camp.x - worldX) + Math.abs(camp.y - worldY) <= camp.controlRadius,
+        )
+        if (controllingCamp) {
+          pixelRect(context, 'rgba(126, 214, 117, .12)', screenX, screenY, TILE, TILE)
+          context.strokeStyle = 'rgba(151, 230, 125, .28)'
+          context.strokeRect(screenX + 1.5, screenY + 1.5, TILE - 3, TILE - 3)
+        }
+        if (tile.road) {
+          pixelRect(context, 'rgba(63, 43, 29, .78)', screenX, screenY + 13, TILE, 7)
+          pixelRect(context, 'rgba(190, 150, 91, .78)', screenX, screenY + 15, TILE, 3)
+        }
         if (tile.structure) {
           drawStructure(context, atlasRef.current, generatedObjectsRef.current, screenX, screenY, tile.structure)
         }
@@ -357,21 +428,32 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         if (fog === 2) {
           const monster = state.monsters.find((item) => item.x === worldX && item.y === worldY)
           if (monster) {
-            drawMonster(context, atlasRef.current, generatedObjectsRef.current, screenX, screenY, monster.species)
+            drawMonster(
+              context,
+              atlasRef.current,
+              directionalMonstersRef.current,
+              generatedObjectsRef.current,
+              screenX,
+              screenY,
+              monster.species,
+              monster.facing ?? 'down',
+            )
           }
-          const agent = state.agents.find((item) => item.x === worldX && item.y === worldY)
+          const agent = state.agents.find((item) => item.role !== 'follower' && item.x === worldX && item.y === worldY)
           if (agent) {
             const color = state.factions.find((faction) => faction.id === agent.factionId)?.color ?? '#eee'
             const role = agent.role === 'villager' || agent.role === 'follower' ? agent.role : 'wanderer'
             drawPerson(
               context,
               atlasRef.current,
+              directionalCharactersRef.current,
               generatedCharactersRef.current,
               screenX,
               screenY,
               color,
               false,
               role,
+              agent.facing ?? 'down',
               agent.id === activeAgentId,
             )
           }
@@ -388,7 +470,18 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
 
     const playerX = (state.player.x - origin.x) * TILE
     const playerY = (state.player.y - origin.y) * TILE
-    drawPerson(context, atlasRef.current, generatedCharactersRef.current, playerX, playerY, '#f4d35e', true)
+    drawPerson(
+      context,
+      atlasRef.current,
+      directionalCharactersRef.current,
+      generatedCharactersRef.current,
+      playerX,
+      playerY,
+      '#f4d35e',
+      true,
+      'wanderer',
+      state.player.facing ?? 'down',
+    )
 
     if (state.selected) {
       const sx = (state.selected.x - origin.x) * TILE
@@ -407,7 +500,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       const x = origin.x + Math.floor(((event.clientX - rect.left) * scaleX) / TILE)
       const y = origin.y + Math.floor(((event.clientY - rect.top) * scaleY) / TILE)
       if (x >= 0 && y >= 0 && x < state.world.size && y < state.world.size) {
-        const agent = state.agents.find((item) => item.x === x && item.y === y)
+        const agent = state.agents.find((item) => item.role !== 'follower' && item.x === x && item.y === y)
         const canInteract = agent && Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1
         if (agent && canInteract) onAgentClick(agent.id)
         else onSelect({ x, y })
@@ -418,11 +511,21 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
 
   const nearbyAgents = state.agents.filter(
     (agent) =>
+      agent.role !== 'follower' &&
       Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) <= 1 &&
       agent.x >= origin.x &&
       agent.x < origin.x + VIEW_COLS &&
       agent.y >= origin.y &&
       agent.y < origin.y + VIEW_ROWS,
+  )
+  const alertedMonsters = state.monsters.filter(
+    (monster) =>
+      (monster.alert ?? 0) > 0 &&
+      monster.x >= origin.x &&
+      monster.x < origin.x + VIEW_COLS &&
+      monster.y >= origin.y &&
+      monster.y < origin.y + VIEW_ROWS &&
+      state.fog[tileIndex(state.world, monster.x, monster.y)] === 2,
   )
 
   return (
@@ -450,6 +553,21 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
           >
             <span>…</span>
           </button>
+        )
+      })}
+      {alertedMonsters.map((monster) => {
+        const left = (((monster.x - origin.x) * TILE + TILE / 2) / (VIEW_COLS * TILE)) * 100
+        const top = (((monster.y - origin.y) * TILE + 4) / (VIEW_ROWS * TILE)) * 100
+        return (
+          <span
+            key={monster.id}
+            className="monster-alert"
+            style={{ left: `${left}%`, top: `${top}%` }}
+            aria-label="怪物发现了队伍"
+            title="怪物发现了队伍"
+          >
+            !
+          </span>
         )
       })}
     </div>

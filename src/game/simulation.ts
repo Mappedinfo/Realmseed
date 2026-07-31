@@ -1,5 +1,6 @@
-import type { Agent, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot } from './types'
+import type { Agent, Camp, CampBuildingKind, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
+import { combatMove, equipmentDefense, equipmentPower } from './combat'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 
 export const STEPS_PER_STAMINA = 100
@@ -8,6 +9,11 @@ export const TALK_STEP_COST = 10
 export const SCENE_TRAVEL_STEP_COST = 25
 export const EXHAUSTED_REST_RECOVERY = 3
 export const MAX_STAMINA_CAP = 30
+export const MONSTER_NOTICE_RADIUS = 5
+export const MONSTER_NOTICE_PERCENT = 35
+export const MONSTER_CHASE_PERCENT = 68
+export const MONSTER_AMBUSH_PERCENT = 42
+export const ROAD_STEP_COST = 0.35
 
 const directionDelta: Record<Direction, Position> = {
   up: { x: 0, y: -1 },
@@ -28,8 +34,96 @@ function distance(a: Position, b: Position): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 }
 
+function campAt(state: GameState, position: Position): Camp | undefined {
+  return state.camps.find(
+    (camp) =>
+      camp.sceneX === state.world.sceneX &&
+      camp.sceneY === state.world.sceneY &&
+      distance(camp, position) <= camp.controlRadius,
+  )
+}
+
+function shortestPath(world: World, start: Position, target: Position): Position[] {
+  const key = (position: Position) => `${position.x},${position.y}`
+  const queue: Position[] = [start]
+  const parent = new Map<string, Position | null>([[key(start), null]])
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    if (current.x === target.x && current.y === target.y) break
+    for (const direction of ['up', 'right', 'down', 'left'] as const) {
+      const delta = directionDelta[direction]
+      const next = { x: current.x + delta.x, y: current.y + delta.y }
+      const nextKey = key(next)
+      if (parent.has(nextKey) || !isPassable(world, next.x, next.y)) continue
+      parent.set(nextKey, current)
+      queue.push(next)
+    }
+  }
+  if (!parent.has(key(target))) return []
+  const path: Position[] = []
+  let cursor: Position | null = target
+  while (cursor && !(cursor.x === start.x && cursor.y === start.y)) {
+    path.unshift(cursor)
+    cursor = parent.get(key(cursor)) ?? null
+  }
+  return path
+}
+
+function connectCampRoads(world: World, camps: Camp[], newCamp: Camp): World {
+  const tiles = world.tiles.map((tile) => ({ ...tile }))
+  camps
+    .filter((camp) => camp.id !== newCamp.id && camp.sceneX === newCamp.sceneX && camp.sceneY === newCamp.sceneY)
+    .forEach((camp) => {
+      shortestPath(world, camp, newCamp).forEach((position) => {
+        tiles[tileIndex(world, position.x, position.y)].road = true
+      })
+    })
+  tiles[tileIndex(world, newCamp.x, newCamp.y)].road = true
+  return { ...world, tiles }
+}
+
+function directionBetween(from: Position, to: Position): Direction {
+  if (to.x > from.x) return 'right'
+  if (to.x < from.x) return 'left'
+  if (to.y > from.y) return 'down'
+  return 'up'
+}
+
+function facingToward(from: Position, to: Position): Direction {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  return Math.abs(dx) >= Math.abs(dy)
+    ? dx >= 0 ? 'right' : 'left'
+    : dy >= 0 ? 'down' : 'up'
+}
+
+function monsterName(species: GameState['monsters'][number]['species']): string {
+  return species === 'slime' ? '苔泥团' : species === 'boar' ? '棘背兽' : '迷雾精'
+}
+
+function beginBattle(
+  state: GameState,
+  monster: GameState['monsters'][number],
+  message: string,
+): GameState {
+  return {
+    ...state,
+    battle: {
+      monsterId: monster.id,
+      mode: state.combatPreference,
+      round: 1,
+      monsterMaxHp: monster.hp,
+    },
+    player: { ...state.player, facing: facingToward(state.player, monster) },
+    monsters: state.monsters.map((item) =>
+      item.id === monster.id ? { ...item, alert: 3, facing: facingToward(item, state.player) } : item,
+    ),
+    chronicle: log(state, message, 'danger'),
+  }
+}
+
 function interactableAgent(state: GameState, agentId?: string): Agent | undefined {
-  const candidates = state.agents.filter((agent) => distance(agent, state.player) <= 1)
+  const candidates = state.agents.filter((agent) => agent.role !== 'follower' && distance(agent, state.player) <= 1)
   return agentId
     ? candidates.find((agent) => agent.id === agentId)
     : candidates.find((agent) => agent.role === 'wanderer') ?? candidates[0]
@@ -54,10 +148,61 @@ function followerStep(state: GameState, agent: Agent): Agent {
           { x: agent.x + Math.sign(dx), y: agent.y },
         ]
   const step = candidates.find((position) => isPassable(state.world, position.x, position.y))
-  return step ? { ...agent, ...step } : agent
+  return step ? { ...agent, ...step, facing: facingToward(agent, step) } : agent
 }
 
-function advanceAi(state: GameState): Pick<GameState, 'agents' | 'day'> {
+function monsterChaseStep(state: GameState, monster: GameState['monsters'][number]): Position | undefined {
+  const dx = state.player.x - monster.x
+  const dy = state.player.y - monster.y
+  const candidates =
+    Math.abs(dx) >= Math.abs(dy)
+      ? [
+          { x: monster.x + Math.sign(dx), y: monster.y },
+          { x: monster.x, y: monster.y + Math.sign(dy) },
+        ]
+      : [
+          { x: monster.x, y: monster.y + Math.sign(dy) },
+          { x: monster.x + Math.sign(dx), y: monster.y },
+        ]
+  const occupied = new Set([
+    ...state.agents.map((agent) => `${agent.x},${agent.y}`),
+    ...state.monsters.filter((item) => item.id !== monster.id).map((item) => `${item.x},${item.y}`),
+    `${state.player.x},${state.player.y}`,
+  ])
+  return candidates.find(
+    (position) => isPassable(state.world, position.x, position.y) && !occupied.has(`${position.x},${position.y}`),
+  )
+}
+
+function advanceMonsters(state: GameState): GameState['monsters'] {
+  return state.monsters.map((monster, index) => {
+    const playerDistance = distance(monster, state.player)
+    const noticeRoll = hashString(`${state.gameId}:notice:${state.day}:${monster.id}`) % 100
+    if ((monster.alert ?? 0) <= 0) {
+      if (playerDistance <= MONSTER_NOTICE_RADIUS && noticeRoll < MONSTER_NOTICE_PERCENT) {
+        return { ...monster, alert: 3, facing: facingToward(monster, state.player) }
+      }
+      return monster
+    }
+
+    const alert = playerDistance <= MONSTER_NOTICE_RADIUS + 2
+      ? 3
+      : Math.max(0, (monster.alert ?? 0) - 1)
+    if (playerDistance <= 1 || alert <= 0) return { ...monster, alert, facing: facingToward(monster, state.player) }
+
+    const isSlowStep = (state.day + index) % 2 === 0
+    const chaseRoll = hashString(`${state.gameId}:chase:${state.day}:${monster.id}`) % 100
+    if (!isSlowStep || chaseRoll >= MONSTER_CHASE_PERCENT) {
+      return { ...monster, alert, facing: facingToward(monster, state.player) }
+    }
+    const step = monsterChaseStep(state, monster)
+    return step
+      ? { ...monster, ...step, alert, facing: facingToward(monster, step) }
+      : { ...monster, alert, facing: facingToward(monster, state.player) }
+  })
+}
+
+function advanceAi(state: GameState): Pick<GameState, 'agents' | 'monsters' | 'day'> {
   const agents = state.agents.map((agent, index) => {
     if (agent.role === 'follower') return followerStep(state, agent)
     if (agent.role !== 'wanderer') return agent
@@ -67,16 +212,24 @@ function advanceAi(state: GameState): Pick<GameState, 'agents' | 'day'> {
     const x = agent.x + delta.x
     const y = agent.y + delta.y
     if (!isPassable(state.world, x, y)) return agent
-    return { ...agent, x, y }
+    return { ...agent, x, y, facing: direction }
   })
-  return { agents, day: state.day + 1 }
+  return { agents, monsters: advanceMonsters({ ...state, agents }), day: state.day + 1 }
 }
 
 function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   const merged = { ...state, ...patch }
   const ai = advanceAi(merged)
   const next = { ...merged, ...ai }
-  return { ...next, fog: revealFog(next) }
+  const revealed = { ...next, fog: revealFog(next) }
+  if (revealed.battle || revealed.player.stamina <= 0) return revealed
+  const attacker = revealed.monsters.find((monster) => {
+    if ((monster.alert ?? 0) <= 0 || distance(monster, revealed.player) > 1) return false
+    return hashString(`${revealed.gameId}:ambush:${revealed.day}:${monster.id}`) % 100 < MONSTER_AMBUSH_PERCENT
+  })
+  return attacker
+    ? beginBattle(revealed, attacker, `${monsterName(attacker.species)}逼近并发起攻击！`)
+    : revealed
 }
 
 function addFatigue(
@@ -104,6 +257,9 @@ function automaticRest(state: GameState): GameState {
 }
 
 function move(state: GameState, direction: Direction): GameState {
+  if (state.battle) {
+    return { ...state, chronicle: log(state, '必须先结束眼前的战斗。', 'danger') }
+  }
   if (state.player.stamina <= 0) {
     return automaticRest(state)
   }
@@ -114,21 +270,36 @@ function move(state: GameState, direction: Direction): GameState {
     return { ...state, chronicle: log(state, '前路被深水或峭壁挡住了。', 'danger') }
   }
 
+  const monster = state.monsters.find((item) => item.x === x && item.y === y)
+  if (monster) {
+    const exertion = addFatigue(state, state.player.stamina, COMBAT_STEP_MULTIPLIER)
+    return beginBattle(
+      {
+        ...state,
+        player: { ...state.player, stamina: exertion.stamina, facing: direction },
+        fatigue: exertion.fatigue,
+        selected: { x, y },
+      },
+      monster,
+      `你惊动了${monsterName(monster.species)}，战斗开始。`,
+    )
+  }
+
   const tiles = state.world.tiles.map((tile) => ({ ...tile }))
   const index = tileIndex(state.world, x, y)
   const tile = tiles[index]
   let gold = state.player.gold
   let berries = state.player.berries
   let stamina = state.player.stamina
-  let maxStamina = state.player.maxStamina
   let fatigue = state.fatigue
-  let combatWins = state.combatWins
-  let monsters = state.monsters
   let chronicle = state.chronicle
-  const monster = monsters.find((item) => item.x === x && item.y === y)
-  const exertion = addFatigue(state, stamina, monster ? COMBAT_STEP_MULTIPLIER : 1)
+  const exertion = addFatigue(state, stamina, tile.road ? ROAD_STEP_COST : 1)
   stamina = exertion.stamina
   fatigue = exertion.fatigue
+  const constructionTotal = state.constructionSteps + (state.camps.length > 0 ? 1 : 0)
+  const earnedCredits = Math.floor(constructionTotal / STEPS_PER_STAMINA)
+  const constructionSteps = constructionTotal % STEPS_PER_STAMINA
+  const buildingCredits = state.buildingCredits + earnedCredits
 
   if (tile.coin > 0) {
     gold += tile.coin
@@ -147,42 +318,18 @@ function move(state: GameState, direction: Direction): GameState {
     tile.food = 0
   }
 
-  if (monster) {
-    const power = 1 + state.agents.filter((agent) => agent.role === 'follower').length
-    if (power >= monster.hp) {
-      monsters = monsters.filter((item) => item.id !== monster.id)
-      gold += 2
-      combatWins += 1
-      const previousMax = maxStamina
-      maxStamina = Math.min(MAX_STAMINA_CAP, maxStamina + 1)
-      chronicle = log(
-        { ...state, chronicle },
-        `随行队伍击退了${monster.species === 'slime' ? '泥团怪' : monster.species === 'boar' ? '棘背兽' : '迷雾精'}，获得 2 金。${maxStamina > previousMax ? `体力上限提升到 ${maxStamina}。` : ''}`,
-        'good',
-      )
-    } else {
-      const hit = hashString(`${state.gameId}:hit:${state.day}:${monster.id}:${x}:${y}`) % 2
-      stamina = Math.max(0, stamina - hit)
-      chronicle = log(
-        { ...state, chronicle },
-        hit > 0
-          ? '怪物击中了队伍，损失 1 点体力；战斗步数按 1.5 倍累计。'
-          : '怪物的攻击被挡住，没有损失体力；战斗步数仍按 1.5 倍累计。',
-        hit > 0 ? 'danger' : 'plain',
-      )
-    }
-  }
-
   const next = finishTurn(state, {
     world: { ...state.world, tiles },
-    player: { ...state.player, x, y, gold, berries, stamina, maxStamina },
+    player: { ...state.player, x, y, gold, berries, stamina, facing: direction },
     fatigue,
-    combatWins,
-    monsters,
+    constructionSteps,
+    buildingCredits,
     chronicle,
     selected: { x, y },
   })
-  return next
+  return earnedCredits > 0
+    ? { ...next, chronicle: log(next, '队伍完成 100 步建设勘察，获得 1 格营地建筑额度。', 'good') }
+    : next
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -199,7 +346,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, selected: action.position }
     }
     case 'REST': {
-      const villageIncome = state.agents.filter((agent) => agent.role === 'villager').length
+      if (state.battle) return { ...state, chronicle: log(state, '战斗中无法扎营休息。', 'danger') }
+      const villageIncome = Math.max(
+        state.agents.filter((agent) => agent.role === 'villager').length,
+        state.camps.reduce((sum, camp) => sum + camp.economy, 0),
+      )
       const vassalIncome = state.factions.filter((faction) => faction.isVassal).length * 2
       const goldIncome = villageIncome + vassalIncome
       const patched = {
@@ -238,13 +389,102 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         chronicle: log(state, '吃下一枚野果，恢复 1 点体力。', 'good'),
       }
     }
+    case 'SET_COMBAT_PREFERENCE':
+      return { ...state, combatPreference: action.mode }
+    case 'SET_BATTLE_MODE':
+      return state.battle
+        ? {
+            ...state,
+            battle: { ...state.battle, mode: action.mode },
+            chronicle: log(state, `本次遭遇切换为${action.mode === 'duel' ? '左右回合对峙' : '地图内直接战斗'}。`),
+          }
+        : state
+    case 'TOGGLE_EQUIPMENT':
+      return {
+        ...state,
+        equipment: state.equipment.map((item) =>
+          item.id === action.itemId ? { ...item, equipped: !item.equipped } : item,
+        ),
+      }
+    case 'COMBAT_ACTION': {
+      if (!state.battle) return state
+      const monster = state.monsters.find((item) => item.id === state.battle?.monsterId)
+      if (!monster) return { ...state, battle: null }
+      const move = combatMove(action.moveId)
+      if (state.player.stamina < move.staminaCost) {
+        return { ...state, chronicle: log(state, `${move.name}需要 ${move.staminaCost} 点体力。`, 'danger') }
+      }
+      const followerBonus = Math.min(2, state.agents.filter((agent) => agent.role === 'follower').length)
+      const damage = move.power + equipmentPower(state.equipment, move.kind) + followerBonus
+      const remainingHp = Math.max(0, monster.hp - damage)
+      const exertion = addFatigue(
+        state,
+        state.player.stamina - move.staminaCost,
+        COMBAT_STEP_MULTIPLIER * (move.size === 'large' ? 2 : 1),
+      )
+      if (remainingHp <= 0) {
+        const maxStamina = Math.min(MAX_STAMINA_CAP, state.player.maxStamina + 1)
+        return {
+          ...state,
+          battle: null,
+          monsters: state.monsters.filter((item) => item.id !== monster.id),
+          player: {
+            ...state.player,
+            stamina: exertion.stamina,
+            maxStamina,
+            gold: state.player.gold + 2,
+          },
+          fatigue: exertion.fatigue,
+          combatWins: state.combatWins + 1,
+          chronicle: log(
+            state,
+            `${move.name}造成 ${damage} 点伤害，击退${monsterName(monster.species)}。获得 2 金，体力上限提升到 ${maxStamina}。`,
+            'good',
+          ),
+        }
+      }
+      const rawHit = hashString(`${state.gameId}:counter:${state.day}:${monster.id}:${state.battle.round}`) % 2
+      const blockRoll = hashString(`${state.gameId}:block:${state.day}:${monster.id}:${state.battle.round}`) % 100
+      const blocked = rawHit > 0 && blockRoll < equipmentDefense(state.equipment) * 20
+      const hit = blocked ? 0 : rawHit
+      const stamina = Math.max(0, exertion.stamina - hit)
+      return {
+        ...state,
+        battle: stamina <= 0
+          ? null
+          : { ...state.battle, round: state.battle.round + 1, lastMoveId: move.id },
+        monsters: state.monsters.map((item) =>
+          item.id === monster.id
+            ? { ...item, hp: remainingHp, alert: 3, facing: facingToward(item, state.player) }
+            : item,
+        ),
+        player: { ...state.player, stamina },
+        fatigue: exertion.fatigue,
+        chronicle: log(
+          state,
+          `${move.name}造成 ${damage} 点伤害；${blocked ? '旅衣挡下反击' : hit ? '怪物反击造成 1 点体力损失' : '怪物反击落空'}。`,
+          hit ? 'danger' : 'plain',
+        ),
+      }
+    }
+    case 'FLEE_BATTLE':
+      if (!state.battle) return state
+      return {
+        ...state,
+        battle: null,
+        player: { ...state.player, stamina: Math.max(0, state.player.stamina - 1) },
+        chronicle: log(state, '你拉开距离脱离战斗，损失 1 点体力。', 'danger'),
+      }
     case 'TALK': {
+      if (state.battle) return { ...state, chronicle: log(state, '怪物正逼近，无法安心交谈。', 'danger') }
       if (state.player.stamina <= 0) return automaticRest(state)
       const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '附近没有可以交谈的旅人。') }
       const exertion = addFatigue(state, state.player.stamina, TALK_STEP_COST)
       const agents = state.agents.map((agent) =>
-        agent.id === target.id ? { ...agent, affection: Math.min(5, agent.affection + 1) } : agent,
+        agent.id === target.id
+          ? { ...agent, affection: Math.min(5, agent.affection + 1), facing: facingToward(agent, state.player) }
+          : agent,
       )
       const factions = state.factions.map((faction) =>
         faction.id === target.factionId ? { ...faction, relation: Math.min(100, faction.relation + 5) } : faction,
@@ -253,7 +493,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         agents,
         factions,
-        player: { ...state.player, stamina: exertion.stamina },
+        player: { ...state.player, stamina: exertion.stamina, facing: facingToward(state.player, target) },
         fatigue: exertion.fatigue,
         chronicle: log(state, `你与 ${target.name} 分享了旅途见闻。好感 +1，阵营声望 +5。`, 'good'),
       }
@@ -305,14 +545,33 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const tile = state.world.tiles[index]
       if (tile.structure) return { ...state, chronicle: log(state, '这里已有建筑，无法重复建营。', 'danger') }
       if (state.player.gold < 8) return { ...state, chronicle: log(state, '建立营地需要 8 金。', 'danger') }
+      const camp: Camp = {
+        id: `camp-${state.world.sceneX}-${state.world.sceneY}-${state.camps.length + 1}`,
+        name: `${state.world.sceneName}营地 ${state.camps.length + 1}`,
+        x: state.player.x,
+        y: state.player.y,
+        sceneX: state.world.sceneX,
+        sceneY: state.world.sceneY,
+        population: 1,
+        defense: 1,
+        economy: 1,
+        controlRadius: 3,
+        buildings: [],
+      }
       const tiles = state.world.tiles.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, structure: 'camp' as const } : item,
+        itemIndex === index ? { ...item, structure: 'camp' as const, campId: camp.id, road: true } : item,
       )
+      const camps = [...state.camps, camp]
       return {
         ...state,
-        world: { ...state.world, tiles },
+        world: connectCampRoads({ ...state.world, tiles }, camps, camp),
+        camps,
         player: { ...state.player, gold: state.player.gold - 8 },
-        chronicle: log(state, '木桩落地，旗帜升起。这里成为你的第一个营地。', 'good'),
+        chronicle: log(
+          state,
+          camps.length > 1 ? '新营地落成，并与同场景的营地自动接通道路。' : '木桩落地，旗帜升起。营地周围成为可建设的控制范围。',
+          'good',
+        ),
       }
     }
     case 'STATION_FOLLOWER': {
@@ -320,16 +579,91 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const tile = state.world.tiles[tileIndex(state.world, state.player.x, state.player.y)]
       if (!follower) return { ...state, chronicle: log(state, '你还没有可以驻守的随从。', 'danger') }
       if (tile.structure !== 'camp') return { ...state, chronicle: log(state, '随从只能在已建立的营地驻守。', 'danger') }
+      const camp = state.camps.find((item) => item.id === tile.campId)
       const next = {
         ...state,
         agents: state.agents.map((agent) =>
           agent.id === follower.id
-            ? { ...agent, role: 'villager' as const, x: state.player.x, y: state.player.y }
+            ? { ...agent, role: 'villager' as const, x: state.player.x, y: state.player.y, homeCampId: camp?.id }
             : agent,
+        ),
+        camps: state.camps.map((item) =>
+          item.id === camp?.id
+            ? { ...item, population: item.population + 1, defense: item.defense + 1, economy: item.economy + 1 }
+            : item,
         ),
         chronicle: log(state, `${follower.name} 留守营地。这里将永久保持明亮，并每天产出 1 金。`, 'good'),
       }
       return { ...next, fog: revealFog(next) }
+    }
+    case 'BUILD_CAMP_TILE': {
+      if (state.battle) return { ...state, chronicle: log(state, '战斗中无法施工。', 'danger') }
+      if (state.buildingCredits <= 0) {
+        return { ...state, chronicle: log(state, '每在建营后移动 100 步，才会获得 1 格建筑额度。', 'danger') }
+      }
+      if (!state.selected) return { ...state, chronicle: log(state, '先在地图上选择营地控制范围内的空地。') }
+      const camp = campAt(state, state.selected)
+      if (!camp) return { ...state, chronicle: log(state, '所选格子不在当前场景的营地控制范围内。', 'danger') }
+      const index = tileIndex(state.world, state.selected.x, state.selected.y)
+      const tile = state.world.tiles[index]
+      if (!isPassable(state.world, state.selected.x, state.selected.y) || tile.structure) {
+        return { ...state, chronicle: log(state, '该格无法修建营地建筑。', 'danger') }
+      }
+      const gains: Record<CampBuildingKind, Pick<Camp, 'population' | 'defense' | 'economy'>> = {
+        house: { population: 2, defense: 0, economy: 0 },
+        watchtower: { population: 0, defense: 2, economy: 0 },
+        market: { population: 0, defense: 0, economy: 2 },
+      }
+      const gain = gains[action.kind]
+      const labels: Record<CampBuildingKind, string> = { house: '居所', watchtower: '哨塔', market: '集市' }
+      const tiles = state.world.tiles.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, structure: 'camp-building' as const, campId: camp.id, buildingKind: action.kind }
+          : item,
+      )
+      return {
+        ...state,
+        world: { ...state.world, tiles },
+        camps: state.camps.map((item) =>
+          item.id === camp.id
+            ? {
+                ...item,
+                population: item.population + gain.population,
+                defense: item.defense + gain.defense,
+                economy: item.economy + gain.economy,
+                controlRadius: action.kind === 'watchtower' ? Math.min(6, item.controlRadius + 1) : item.controlRadius,
+                buildings: [...item.buildings, { ...state.selected!, kind: action.kind }],
+              }
+            : item,
+        ),
+        buildingCredits: state.buildingCredits - 1,
+        chronicle: log(state, `${camp.name}建成一格${labels[action.kind]}。`, 'good'),
+      }
+    }
+    case 'RETURN_TO_CAMP': {
+      if (state.battle) return { ...state, chronicle: log(state, '先结束战斗，才能自动寻路。', 'danger') }
+      const camp = state.camps.find((item) => item.id === action.campId)
+      if (!camp) return state
+      if (camp.sceneX !== state.world.sceneX || camp.sceneY !== state.world.sceneY) {
+        return { ...state, chronicle: log(state, `${camp.name}位于其他大场景，请先使用古道切换场景。`, 'danger') }
+      }
+      const path = shortestPath(state.world, state.player, camp)
+      if (path.length === 0 && distance(state.player, camp) > 0) {
+        return { ...state, chronicle: log(state, '没有找到可通行的返程路线。', 'danger') }
+      }
+      let next = state
+      for (const position of path) {
+        if (next.battle || next.player.stamina <= 0) break
+        next = move(next, directionBetween(next.player, position))
+      }
+      return {
+        ...next,
+        chronicle: log(
+          next,
+          distance(next.player, camp) === 0 ? `已沿最短路径返回${camp.name}。` : `返程途中遭遇阻碍，自动寻路暂停。`,
+          distance(next.player, camp) === 0 ? 'good' : 'danger',
+        ),
+      }
     }
     case 'PLEDGE_FACTION': {
       const faction = state.factions.find((item) => item.id === action.factionId)
@@ -405,6 +739,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     case 'TRAVEL': {
+      if (state.battle) return { ...state, chronicle: log(state, '战斗中无法使用交通设施。', 'danger') }
       if (state.player.stamina <= 0) return automaticRest(state)
       const delta = directionDelta[action.direction]
       const targetX = state.world.sceneX + delta.x
@@ -419,6 +754,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           fog: state.fog,
           agents: state.agents.filter((agent) => agent.role !== 'follower'),
           monsters: state.monsters,
+          camps: state.camps.filter(
+            (camp) => camp.sceneX === state.world.sceneX && camp.sceneY === state.world.sceneY,
+          ),
         },
       }
       const cached = sceneCache[targetKey]

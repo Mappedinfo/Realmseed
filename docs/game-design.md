@@ -73,13 +73,18 @@ Future art packs may replace the procedural primitives, but must preserve the
 4. Click the bubble over an adjacent highlighted traveler to talk or trade.
    Berries enter the left inventory, restore one stamina when eaten, and trade
    at a deterministic daily rate of 8–12 berries per gold.
-5. Recruit a trusted traveler; follower AI trails the player and contributes
-   combat strength and vision.
-6. Build a camp, station a follower as a villager, and create permanent light
-   plus daily tax income.
-7. Swear fealty to a trusted faction for expedition support, or remain
+5. Recruit a trusted traveler; the follower moves into the left party roster
+   instead of occupying a world tile, while still contributing combat strength
+   and party vision. Click roster entries to switch the top-left portrait.
+6. Build a camp to create a highlighted control radius and inspect population,
+   defense, economy, buildings, and range from the left camp list.
+7. Walk 100 successful steps after founding a camp to earn one building tile.
+   Select a controlled empty tile for a house, watchtower, or market. Same-scene
+   camps automatically connect by passable roads; roads use 0.35 movement fatigue,
+   and the camp list can run shortest-path return navigation.
+8. Swear fealty to a trusted faction for expedition support, or remain
    independent and establish tribute-paying vassals.
-8. Take a waystone route into another deterministic scene and continue.
+9. Take a waystone route into another deterministic scene and continue.
 
 ## System boundaries
 
@@ -89,7 +94,9 @@ Future art packs may replace the procedural primitives, but must preserve the
 | Inventory | manual berry consumption; person-to-person 8–12:1 exchange | item types, weight, crafting |
 | Stamina | 100-step cost, 1.5× combat fatigue, 0/1 hit loss, berry recovery, exhausted rest to 3 | equipment and biome modifiers |
 | Affection | 0–5 per traveler; 3 enables recruitment | memories, preferences, conflicts |
-| Followers | trail, reveal, fight, or become villagers | gather, guard, scout, craft |
+| Followers | hidden party roster, switchable portrait, reveal, fight, or become villagers | gather, guard, scout, craft |
+| Camps | population, defense, economy, radius, 100-step building credits, roads, auto-path | production queues and sieges |
+| Combat | field/duel presentation, six categorized moves, numeric equipment | status effects and tactical positioning |
 | Factions | reputation, fealty, oath breaking, vassalage | diplomacy, war, borders |
 | Monsters | three seeded species, simple HP, victory raises max stamina to a cap of 30 | behaviors, drops, bosses |
 | Fog | visible / explored / unseen per scene | line of sight and watchtowers |

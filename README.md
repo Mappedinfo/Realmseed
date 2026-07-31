@@ -18,12 +18,19 @@ directly to GitHub Pages.
 - four pixel-art waystone transport facilities in every scene
 - deterministic procedural terrain and societies
 - three-state fog of war: visible, explored, unseen
-- villagers and followers provide persistent vision
+- villagers and the abstracted traveling party provide persistent vision
 - keyboard, button, and adjacent-tile movement
-- stamina, coins, affection, recruitment, camps, and village income
-- followers that actively trail the player on every world turn
+- stamina, coins, affection, recruitment, camps, buildings, roads, and settlement income
+- recruited followers leave the crowded world canvas and move into a clickable
+  party roster with switchable portraits
+- camps with visible control ranges, population, defense, economy, buildings,
+  construction progress, and automatic return paths
+- automatic passable roads between same-scene camps with reduced movement fatigue
 - faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
 - three AI factions, wandering agents, followers, and monsters
+- four-direction characters, probabilistic monster alerts and pursuit
+- persistent default plus per-encounter field/duel combat modes
+- melee/ranged physical, magic, firearm, and explosive moves with equipment bonuses
 - responsive pixel UI with a full-world minimap
 - a hybrid Verdant art pack: detailed 32×32 terrain beneath processed pixel
   characters, monsters, buildings, resources, and waystones
@@ -42,6 +49,7 @@ src/
 │   ├── rng.ts           deterministic seeded random utilities
 │   ├── world.ts         terrain, society, monster, and fog generation
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
+│   ├── combat.ts        moves, damage categories, and equipment values
 │   ├── art.ts           canonical sprite-atlas contract
 │   └── types.ts         domain contracts
 ├── App.tsx              application composition
@@ -82,7 +90,15 @@ python3 scripts/ingest_directional_assets.py
 - Interaction: adjacent people gain a speech bubble; click the bubble or person
   to open the lower-center dialogue and trade counter
 - Recruit: requires 3 affection and 5 gold
-- Build camp: requires 8 gold
+- Party: recruited followers are hidden from the world canvas; click the left
+  roster to switch the top-left portrait, which defaults to the player
+- Build camp: requires 8 gold and creates a highlighted control radius
+- Construction: after founding a camp, each 100 successful movement steps grant
+  one building tile; select a highlighted empty tile, then build a house,
+  watchtower, or market
+- Camp navigation: select a camp in the left list to inspect its attributes or
+  auto-path home; same-scene camps automatically receive passable roads
+- Roads: road tiles spend only 0.35 movement fatigue instead of 1
 - Station: turn a follower into a villager at a camp; the village stays lit and
   produces 1 gold each rest
 - Stamina: ordinary movement spends 1 point per 100 steps; combat steps count
@@ -94,6 +110,11 @@ python3 scripts/ingest_directional_assets.py
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world
+- Combat: choose map-direct or left/right duel as the persistent default, then
+  temporarily override it per encounter; six moves cover melee/ranged and all
+  four damage categories
+- Equipment: equip numerical bonuses in the left panel without drawing gear on
+  the character sprite
 - Scene travel: accumulate 25 steps of fatigue to take a waystone route to the adjacent
   deterministic scene; followers travel with you while staffed villages remain
   behind and continue to preserve that scene's explored state

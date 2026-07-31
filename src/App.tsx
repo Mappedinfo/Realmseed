@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useReducer, useState } from 'react'
 import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
+import { BattlePanel } from './components/BattlePanel'
+import { CampPanel } from './components/CampPanel'
+import { EquipmentPanel } from './components/EquipmentPanel'
 import { InteractionPanel } from './components/InteractionPanel'
 import { MiniMap } from './components/MiniMap'
 import { SceneTransit } from './components/SceneTransit'
@@ -8,7 +11,7 @@ import { StartScreen } from './components/StartScreen'
 import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
 import { gameReducer, visibleCounts } from './game/simulation'
-import type { GameState, MapSize } from './game/types'
+import type { BattleMode, GameState, MapSize } from './game/types'
 import { createGame } from './game/world'
 
 function GameView({
@@ -24,6 +27,8 @@ function GameView({
 }) {
   const [state, dispatch] = useReducer(gameReducer, initialState)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+  const [activePartyId, setActivePartyId] = useState('player')
+  const [selectedCampId, setSelectedCampId] = useState<string | null>(null)
   const counts = useMemo(() => visibleCounts(state), [state])
   const followers = state.agents.filter((agent) => agent.role === 'follower')
   const villagers = state.agents.filter((agent) => agent.role === 'villager')
@@ -31,10 +36,18 @@ function GameView({
   const vassals = state.factions.filter((faction) => faction.isVassal)
   const socialRank = overlord ? `${overlord.name}属臣` : vassals.length > 0 ? '独立领主' : '自由旅人'
   const activeAgent = state.agents.find((agent) => agent.id === activeAgentId)
+  const activePartyMember = activePartyId === 'player'
+    ? state.player
+    : followers.find((agent) => agent.id === activePartyId) ?? state.player
+  const activePortraitIndex = activePartyMember.role === 'player' ? 0 : 1
   const nearest = state.agents
     .filter((agent) => agent.role === 'wanderer')
     .map((agent) => ({ agent, distance: Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) }))
     .sort((a, b) => a.distance - b.distance)[0]
+  const setCombatPreference = (mode: BattleMode) => {
+    window.localStorage.setItem('realmseed-combat-mode', mode)
+    dispatch({ type: 'SET_COMBAT_PREFERENCE', mode })
+  }
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -46,18 +59,29 @@ function GameView({
                 : null
       if (direction) {
         event.preventDefault()
+        if (state.battle) return
         dispatch({ type: 'MOVE', direction })
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [state.battle])
 
   useEffect(() => {
+    if (state.battle) {
+      setActiveAgentId(null)
+      return
+    }
     if (!activeAgent) return
     const distance = Math.abs(activeAgent.x - state.player.x) + Math.abs(activeAgent.y - state.player.y)
     if (distance > 1) setActiveAgentId(null)
-  }, [activeAgent, state.player.x, state.player.y])
+  }, [activeAgent, state.battle, state.player.x, state.player.y])
+
+  useEffect(() => {
+    if (activePartyId !== 'player' && !followers.some((agent) => agent.id === activePartyId)) {
+      setActivePartyId('player')
+    }
+  }, [activePartyId, followers])
 
   return (
     <main className="game-shell">
@@ -82,6 +106,17 @@ function GameView({
               ))}
             </select>
           </label>
+          <label className="art-theme-control combat-mode-control">
+            <span>默认战斗</span>
+            <select
+              value={state.combatPreference}
+              onChange={(event) => setCombatPreference(event.target.value as BattleMode)}
+              aria-label="默认战斗模式"
+            >
+              <option value="field">地图直战</option>
+              <option value="duel">左右回合</option>
+            </select>
+          </label>
           <AudioControl />
           <button onClick={onNewWorld}>新世界</button>
         </div>
@@ -89,9 +124,17 @@ function GameView({
 
       <div className="game-grid">
         <aside className="side-panel explorer-panel">
-          <p className="panel-kicker">EXPLORER</p>
-          <div className="portrait" aria-hidden="true"><span>◆</span></div>
-          <h2>{state.player.name}</h2>
+          <p className="panel-kicker">PARTY · 点击切换头像</p>
+          <div
+            className="portrait party-sprite"
+            style={{
+              backgroundImage: `url(${import.meta.env.BASE_URL}assets/art/verdant-directional-characters.png)`,
+              backgroundPosition: `${-activePortraitIndex * 64}px 0`,
+            }}
+            role="img"
+            aria-label={`${activePartyMember.name} 的队伍头像`}
+          />
+          <h2>{activePartyMember.name}</h2>
           <p className="free-banner">{socialRank}</p>
 
           <div className="resource-row">
@@ -120,19 +163,46 @@ function GameView({
             <p className="inventory-rate">各地行情约为 10 果 = 1 金，产量受地形与区域影响。</p>
           </div>
 
-          <div className="panel-section">
-            <h3>同行者 <span>{followers.length}</span></h3>
-            {followers.length === 0 ? <p className="empty-copy">与旅人建立 3 点好感后可招募。</p> : followers.map((agent) => <p className="person-row" key={agent.id}>♟ {agent.name}</p>)}
+          <EquipmentPanel state={state} dispatch={dispatch} />
+
+          <div className="panel-section party-panel">
+            <h3>队内角色 <span>{followers.length + 1}</span></h3>
+            <div className="party-roster">
+              <button
+                className={activePartyId === 'player' ? 'is-active' : ''}
+                onClick={() => setActivePartyId('player')}
+              >
+                <span>◆</span><b>{state.player.name}</b><small>队长</small>
+              </button>
+              {followers.map((agent) => (
+                <button
+                  className={activePartyId === agent.id ? 'is-active' : ''}
+                  key={agent.id}
+                  onClick={() => setActivePartyId(agent.id)}
+                >
+                  <span>♟</span><b>{agent.name}</b><small>随行 · 场景中隐藏</small>
+                </button>
+              ))}
+            </div>
+            {followers.length === 0 ? <p className="empty-copy">与旅人建立 3 点好感后可招募。</p> : null}
           </div>
+
+          <CampPanel
+            state={state}
+            selectedCampId={selectedCampId}
+            onSelectCamp={(campId) => {
+              setSelectedCampId(campId)
+              const camp = state.camps.find((item) => item.id === campId)
+              if (camp && camp.sceneX === state.world.sceneX && camp.sceneY === state.world.sceneY) {
+                dispatch({ type: 'SELECT', position: { x: camp.x, y: camp.y } })
+              }
+            }}
+            dispatch={dispatch}
+          />
 
           <div className="panel-section">
             <h3>领地 / 附属 <span>{villagers.length} / {vassals.length}</span></h3>
-            <p className="empty-copy">
-              {villagers.length
-                ? `常亮村庄 ${villagers.length} 处 · 村税 +${villagers.length} 金`
-                : '建立营地，再让随从驻守。'}
-              {vassals.length ? ` · 贡金 +${vassals.length * 2} 金` : ''}
-            </p>
+            <p className="empty-copy">{vassals.length ? `附属贡金 +${vassals.length * 2} 金` : '尚未建立附属契约。'}</p>
           </div>
         </aside>
 
@@ -144,7 +214,7 @@ function GameView({
             onAgentClick={setActiveAgentId}
             onSelect={(position) => dispatch({ type: 'SELECT', position })}
           />
-          {activeAgent ? (
+          {!state.battle && activeAgent ? (
             <InteractionPanel
               state={state}
               target={activeAgent}
@@ -153,6 +223,7 @@ function GameView({
               onClose={() => setActiveAgentId(null)}
             />
           ) : null}
+          <BattlePanel state={state} dispatch={dispatch} />
           <ActionDock state={state} dispatch={dispatch} />
         </section>
 
@@ -236,7 +307,10 @@ export function App() {
   const [theme, setTheme] = useState<ArtTheme>('verdant')
   const start = (seed: string, size: MapSize, selectedTheme: ArtTheme) => {
     setTheme(selectedTheme)
-    setInitialState(createGame(seed, size))
+    const next = createGame(seed, size)
+    const savedMode = window.localStorage.getItem('realmseed-combat-mode')
+    if (savedMode === 'duel' || savedMode === 'field') next.combatPreference = savedMode
+    setInitialState(next)
   }
   return initialState
     ? (

@@ -1,4 +1,4 @@
-import type { Structure, Terrain } from './types'
+import type { Direction, Structure, Terrain } from './types'
 
 export const ART_CELL = 16
 export const GENERATED_CELL = 32
@@ -39,6 +39,7 @@ export const spriteIndex: Record<SpriteId, number> = {
   village: 13,
   ruin: 14,
   waystone: 15,
+  'camp-building': 24,
   player: 16,
   wanderer: 17,
   villager: 18,
@@ -72,6 +73,14 @@ export function generatedCharactersUrl(): string {
   return `${import.meta.env.BASE_URL}assets/art/verdant-generated-characters.png`
 }
 
+export function directionalCharactersUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-directional-characters.png`
+}
+
+export function directionalMonstersUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-directional-monsters.png`
+}
+
 export function generatedSceneUrl(): string {
   return `${import.meta.env.BASE_URL}assets/art/verdant-world-scene.webp`
 }
@@ -88,9 +97,30 @@ export const generatedObjectIndex = {
   village: 13,
   ruin: 14,
   waystone: 15,
+  'camp-building': 13,
   slime: 20,
   boar: 21,
   wisp: 22,
   coin: 23,
   food: 24,
 } as const
+
+export const directionalCharacterIndex = {
+  player: 0,
+  wanderer: 4,
+  villager: 2,
+  follower: 1,
+} as const
+
+export const directionalMonsterIndex = {
+  slime: 0,
+  boar: 1,
+  wisp: 2,
+} as const
+
+export const directionalRow: Record<Direction, number> = {
+  down: 0,
+  up: 1,
+  left: 2,
+  right: 3,
+}

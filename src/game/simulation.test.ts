@@ -36,22 +36,84 @@ describe('game simulation', () => {
     expect(state.fatigue).toBe(0)
   })
 
-  it('counts a combat step at 1.5x and raises max stamina after victory', () => {
+  it('starts an encounter at 1.5x fatigue and raises max stamina after victory', () => {
     const state = flatState('combat-win-check')
     state.monsters = [{ id: 'training-slime', species: 'slime', hp: 1, x: 21, y: 20 }]
-    const next = gameReducer(state, { type: 'MOVE', direction: 'right' })
-    expect(next.fatigue).toBe(1.5)
-    expect(next.combatWins).toBe(1)
-    expect(next.player.maxStamina).toBe(state.player.maxStamina + 1)
-    expect(next.monsters).toHaveLength(0)
+    const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    expect(engaged.fatigue).toBe(1.5)
+    expect(engaged.battle?.monsterId).toBe('training-slime')
+    expect(engaged.player.x).toBe(20)
+
+    const victory = gameReducer(engaged, { type: 'COMBAT_ACTION', moveId: 'quick-strike' })
+    expect(victory.combatWins).toBe(1)
+    expect(victory.player.maxStamina).toBe(state.player.maxStamina + 1)
+    expect(victory.monsters).toHaveLength(0)
+    expect(victory.battle).toBeNull()
   })
 
-  it('deducts only zero or one stamina when the player is hit', () => {
+  it('deducts only zero or one stamina when the monster counters', () => {
     const state = flatState('combat-hit-check')
-    state.monsters = [{ id: 'strong-boar', species: 'boar', hp: 3, x: 21, y: 20 }]
-    const next = gameReducer(state, { type: 'MOVE', direction: 'right' })
-    expect([0, 1]).toContain(state.player.stamina - next.player.stamina)
-    expect(next.fatigue).toBe(1.5)
+    state.monsters = [{ id: 'strong-boar', species: 'boar', hp: 20, x: 21, y: 20 }]
+    const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    const next = gameReducer(engaged, { type: 'COMBAT_ACTION', moveId: 'quick-strike' })
+    expect([0, 1]).toContain(engaged.player.stamina - next.player.stamina)
+    expect(next.battle?.round).toBe(2)
+  })
+
+  it('keeps a persistent default combat mode and permits a temporary encounter override', () => {
+    const state = flatState('combat-mode-check')
+    const preferred = gameReducer(state, { type: 'SET_COMBAT_PREFERENCE', mode: 'duel' })
+    preferred.monsters = [{ id: 'mode-slime', species: 'slime', hp: 8, x: 21, y: 20 }]
+    const engaged = gameReducer(preferred, { type: 'MOVE', direction: 'right' })
+    expect(engaged.combatPreference).toBe('duel')
+    expect(engaged.battle?.mode).toBe('duel')
+
+    const overridden = gameReducer(engaged, { type: 'SET_BATTLE_MODE', mode: 'field' })
+    expect(overridden.combatPreference).toBe('duel')
+    expect(overridden.battle?.mode).toBe('field')
+  })
+
+  it('turns adjacent conversation partners to face one another', () => {
+    const state = flatState('facing-talk-check')
+    const agent = state.agents[0]
+    agent.x = 21
+    agent.y = 20
+    agent.facing = 'right'
+    const next = gameReducer(state, { type: 'TALK', agentId: agent.id })
+    expect(next.player.facing).toBe('right')
+    expect(next.agents.find((item) => item.id === agent.id)?.facing).toBe('left')
+  })
+
+  it('lets alerted monsters pursue slowly while changing facing', () => {
+    let state = flatState('monster-chase-check')
+    state.monsters = [{ id: 'hunter', species: 'boar', hp: 8, x: 26, y: 20, facing: 'up', alert: 3 }]
+    const initialDistance = Math.abs(state.monsters[0].x - state.player.x)
+    for (let turn = 0; turn < 10 && !state.battle; turn += 1) {
+      state = gameReducer(state, { type: 'REST' })
+    }
+    const hunter = state.monsters.find((monster) => monster.id === 'hunter')
+    expect(hunter).toBeDefined()
+    expect(Math.abs(hunter!.x - state.player.x)).toBeLessThan(initialDistance)
+    expect(['left', 'right', 'up', 'down']).toContain(hunter!.facing)
+  })
+
+  it('gives nearby monsters a probabilistic deterministic chance to notice the player', () => {
+    let state = flatState('monster-notice-check')
+    state.monsters = [{ id: 'watcher', species: 'wisp', hp: 8, x: 24, y: 20, facing: 'up', alert: 0 }]
+    for (let turn = 0; turn < 12; turn += 1) {
+      state = gameReducer(state, { type: 'REST' })
+      if ((state.monsters[0]?.alert ?? 0) > 0 || state.battle) break
+    }
+    expect((state.monsters[0]?.alert ?? 0) > 0 || state.battle?.monsterId === 'watcher').toBe(true)
+  })
+
+  it('toggles equipment bonuses without changing the character sprite contract', () => {
+    const state = flatState('equipment-check')
+    const knife = state.equipment.find((item) => item.id === 'field-knife')!
+    expect(knife.equipped).toBe(true)
+    const next = gameReducer(state, { type: 'TOGGLE_EQUIPMENT', itemId: knife.id })
+    expect(next.equipment.find((item) => item.id === knife.id)?.equipped).toBe(false)
+    expect(next.player.facing).toBe(state.player.facing)
   })
 
   it('automatically rests to three stamina when exhausted movement is attempted', () => {
@@ -132,6 +194,63 @@ describe('game simulation', () => {
     const next = gameReducer(state, { type: 'FOUND_CAMP' })
     expect(next.world.tiles[index].structure).toBe('camp')
     expect(next.player.gold).toBe(12)
+  })
+
+  it('keeps recruited followers in the party model instead of nearby interaction', () => {
+    const state = flatState('hidden-party-check')
+    state.agents = [{
+      ...state.agents[0],
+      role: 'follower',
+      x: state.player.x + 1,
+      y: state.player.y,
+      affection: 3,
+    }]
+    const next = gameReducer(state, { type: 'TALK', agentId: state.agents[0].id })
+    expect(next.agents[0].affection).toBe(3)
+    expect(next.chronicle[0].text).toContain('附近没有')
+  })
+
+  it('earns one camp building tile after every 100 successful steps', () => {
+    let state = flatState('construction-check')
+    state.player.gold = 20
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    for (let step = 0; step < 100; step += 1) {
+      state = gameReducer(state, { type: 'MOVE', direction: step % 2 === 0 ? 'right' : 'left' })
+    }
+    expect(state.buildingCredits).toBe(1)
+    expect(state.constructionSteps).toBe(0)
+  })
+
+  it('builds only inside camp control and applies building attributes', () => {
+    let state = flatState('camp-building-check')
+    state.player.gold = 20
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    state.buildingCredits = 1
+    state.selected = { x: state.player.x + 1, y: state.player.y }
+    const built = gameReducer(state, { type: 'BUILD_CAMP_TILE', kind: 'watchtower' })
+    const tile = built.world.tiles[built.player.y * built.world.size + built.player.x + 1]
+    expect(tile.structure).toBe('camp-building')
+    expect(tile.buildingKind).toBe('watchtower')
+    expect(built.camps[0].defense).toBe(3)
+    expect(built.camps[0].controlRadius).toBe(4)
+    expect(built.buildingCredits).toBe(0)
+  })
+
+  it('connects two camps by road and auto-paths home with lower fatigue', () => {
+    let state = flatState('camp-road-check')
+    state.player.gold = 20
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    const homeId = state.camps[0].id
+    state = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    state = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    const middle = state.world.tiles[state.player.y * state.world.size + state.player.x - 1]
+    expect(middle.road).toBe(true)
+    state.fatigue = 0
+    const returned = gameReducer(state, { type: 'RETURN_TO_CAMP', campId: homeId })
+    expect(returned.player.x).toBe(returned.camps[0].x)
+    expect(returned.player.y).toBe(returned.camps[0].y)
+    expect(returned.fatigue).toBeCloseTo(0.7)
   })
 
   it('moves follower AI toward the player on each world turn', () => {

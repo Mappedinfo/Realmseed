@@ -1,4 +1,5 @@
 import { hashString, pick, seededRandom } from './rng'
+import { starterEquipment } from './combat'
 import type { Agent, Direction, Faction, FogLevel, GameState, MapSize, Monster, Position, SceneSnapshot, Terrain, Tile, World } from './types'
 
 const firstNames = ['Ari', 'Bram', 'Cleo', 'Dara', 'Eli', 'Fenn', 'Gale', 'Hana', 'Ivo', 'Juno', 'Kiri', 'Lark', 'Mira', 'Nox', 'Orin', 'Pia', 'Quin', 'Rhea', 'Sora', 'Tavi']
@@ -191,14 +192,17 @@ export function createScene(
     maxStamina: 7,
     gold: 2 + Math.floor(random() * 8),
     berries: 8 + Math.floor(random() * 24),
+    facing: pick(random, ['up', 'down', 'left', 'right'] as const),
   }))
   const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
     id: `monster-${sceneId}-${index}`,
     species: pick(random, ['slime', 'boar', 'wisp'] as const),
-    hp: 1 + Math.floor(random() * 3),
+    hp: 6 + Math.floor(random() * 5),
+    facing: pick(random, ['up', 'down', 'left', 'right'] as const),
+    alert: 0,
     ...randomPassable(world, random, occupied),
   }))
-  return { world, agents, monsters }
+  return { world, agents, monsters, camps: [] }
 }
 
 export function sceneEntry(world: World, direction?: Direction): Position {
@@ -237,8 +241,9 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     affection: 0,
     stamina: 12,
     maxStamina: 12,
-    gold: 7,
+    gold: 12,
     berries: 4,
+    facing: 'down',
   }
   const fog = new Array<FogLevel>(world.tiles.length).fill(0)
   const initial: GameState = {
@@ -258,6 +263,12 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     selected: null,
     fatigue: 0,
     combatWins: 0,
+    combatPreference: 'field',
+    battle: null,
+    equipment: starterEquipment.map((item) => ({ ...item })),
+    camps: [],
+    constructionSteps: 0,
+    buildingCredits: 0,
     gameId: `${seed}-${mapSize}`,
   }
   initial.fog = revealFog(initial)
