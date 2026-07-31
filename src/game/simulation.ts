@@ -1,9 +1,10 @@
-import type { Agent, Camp, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
+import type { Agent, Camp, ChronicleEntry, Direction, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
-import { combatMove, equipmentDefense, equipmentPower } from './combat'
+import { combatMove, equipmentDefense, equipmentPower, relicEquipment } from './combat'
 import { buildingCount, campBuildingDefinitions, campDailyYield, campRestRecovery } from './camps'
+import { facilityEventDefinitions, facilityEventKind } from './facilities'
 import { isWithinInteractionRange } from './geometry'
-import { agentSkills, challengeChance, partyBonuses } from './skills'
+import { agentSkillIds, agentSkills, challengeChance, partyBonuses } from './skills'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 
 export const STEPS_PER_STAMINA = 100
@@ -122,6 +123,164 @@ function beginBattle(
       item.id === monster.id ? { ...item, alert: 3, facing: facingToward(item, state.player) } : item,
     ),
     chronicle: log(state, message, 'danger'),
+  }
+}
+
+function facilityNotice(
+  state: GameState,
+  kind: FacilityEventKind,
+  description: string,
+): GameState['facilityEvent'] {
+  const definition = facilityEventDefinitions[kind]
+  return {
+    id: state.day * 1000 + state.chronicle.reduce((maximum, entry) => Math.max(maximum, entry.id), 0) + 1,
+    kind,
+    title: `${definition.icon} ${definition.title}`,
+    description,
+  }
+}
+
+function resolveRuinEvent(state: GameState, position: Position): GameState {
+  const kind = facilityEventKind(state, position)
+  const roll = hashString(
+    `${state.gameId}:facility-reward:${state.world.sceneX}:${state.world.sceneY}:${position.x}:${position.y}`,
+  )
+  const definition = facilityEventDefinitions[kind]
+
+  if (kind === 'monster') {
+    const species = (['slime', 'boar', 'wisp'] as const)[roll % 3]
+    const monster = {
+      id: `ruin-${state.world.sceneX}-${state.world.sceneY}-${position.x}-${position.y}`,
+      species,
+      hp: 7 + (roll % 5),
+      x: position.x,
+      y: position.y,
+      facing: 'down' as const,
+      alert: 3,
+    }
+    const prepared = {
+      ...state,
+      monsters: [...state.monsters, monster],
+      facilityEvent: facilityNotice(state, kind, `${definition.description} ${monsterName(species)}挡住了出口。`),
+    }
+    return beginBattle(prepared, monster, `探索遗迹时惊醒了${monsterName(species)}！`)
+  }
+
+  if (kind === 'coins') {
+    const amount = 2 + (roll % 5)
+    const description = `${definition.description} 获得 ${amount} 金。`
+    return {
+      ...state,
+      player: { ...state.player, gold: state.player.gold + amount },
+      facilityEvent: facilityNotice(state, kind, description),
+      chronicle: log(state, description, 'good'),
+    }
+  }
+
+  if (kind === 'food') {
+    const amount = 3 + (roll % 6)
+    const description = `${definition.description} 获得 ${amount} 枚野果。`
+    return {
+      ...state,
+      player: { ...state.player, berries: state.player.berries + amount },
+      facilityEvent: facilityNotice(state, kind, description),
+      chronicle: log(state, description, 'good'),
+    }
+  }
+
+  if (kind === 'restoration') {
+    const description = `${definition.description} 体力恢复至 ${state.player.maxStamina}。`
+    return {
+      ...state,
+      player: { ...state.player, stamina: state.player.maxStamina },
+      fatigue: 0,
+      facilityEvent: facilityNotice(state, kind, description),
+      chronicle: log(state, description, 'good'),
+    }
+  }
+
+  if (kind === 'equipment') {
+    const available = relicEquipment.filter(
+      (candidate) => !state.equipment.some((item) => item.id === candidate.id),
+    )
+    if (available.length === 0) {
+      const description = '装备架已经空了，但回收的零件换得 4 金。'
+      return {
+        ...state,
+        player: { ...state.player, gold: state.player.gold + 4 },
+        facilityEvent: facilityNotice(state, kind, description),
+        chronicle: log(state, description, 'good'),
+      }
+    }
+    const item = { ...available[roll % available.length] }
+    const description = `${definition.description} 获得「${item.name}」，可在装备栏启用。`
+    return {
+      ...state,
+      equipment: [...state.equipment, item],
+      facilityEvent: facilityNotice(state, kind, description),
+      chronicle: log(state, description, 'good'),
+    }
+  }
+
+  const names = ['苔影', '烬叶', '露弦', '星槲', '雾岚', '青铃']
+  const companion: Agent = {
+    id: `companion-${state.world.sceneX}-${state.world.sceneY}-${position.x}-${position.y}`,
+    name: names[roll % names.length],
+    factionId: 'free',
+    role: 'follower',
+    x: state.player.x,
+    y: state.player.y,
+    affection: 3,
+    stamina: 7,
+    maxStamina: 7,
+    gold: 0,
+    berries: 0,
+    facing: state.player.facing,
+    skill: agentSkillIds[roll % agentSkillIds.length],
+    skillLevel: (1 + (roll % 3)) as 1 | 2 | 3,
+  }
+  const description = `${definition.description} ${companion.name}成为随从，并收纳到左侧队伍列表。`
+  return {
+    ...state,
+    agents: [...state.agents, companion],
+    facilityEvent: facilityNotice(state, kind, description),
+    chronicle: log(state, description, 'good'),
+  }
+}
+
+function resolveCampBuildingTouch(state: GameState, position: Position): GameState {
+  const index = tileIndex(state.world, position.x, position.y)
+  const tile = state.world.tiles[index]
+  if (
+    tile.structure !== 'camp-building' ||
+    (tile.lastUsedDay !== undefined && state.day - tile.lastUsedDay < 20)
+  ) return state
+  if (!tile.buildingKind || !['house', 'farm', 'shrine'].includes(tile.buildingKind)) return state
+  const tiles = state.world.tiles.map((item, itemIndex) =>
+    itemIndex === index ? { ...item, lastUsedDay: state.day } : item,
+  )
+  if (tile.buildingKind === 'farm') {
+    return {
+      ...state,
+      world: { ...state.world, tiles },
+      player: { ...state.player, berries: state.player.berries + 1 },
+      chronicle: log(state, '林缘农圃今日可采的野果已经收获：野果 +1。', 'good'),
+    }
+  }
+  const fullRecovery = tile.buildingKind === 'shrine'
+  const stamina = fullRecovery
+    ? state.player.maxStamina
+    : Math.min(state.player.maxStamina, state.player.stamina + 1)
+  return {
+    ...state,
+    world: { ...state.world, tiles },
+    player: { ...state.player, stamina },
+    fatigue: fullRecovery ? 0 : state.fatigue,
+    chronicle: log(
+      state,
+      fullRecovery ? '篝火祠的暖光让体力完全恢复。' : '在旅人居所短歇，恢复 1 点体力。',
+      'good',
+    ),
   }
 }
 
@@ -338,7 +497,8 @@ function move(state: GameState, direction: Direction): GameState {
     tile.food = 0
   }
 
-  const next = finishTurn(state, {
+  let stepped: GameState = {
+    ...state,
     world: { ...state.world, tiles },
     player: { ...state.player, x, y, gold, berries, stamina, facing: direction },
     fatigue,
@@ -346,7 +506,16 @@ function move(state: GameState, direction: Direction): GameState {
     buildingCredits,
     chronicle,
     selected: { x, y },
-  })
+  }
+  stepped = resolveCampBuildingTouch(stepped, { x, y })
+  if (tile.structure === 'ruin' && !tile.eventResolved) {
+    tile.eventResolved = true
+    stepped = { ...stepped, world: { ...stepped.world, tiles } }
+    stepped = resolveRuinEvent(stepped, { x, y })
+  }
+  const next = stepped.battle
+    ? { ...stepped, fog: revealFog(stepped) }
+    : finishTurn(stepped, {})
   return earnedCredits > 0
     ? { ...next, chronicle: log(next, '队伍完成 100 步建设勘察，获得 1 格营地建筑额度。', 'good') }
     : next
@@ -356,6 +525,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'MOVE':
       return move(state, action.direction)
+    case 'DISMISS_FACILITY_EVENT':
+      return { ...state, facilityEvent: null }
     case 'SELECT': {
       const tile = state.world.tiles[tileIndex(state.world, action.position.x, action.position.y)]
       const hasMapElement =

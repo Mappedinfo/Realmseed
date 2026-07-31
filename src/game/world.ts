@@ -295,6 +295,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
       trader: 0,
       duelist: 0,
     },
+    facilityEvent: null,
     gameId: `${seed}-${mapSize}`,
   }
   initial.fog = revealFog(initial)

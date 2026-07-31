@@ -7,10 +7,13 @@ import {
   directionalMonstersUrl,
   directionalRoleIndex,
   directionalRow,
+  facilityAtlasUrl,
+  facilityIndex,
   spriteIndex,
   type ArtTheme,
 } from './art'
 import directionalManifest from '../../art/generated/directional/manifest.json'
+import facilityManifest from '../../art/generated/facilities/manifest.json'
 
 describe('pixel art contract', () => {
   it('keeps every sprite in a unique atlas cell', () => {
@@ -54,6 +57,31 @@ describe('pixel art contract', () => {
       engineer: 13,
       'caravan-merchant': 14,
       bard: 15,
+    })
+  })
+
+  it('publishes the eight-cell facility atlas contract', () => {
+    expect(facilityAtlasUrl()).toMatch(/verdant-facilities\.png$/)
+    expect(facilityManifest.runtime_layout.cell).toBe(32)
+    expect(facilityManifest.runtime_layout.columns).toEqual([
+      'camp-core',
+      'house',
+      'farm',
+      'watchtower',
+      'market',
+      'workshop',
+      'shrine',
+      'road-gate',
+    ])
+    expect(facilityIndex).toEqual({
+      'camp-core': 0,
+      house: 1,
+      farm: 2,
+      watchtower: 3,
+      market: 4,
+      workshop: 5,
+      shrine: 6,
+      'road-gate': 7,
     })
   })
 })

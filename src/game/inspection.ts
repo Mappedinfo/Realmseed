@@ -128,6 +128,11 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
           { label: '成本', value: `${definition.cost} 金 / 1 格` },
           { label: '坐标', value: `${position.x}, ${position.y}` },
         ],
+        hint:
+          kind === 'farm' ? '每 20 个行动日首次踏入可收获 1 枚野果。'
+            : kind === 'house' ? '每 20 个行动日首次踏入可短歇并恢复 1 点体力。'
+              : kind === 'shrine' ? '每 20 个行动日首次踏入可回满体力并清空疲劳。'
+                : definition.detail,
         tone: 'good',
       }
     }
@@ -161,17 +166,27 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
       waystone: '连接相邻大场景的古代交通设施。',
     } as const
     const structure = tile.structure as keyof typeof names
+    const ruinResolved = structure === 'ruin' && Boolean(tile.eventResolved)
     return {
       ...base,
       category: '建筑',
-      name: names[structure],
+      name: ruinResolved ? '已搜寻的古代遗迹' : names[structure],
       icon: structure === 'waystone' ? '◇' : structure === 'ruin' ? '▥' : '⌂',
       description: descriptions[structure],
       stats: [
         { label: '地形', value: terrainNames[tile.terrain] },
+        ...(structure === 'ruin'
+          ? [{ label: '探索状态', value: ruinResolved ? '事件已结算' : '尚未踏入' }]
+          : []),
         { label: '坐标', value: `${position.x}, ${position.y}` },
       ],
-      hint: structure === 'waystone' ? '使用右侧古道控制前往相邻场景。' : undefined,
+      hint:
+        structure === 'waystone' ? '使用右侧古道控制前往相邻场景。'
+          : structure === 'ruin'
+            ? ruinResolved
+              ? '这处遗迹已经搜寻完毕，不会重复产出。'
+              : '踏入后只结算一次：可能出现怪物、金币、食物、回满体力、新装备或新队友。'
+            : undefined,
       tone: structure === 'ruin' ? 'neutral' : 'good',
     }
   }

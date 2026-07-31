@@ -905,6 +905,51 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   border-top: 3px solid #ff7046;
   box-shadow: var(--pixel-shadow);
 }
+
+.facility-event {
+  margin-top: 10px;
+  border: 1px solid rgba(225, 202, 112, .72);
+  border-left: 5px solid #e1ca70;
+  background:
+    linear-gradient(90deg, rgba(225, 202, 112, .13), transparent 62%),
+    #17211c;
+  box-shadow: 0 7px 18px rgba(4, 9, 6, .34);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.facility-event small {
+  color: #9aab9d;
+  letter-spacing: .11em;
+  font-size: 10px;
+}
+
+.facility-event h2 {
+  margin: 3px 0 4px;
+  color: #f0dfa1;
+  font-size: 18px;
+}
+
+.facility-event p {
+  margin: 0;
+  color: #c6d0c8;
+  line-height: 1.5;
+}
+
+.facility-event button {
+  flex: 0 0 auto;
+  border-color: rgba(225, 202, 112, .5);
+  color: #eadb9f;
+}
+
+.facility-event-monster {
+  border-color: rgba(216, 102, 78, .78);
+  border-left-color: #d8664e;
+  background: linear-gradient(90deg, rgba(216, 102, 78, .16), transparent 62%), #211917;
+}
 .battle-mode-switch {
   display: flex;
   align-items: center;

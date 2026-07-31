@@ -3,6 +3,7 @@ import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
 import { BattlePanel } from './components/BattlePanel'
 import { ExplorerTabs } from './components/ExplorerTabs'
+import { FacilityEventPanel } from './components/FacilityEventPanel'
 import type { ExplorerFocus, ExplorerTab } from './components/explorerFocus'
 import { InteractionPanel } from './components/InteractionPanel'
 import { MiniMap } from './components/MiniMap'
@@ -183,6 +184,7 @@ function GameView({
               onClose={() => setActiveAgentId(null)}
             />
           ) : null}
+          <FacilityEventPanel state={state} dispatch={dispatch} />
           <BattlePanel state={state} dispatch={dispatch} />
           <ActionDock state={state} dispatch={dispatch} />
         </section>

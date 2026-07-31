@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { berryExchangeRate, gameReducer } from './simulation'
 import { hashString } from './rng'
+import { facilityEventKind } from './facilities'
 import { createGame, isPassable, revealFog } from './world'
 
 function passableDirection(state: ReturnType<typeof createGame>) {
@@ -153,6 +154,61 @@ describe('game simulation', () => {
     expect(next.player.berries).toBe(initialBerries + 2)
     expect(next.world.tiles[index].food).toBe(0)
     expect(next.chronicle[0].text).toContain('放入左侧物品栏')
+  })
+
+  it.each(['monster', 'coins', 'food', 'restoration', 'equipment', 'companion'] as const)(
+    'resolves the seeded one-shot ruin outcome: %s',
+    (expectedKind) => {
+      const state = flatState(`ruin-${expectedKind}`)
+      const target = { x: state.player.x + 1, y: state.player.y }
+      const index = target.y * state.world.size + target.x
+      state.world.tiles[index].structure = 'ruin'
+      state.player.stamina = 4
+      let probe = 0
+      while (facilityEventKind(state, target) !== expectedKind) {
+        probe += 1
+        state.gameId = `ruin-probe-${expectedKind}-${probe}`
+      }
+      const before = {
+        gold: state.player.gold,
+        berries: state.player.berries,
+        equipment: state.equipment.length,
+        followers: state.agents.filter((agent) => agent.role === 'follower').length,
+      }
+      const next = gameReducer(state, { type: 'MOVE', direction: 'right' })
+      expect(next.world.tiles[index].eventResolved).toBe(true)
+      expect(next.facilityEvent?.kind).toBe(expectedKind)
+      if (expectedKind === 'monster') expect(next.battle).not.toBeNull()
+      if (expectedKind === 'coins') expect(next.player.gold).toBeGreaterThan(before.gold)
+      if (expectedKind === 'food') expect(next.player.berries).toBeGreaterThan(before.berries)
+      if (expectedKind === 'restoration') expect(next.player.stamina).toBe(next.player.maxStamina)
+      if (expectedKind === 'equipment') expect(next.equipment).toHaveLength(before.equipment + 1)
+      if (expectedKind === 'companion') {
+        expect(next.agents.filter((agent) => agent.role === 'follower')).toHaveLength(before.followers + 1)
+      }
+    },
+  )
+
+  it('gives farm, house and shrine touch benefits with a 20-turn cooldown', () => {
+    for (const kind of ['farm', 'house', 'shrine'] as const) {
+      let state = flatState(`building-touch-${kind}`)
+      state.player.stamina = 4
+      const target = { x: state.player.x + 1, y: state.player.y }
+      const index = target.y * state.world.size + target.x
+      state.world.tiles[index] = {
+        terrain: 'meadow',
+        coin: 0,
+        structure: 'camp-building',
+        buildingKind: kind,
+      }
+      const first = gameReducer(state, { type: 'MOVE', direction: 'right' })
+      expect(first.world.tiles[index].lastUsedDay).toBe(state.day)
+      const afterFirst = { berries: first.player.berries, stamina: first.player.stamina }
+      const away = gameReducer(first, { type: 'MOVE', direction: 'left' })
+      const returned = gameReducer(away, { type: 'MOVE', direction: 'right' })
+      expect(returned.player.berries).toBe(afterFirst.berries)
+      expect(returned.player.stamina).toBe(afterFirst.stamina)
+    }
   })
 
   it('selects an adjacent map element for inspection without moving onto it', () => {

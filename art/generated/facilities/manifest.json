@@ -1,0 +1,32 @@
+{
+  "source_directory": "art/generated/facilities/raw/facility-set-2026-07-31",
+  "source_sheet": "art/generated/facilities/raw/facility-set-2026-07-31/ChatGPT Image 2026年7月31日 19_32_09 (1).png",
+  "source_grid": {
+    "rows": 2,
+    "columns": 4
+  },
+  "runtime_layout": {
+    "cell": 32,
+    "columns": [
+      "camp-core",
+      "house",
+      "farm",
+      "watchtower",
+      "market",
+      "workshop",
+      "shrine",
+      "road-gate"
+    ],
+    "rows": 1
+  },
+  "runtime_output": "public/assets/art/verdant-facilities.png",
+  "scene_outputs": {
+    "day": "public/assets/art/verdant-camp-scene-day.webp",
+    "night": "public/assets/art/verdant-camp-scene-night.webp"
+  },
+  "policy": {
+    "raw_sources_are_immutable": true,
+    "green_background_is_removed": true,
+    "runtime_palette_is_limited": true
+  }
+}

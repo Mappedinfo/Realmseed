@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Direction, GameState, Position, Structure, Terrain } from '../game/types'
+import type { CampBuildingKind, Direction, GameState, Position, Structure, Terrain } from '../game/types'
 import {
   ART_CELL,
   GENERATED_CELL,
@@ -9,6 +9,8 @@ import {
   directionalMonsterIndex,
   directionalMonstersUrl,
   directionalRow,
+  facilityAtlasUrl,
+  facilityIndex,
   generatedCharacterIndex,
   generatedCharactersUrl,
   generatedObjectIndex,
@@ -270,10 +272,20 @@ function drawStructure(
   context: CanvasRenderingContext2D,
   atlas: HTMLImageElement | null,
   generatedObjects: HTMLImageElement | null,
+  facilities: HTMLImageElement | null,
   x: number,
   y: number,
   structure: Structure,
+  buildingKind?: CampBuildingKind,
 ) {
+  if (facilities && structure === 'camp') {
+    drawGeneratedCell(context, facilities, facilityIndex['camp-core'], x, y)
+    return
+  }
+  if (facilities && structure === 'camp-building' && buildingKind) {
+    drawGeneratedCell(context, facilities, facilityIndex[buildingKind], x, y)
+    return
+  }
   if (structure === 'camp-building') {
     pixelRect(context, '#513c2e', x + 5, y + 17, 22, 11)
     pixelRect(context, '#d69a52', x + 4, y + 12, 24, 6)
@@ -326,6 +338,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const generatedCharactersRef = useRef<HTMLImageElement | null>(null)
   const directionalCharactersRef = useRef<HTMLImageElement | null>(null)
   const directionalMonstersRef = useRef<HTMLImageElement | null>(null)
+  const facilitiesRef = useRef<HTMLImageElement | null>(null)
   const [assetRevision, setAssetRevision] = useState(0)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
@@ -339,6 +352,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
     generatedCharactersRef.current = null
     directionalCharactersRef.current = null
     directionalMonstersRef.current = null
+    facilitiesRef.current = null
     setAssetRevision((revision) => revision + 1)
     const images: HTMLImageElement[] = []
     const load = (url: string, target: { current: HTMLImageElement | null }) => {
@@ -363,6 +377,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       load(generatedCharactersUrl(), generatedCharactersRef)
       load(directionalCharactersUrl(), directionalCharactersRef)
       load(directionalMonstersUrl(), directionalMonstersRef)
+      load(facilityAtlasUrl(), facilitiesRef)
     }
     return () => {
       images.forEach((image) => {
@@ -418,8 +433,30 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
           pixelRect(context, 'rgba(63, 43, 29, .78)', screenX, screenY + 13, TILE, 7)
           pixelRect(context, 'rgba(190, 150, 91, .78)', screenX, screenY + 15, TILE, 3)
         }
+        if (
+          tile.road &&
+          !tile.structure &&
+          controllingCamp &&
+          Math.abs(controllingCamp.x - worldX) + Math.abs(controllingCamp.y - worldY) === controllingCamp.controlRadius &&
+          facilitiesRef.current
+        ) {
+          drawGeneratedCell(context, facilitiesRef.current, facilityIndex['road-gate'], screenX, screenY)
+        }
         if (tile.structure) {
-          drawStructure(context, atlasRef.current, generatedObjectsRef.current, screenX, screenY, tile.structure)
+          drawStructure(
+            context,
+            atlasRef.current,
+            generatedObjectsRef.current,
+            facilitiesRef.current,
+            screenX,
+            screenY,
+            tile.structure,
+            tile.buildingKind,
+          )
+          if (tile.structure === 'ruin' && tile.eventResolved) {
+            pixelRect(context, 'rgba(15, 22, 18, .42)', screenX, screenY, TILE, TILE)
+            pixelRect(context, '#b8b092', screenX + 25, screenY + 4, 3, 3)
+          }
         }
         if (tile.coin > 0 && fog === 2) {
           if (generatedObjectsRef.current) {

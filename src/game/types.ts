@@ -15,6 +15,7 @@ export type CombatMoveId =
   | 'rifle-shot'
   | 'field-bomb'
 export type EquipmentSlot = 'weapon' | 'focus' | 'firearm' | 'explosive' | 'armor'
+export type FacilityEventKind = 'monster' | 'coins' | 'food' | 'restoration' | 'equipment' | 'companion'
 
 export interface Tile {
   terrain: Terrain
@@ -24,6 +25,8 @@ export interface Tile {
   road?: boolean
   campId?: string
   buildingKind?: CampBuildingKind
+  eventResolved?: boolean
+  lastUsedDay?: number
 }
 
 export interface Position {
@@ -125,6 +128,13 @@ export interface ChronicleEntry {
   tone: 'plain' | 'good' | 'danger'
 }
 
+export interface FacilityEventNotice {
+  id: number
+  kind: FacilityEventKind
+  title: string
+  description: string
+}
+
 export interface GameState {
   world: World
   fog: FogLevel[]
@@ -146,6 +156,7 @@ export interface GameState {
   constructionSteps: number
   buildingCredits: number
   challengeMarks: Record<AgentSkillId, number>
+  facilityEvent: FacilityEventNotice | null
   gameId: string
 }
 
@@ -172,4 +183,5 @@ export type GameAction =
   | { type: 'PLEDGE_FACTION'; factionId: string }
   | { type: 'BREAK_OATH' }
   | { type: 'MAKE_VASSAL'; factionId: string }
+  | { type: 'DISMISS_FACILITY_EVENT' }
   | { type: 'TRAVEL'; direction: Direction }

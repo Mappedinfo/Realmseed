@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/facilities/cells/04-market.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/facilities/processed/04-market.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/facilities/previews/04-market.png",
+  "source_size": [
+    444,
+    443
+  ],
+  "foreground_bbox": [
+    16,
+    36,
+    426,
+    370
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 32,
+  "actual_colors": 32,
+  "key_mode": "auto",
+  "key_color": [
+    2,
+    250,
+    113
+  ],
+  "foreground_pixels": 418,
+  "transparent_pixels": 606,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

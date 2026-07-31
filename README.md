@@ -25,6 +25,10 @@ directly to GitHub Pages.
   party roster with switchable portraits
 - six functional camp buildings with housing, food, defense, economy, morale,
   control range, daily yields, construction progress, and automatic return paths
+- an eight-cell generated facility pack covering the camp core, six buildings,
+  and road gate, plus settlement key art for later scene transitions
+- one-shot seeded ruin events: monsters, coins, food, full recovery, relic
+  equipment, or a rescued follower
 - automatic passable roads between same-scene camps with reduced movement fatigue
 - faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
 - three AI factions, wandering agents with six seeded specialties, followers,
@@ -52,6 +56,7 @@ src/
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
 │   ├── combat.ts        moves, damage categories, and equipment values
 │   ├── camps.ts         building definitions, yields, and recovery
+│   ├── facilities.ts    seeded facility events and outcome definitions
 │   ├── skills.ts        traveler challenges and party bonus aggregation
 │   ├── art.ts           canonical sprite-atlas contract
 │   └── types.ts         domain contracts
@@ -87,6 +92,7 @@ npm run build
 python3 scripts/build_pixel_atlas.py
 python3 scripts/ingest_generated_assets.py
 python3 scripts/ingest_directional_assets.py
+python3 scripts/ingest_facility_assets.py
 ```
 
 ## Controls
@@ -121,6 +127,12 @@ python3 scripts/ingest_directional_assets.py
   one building tile; select a highlighted empty tile, then build a traveler
   lodge, forest farm, watchtower, market, workshop, or ember shrine. Each also
   has a 1–4 gold cost and a documented operational effect.
+- Building touch: farms yield a berry, lodges restore 1 stamina, and shrines
+  fully restore stamina on a 20-turn cooldown; the remaining buildings retain
+  their passive settlement, defense, economy, sight, and combat effects.
+- Ruins: entering an unexplored ruin resolves one deterministic seeded event
+  exactly once. The result is shown below the map and the searched ruin is
+  visibly dimmed and marked in its detail card.
 - Camp navigation: select a camp in the left list to inspect its attributes or
   auto-path home; same-scene camps automatically receive passable roads
 - Roads: road tiles spend only 0.35 movement fatigue instead of 1

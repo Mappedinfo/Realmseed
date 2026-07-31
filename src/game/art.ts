@@ -81,6 +81,10 @@ export function directionalMonstersUrl(): string {
   return `${import.meta.env.BASE_URL}assets/art/verdant-directional-monsters.png`
 }
 
+export function facilityAtlasUrl(): string {
+  return `${import.meta.env.BASE_URL}assets/art/verdant-facilities.png`
+}
+
 export function generatedSceneUrl(): string {
   return `${import.meta.env.BASE_URL}assets/art/verdant-world-scene.webp`
 }
@@ -129,6 +133,17 @@ export const directionalMonsterIndex = {
   slime: 0,
   boar: 1,
   wisp: 2,
+} as const
+
+export const facilityIndex = {
+  'camp-core': 0,
+  house: 1,
+  farm: 2,
+  watchtower: 3,
+  market: 4,
+  workshop: 5,
+  shrine: 6,
+  'road-gate': 7,
 } as const
 
 export const directionalRow: Record<Direction, number> = {

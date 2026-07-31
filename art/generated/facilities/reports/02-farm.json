@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/facilities/cells/02-farm.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/facilities/processed/02-farm.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/facilities/previews/02-farm.png",
+  "source_size": [
+    443,
+    444
+  ],
+  "foreground_bbox": [
+    0,
+    117,
+    443,
+    428
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 32,
+  "actual_colors": 32,
+  "key_mode": "auto",
+  "key_color": [
+    2,
+    250,
+    113
+  ],
+  "foreground_pixels": 369,
+  "transparent_pixels": 655,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

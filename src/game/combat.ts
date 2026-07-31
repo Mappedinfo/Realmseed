@@ -133,6 +133,58 @@ export const starterEquipment: EquipmentItem[] = [
   },
 ]
 
+export const relicEquipment: EquipmentItem[] = [
+  {
+    id: 'relic-thornblade',
+    name: '遗迹棘刃',
+    slot: 'weapon',
+    kind: 'physical',
+    power: 2,
+    defense: 0,
+    equipped: false,
+    description: '物理威力 +2',
+  },
+  {
+    id: 'relic-prism',
+    name: '雾光棱镜',
+    slot: 'focus',
+    kind: 'magic',
+    power: 2,
+    defense: 0,
+    equipped: false,
+    description: '魔法威力 +2',
+  },
+  {
+    id: 'relic-carbine',
+    name: '巡林卡宾',
+    slot: 'firearm',
+    kind: 'firearm',
+    power: 3,
+    defense: 0,
+    equipped: false,
+    description: '枪械威力 +3',
+  },
+  {
+    id: 'relic-satchel',
+    name: '晶尘爆弹包',
+    slot: 'explosive',
+    kind: 'explosive',
+    power: 3,
+    defense: 0,
+    equipped: false,
+    description: '爆炸威力 +3',
+  },
+  {
+    id: 'relic-mantle',
+    name: '守望者披肩',
+    slot: 'armor',
+    power: 0,
+    defense: 2,
+    equipped: false,
+    description: '格挡率 +40%',
+  },
+]
+
 export function equipmentPower(equipment: EquipmentItem[], kind: DamageKind): number {
   return equipment
     .filter((item) => item.equipped && item.kind === kind)

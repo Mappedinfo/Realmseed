@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/facilities/cells/00-camp-core.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/facilities/processed/00-camp-core.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/facilities/previews/00-camp-core.png",
+  "source_size": [
+    444,
+    444
+  ],
+  "foreground_bbox": [
+    50,
+    82,
+    421,
+    424
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 32,
+  "actual_colors": 32,
+  "key_mode": "auto",
+  "key_color": [
+    2,
+    249,
+    113
+  ],
+  "foreground_pixels": 473,
+  "transparent_pixels": 551,
+  "alpha_values": [
+    0,
+    255
+  ]
+}
