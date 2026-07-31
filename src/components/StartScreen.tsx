@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { artThemes, atlasPreviewUrl, type ArtTheme } from '../game/art'
 import { randomSeed } from '../game/rng'
 import type { MapSize } from '../game/types'
 
 interface StartScreenProps {
-  onStart: (seed: string, size: MapSize) => void
+  onStart: (seed: string, size: MapSize, theme: ArtTheme) => void
 }
 
 export function StartScreen({ onStart }: StartScreenProps) {
   const [seed, setSeed] = useState(randomSeed)
   const [size, setSize] = useState<MapSize>('large')
+  const [theme, setTheme] = useState<ArtTheme>('verdant')
 
   return (
     <main className="title-screen">
@@ -58,7 +60,19 @@ export function StartScreen({ onStart }: StartScreenProps) {
             </label>
           </fieldset>
 
-          <button type="button" className="primary-button" onClick={() => onStart(seed.trim() || randomSeed(), size)}>
+          <fieldset className="art-theme-picker">
+            <legend>视觉风格</legend>
+            {(Object.entries(artThemes) as [ArtTheme, (typeof artThemes)[ArtTheme]][]).map(([id, option]) => (
+              <label className={theme === id ? 'is-selected' : ''} key={id}>
+                <input type="radio" name="theme" value={id} checked={theme === id} onChange={() => setTheme(id)} />
+                <img src={atlasPreviewUrl(id)} alt="" />
+                <strong>{option.name}</strong>
+                <span>{option.caption}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <button type="button" className="primary-button" onClick={() => onStart(seed.trim() || randomSeed(), size, theme)}>
             展开这个世界 <span>→</span>
           </button>
         </div>

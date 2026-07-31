@@ -1,6 +1,13 @@
 import type { Structure, Terrain } from './types'
 
 export const ART_CELL = 16
+export type ArtTheme = 'verdant' | 'ember' | 'moonlit'
+
+export const artThemes: Record<ArtTheme, { name: string; caption: string; accent: string }> = {
+  verdant: { name: '森林遗迹', caption: '苔色、麦金与青蓝魔法', accent: '#66d2bd' },
+  ember: { name: '余烬边境', caption: '赭土、旧铁与营火微光', accent: '#e36d42' },
+  moonlit: { name: '月潮海岸', caption: '深海、珊瑚与月下遗迹', accent: '#52d5ca' },
+}
 
 export type SpriteId =
   | `${Terrain}-${0 | 1}`
@@ -41,6 +48,10 @@ export const spriteIndex: Record<SpriteId, number> = {
   coin: 23,
 }
 
-export function atlasUrl(): string {
-  return `${import.meta.env.BASE_URL}assets/art/realmseed-atlas.png`
+export function atlasUrl(theme: ArtTheme): string {
+  return `${import.meta.env.BASE_URL}assets/art/realmseed-atlas-${theme}.png`
+}
+
+export function atlasPreviewUrl(theme: ArtTheme): string {
+  return `${import.meta.env.BASE_URL}assets/art/realmseed-atlas-${theme}-preview.png`
 }

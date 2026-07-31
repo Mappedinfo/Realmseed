@@ -8,7 +8,7 @@ generate connected regions, their terrain, travelers, factions, monsters,
 coins, and ruins. Everything runs locally in the browser and can be deployed
 directly to GitHub Pages.
 
-![Verdant Relic gameplay](docs/screenshots/verdant-relic-gameplay.png)
+![Three selectable Realmseed art directions](docs/screenshots/art-direction-picker.png)
 
 ## Playable prototype
 
@@ -27,6 +27,7 @@ directly to GitHub Pages.
 - responsive pixel UI with a full-world minimap
 - 32×32 terrain cells and higher-detail characters, monsters, buildings, and waystones
 - deterministic 16×16 source atlas, nearest-neighbor rendered on a strict 32×32 grid
+- three selectable art directions that can be switched without restarting the world
 - optional CC0 music with a visible playback control
 
 ## Architecture

@@ -7,11 +7,10 @@ image service at build or runtime.
 """
 
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageColor, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "public/assets/art/realmseed-atlas.png"
-PREVIEW = ROOT / "public/assets/art/realmseed-atlas-preview.png"
+OUT_DIR = ROOT / "public/assets/art"
 CELL = 16
 COLS = 8
 ROWS = 3
@@ -39,6 +38,32 @@ P = {
     "cyan_light": "#b3f0d2",
     "plum": "#604b68",
     "plum_light": "#96739d",
+}
+
+THEME_PALETTES = {
+    "verdant": P,
+    "ember": {
+        **P,
+        "ink": "#211a1e", "deep": "#38282c", "moss": "#5d4a38",
+        "leaf": "#7c6947", "fern": "#9a8556", "light_leaf": "#c3a364",
+        "water": "#445f69", "water_light": "#6f8790", "water_glint": "#b7bbb0",
+        "stone": "#766b66", "stone_light": "#a09282", "cream": "#e5d4aa",
+        "sand": "#a97a47", "sand_light": "#d2a15c", "wood": "#603a2e",
+        "wood_light": "#936044", "ember": "#e36d42", "gold": "#f2c35a",
+        "cyan": "#d98b4f", "cyan_light": "#f5c785",
+        "plum": "#4c3549", "plum_light": "#7d586e",
+    },
+    "moonlit": {
+        **P,
+        "ink": "#111629", "deep": "#1b2940", "moss": "#233d4a",
+        "leaf": "#285d5a", "fern": "#3d8071", "light_leaf": "#71aa83",
+        "water": "#1e5267", "water_light": "#3698a1", "water_glint": "#8edbd0",
+        "stone": "#5b5877", "stone_light": "#8a82a7", "cream": "#e8d9ad",
+        "sand": "#756f76", "sand_light": "#a79a8e", "wood": "#4b3550",
+        "wood_light": "#76506a", "ember": "#df6f75", "gold": "#edc96a",
+        "cyan": "#52d5ca", "cyan_light": "#b6f1d1",
+        "plum": "#513a70", "plum_light": "#8865a3",
+    },
 }
 
 
@@ -193,7 +218,7 @@ def coin(draw: ImageDraw.ImageDraw) -> None:
     px(draw, P["ember"], (10, 9, 11, 11))
 
 
-def main() -> None:
+def build_atlas() -> Image.Image:
     atlas = Image.new("RGBA", (COLS * CELL, ROWS * CELL), (0, 0, 0, 0))
     sprites = [
         (meadow, 0), (meadow, 1), (forest, 0), (forest, 1),
@@ -208,11 +233,67 @@ def main() -> None:
         draw = ImageDraw.Draw(cell)
         renderer(draw) if arg is None else renderer(draw, arg)
         atlas.alpha_composite(cell, ((index % COLS) * CELL, (index // COLS) * CELL))
+    return atlas
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    atlas.save(OUT, optimize=True)
-    atlas.resize((atlas.width * 6, atlas.height * 6), Image.Resampling.NEAREST).save(PREVIEW, optimize=True)
-    print(f"Wrote {OUT.relative_to(ROOT)} ({atlas.width}x{atlas.height})")
+
+def recolor(atlas: Image.Image, palette: dict[str, str]) -> Image.Image:
+    substitutions = {
+        ImageColor.getrgb(source): ImageColor.getrgb(palette[key])
+        for key, source in P.items()
+        if key in palette
+    }
+    pixels = []
+    for red, green, blue, alpha in atlas.getdata():
+        mapped = substitutions.get((red, green, blue), (red, green, blue))
+        pixels.append((*mapped, alpha))
+    themed = Image.new("RGBA", atlas.size)
+    themed.putdata(pixels)
+    return themed
+
+
+def add_theme_motifs(atlas: Image.Image, theme: str, palette: dict[str, str]) -> Image.Image:
+    """Give each direction its own readable motifs, not only a palette swap."""
+    themed = atlas.copy()
+    draw = ImageDraw.Draw(themed)
+    if theme == "ember":
+        # Frontier stones and dry grass.
+        px(draw, palette["stone_light"], (3, 12, 5, 13))
+        px(draw, palette["cream"], (20, 4, 20, 7))
+        px(draw, palette["ember"], (66, 25, 68, 27))  # camp pennant
+        px(draw, palette["gold"], (69, 22, 69, 27))
+        # Red scarves distinguish scouts and followers.
+        px(draw, palette["ember"], (10, 40, 12, 41))
+        px(draw, palette["ember"], (58, 40, 60, 41))
+    elif theme == "moonlit":
+        # Bioluminescent flowers and moonlit water sparkles.
+        px(draw, palette["cyan_light"], (3, 6, 3, 6))
+        px(draw, palette["cyan"], (20, 11, 21, 11))
+        px(draw, palette["cyan_light"], (70, 3, 72, 3))
+        px(draw, palette["cyan"], (87, 10, 88, 11))
+        # Coral travel ribbons and a shrine moon-sigil.
+        px(draw, palette["ember"], (10, 40, 12, 41))
+        px(draw, palette["ember"], (43, 39, 44, 42))
+        px(draw, palette["cyan_light"], (118, 21, 120, 21))
+        px(draw, palette["cyan"], (117, 22, 121, 23))
+    return themed
+
+
+def main() -> None:
+    base = build_atlas()
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for theme, palette in THEME_PALETTES.items():
+        atlas = add_theme_motifs(recolor(base, palette), theme, palette)
+        output = OUT_DIR / f"realmseed-atlas-{theme}.png"
+        preview = OUT_DIR / f"realmseed-atlas-{theme}-preview.png"
+        atlas.save(output, optimize=True)
+        atlas.resize((atlas.width * 6, atlas.height * 6), Image.Resampling.NEAREST).save(preview, optimize=True)
+        print(f"Wrote {output.relative_to(ROOT)} ({atlas.width}x{atlas.height})")
+
+    # Stable aliases preserve existing links and downstream mods.
+    recolor(base, THEME_PALETTES["verdant"]).save(OUT_DIR / "realmseed-atlas.png", optimize=True)
+    recolor(base, THEME_PALETTES["verdant"]).resize(
+        (base.width * 6, base.height * 6), Image.Resampling.NEAREST
+    ).save(OUT_DIR / "realmseed-atlas-preview.png", optimize=True)
 
 
 if __name__ == "__main__":

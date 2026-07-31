@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameState, Position, Terrain } from '../game/types'
-import { ART_CELL, atlasUrl, spriteIndex, type SpriteId } from '../game/art'
+import { ART_CELL, atlasUrl, spriteIndex, type ArtTheme, type SpriteId } from '../game/art'
 import { tileIndex } from '../game/world'
 
 const TILE = 32
@@ -169,10 +169,11 @@ function drawStructure(context: CanvasRenderingContext2D, atlas: HTMLImageElemen
 
 interface WorldCanvasProps {
   state: GameState
+  theme: ArtTheme
   onSelect: (position: Position) => void
 }
 
-export function WorldCanvas({ state, onSelect }: WorldCanvasProps) {
+export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const atlasRef = useRef<HTMLImageElement | null>(null)
   const [atlasReady, setAtlasReady] = useState(false)
@@ -182,16 +183,18 @@ export function WorldCanvas({ state, onSelect }: WorldCanvasProps) {
   }
 
   useEffect(() => {
+    atlasRef.current = null
+    setAtlasReady(false)
     const atlas = new Image()
     atlas.onload = () => {
       atlasRef.current = atlas
       setAtlasReady(true)
     }
-    atlas.src = atlasUrl()
+    atlas.src = atlasUrl(theme)
     return () => {
       atlas.onload = null
     }
-  }, [])
+  }, [theme])
 
   useEffect(() => {
     const canvas = canvasRef.current

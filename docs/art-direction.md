@@ -1,25 +1,27 @@
 # Realmseed art direction
 
-## Chosen production direction
+## Production directions
 
-The first production set uses **Verdant Relic**: an earthy green world with
-muted teal water, warm human settlements, and cyan supernatural landmarks.
-The palette is deliberately less saturated than the UI so people, coins,
-monsters, and waystones remain readable on busy terrain.
+Realmseed ships three comparable directions on the same pixel contract:
 
-Two alternate concept prompts are retained in `art/prompts/`:
+- **Verdant Relic** — earthy green, muted teal water, warm settlements, and
+  cyan supernatural landmarks.
+- **Ember Frontier** — ochre grass, iron-blue water, old-plum shadows, red
+  travel scarves, camp pennants, and warmer settlement landmarks.
+- **Moonlit Tide** — blue-green foliage, deep water, lavender stone, coral
+  travel ribbons, bioluminescent flowers, and shrine moon-signs.
 
-- **Ember Frontier** — warmer, drier, more political and settlement-led.
-- **Moonlit Tide** — cooler, stranger, more magical and exploration-led.
-
-The three prompts are original production briefs rather than references to a
-specific commercial game.
+The start screen previews all three, and the in-game header can swap atlases
+without regenerating the world. This keeps seed, terrain, agents, economy, and
+fog identical while isolating the visual choice. The corresponding concept
+prompts are retained in `art/prompts/`; they are original production briefs
+rather than references to a specific commercial game.
 
 ## Pixel contract
 
 - Logical terrain and sprite cell: **16×16 px**.
 - Runtime display cell: **32×32 px**, exact 2× nearest-neighbor scaling.
-- Atlas: **128×48 px**, eight columns and three rows.
+- Atlas: **128×48 px**, eight columns and three rows, one file per direction.
 - Hard palette cap for generated concepts: **24 colors** per processed image.
 - No runtime smoothing, sub-pixel placement, blur, or CSS filtering.
 - Terrain occupies the full cell; structures and actors use transparency.
@@ -47,14 +49,16 @@ The process is deterministic:
 5. upscale with nearest-neighbor only.
 
 For production sprites, use the normalized concept as a color and silhouette
-reference, redraw into the 16×16 contract, then regenerate the checked-in atlas:
+reference, redraw into the 16×16 contract, then regenerate all checked-in
+atlases:
 
 ```bash
 python3 scripts/build_pixel_atlas.py
 ```
 
 This separation prevents malformed AI sprite sheets, inconsistent cell sizes,
-anti-aliased edges, and hidden gradients from reaching gameplay.
+anti-aliased edges, and hidden gradients from reaching gameplay. It also means
+an unavailable generation service never becomes a runtime or build dependency.
 
 ## Atlas layout
 
@@ -64,6 +68,6 @@ anti-aliased edges, and hidden gradients from reaching gameplay.
 | 1 | marsh×2, sand×2, camp, village, ruin, waystone |
 | 2 | player, wanderer, villager, follower, slime, boar, wisp, coin |
 
-The TypeScript lookup is defined in `src/game/art.ts`. Changing the image
-without changing that contract is safe; changing the layout requires updating
-both the atlas builder and lookup.
+The TypeScript lookup and theme metadata are defined in `src/game/art.ts`.
+Changing an image without changing that contract is safe; changing the layout
+requires updating both the atlas builder and lookup.

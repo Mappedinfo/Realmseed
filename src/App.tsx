@@ -5,11 +5,22 @@ import { MiniMap } from './components/MiniMap'
 import { SceneTransit } from './components/SceneTransit'
 import { StartScreen } from './components/StartScreen'
 import { WorldCanvas } from './components/WorldCanvas'
+import { artThemes, type ArtTheme } from './game/art'
 import { gameReducer, visibleCounts } from './game/simulation'
 import type { GameState, MapSize } from './game/types'
 import { createGame } from './game/world'
 
-function GameView({ initialState, onNewWorld }: { initialState: GameState; onNewWorld: () => void }) {
+function GameView({
+  initialState,
+  theme,
+  onThemeChange,
+  onNewWorld,
+}: {
+  initialState: GameState
+  theme: ArtTheme
+  onThemeChange: (theme: ArtTheme) => void
+  onNewWorld: () => void
+}) {
   const [state, dispatch] = useReducer(gameReducer, initialState)
   const counts = useMemo(() => visibleCounts(state), [state])
   const followers = state.agents.filter((agent) => agent.role === 'follower')
@@ -54,6 +65,14 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
           <span>{state.world.sceneName} [{state.world.sceneX}, {state.world.sceneY}] · {state.world.size} × {state.world.size}</span>
         </div>
         <div className="header-actions">
+          <label className="art-theme-control">
+            <span>美术</span>
+            <select value={theme} onChange={(event) => onThemeChange(event.target.value as ArtTheme)}>
+              {(Object.entries(artThemes) as [ArtTheme, (typeof artThemes)[ArtTheme]][]).map(([id, option]) => (
+                <option key={id} value={id}>{option.name}</option>
+              ))}
+            </select>
+          </label>
           <AudioControl />
           <button onClick={onNewWorld}>新世界</button>
         </div>
@@ -90,7 +109,7 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
         </aside>
 
         <section className="map-column">
-          <WorldCanvas state={state} onSelect={(position) => dispatch({ type: 'SELECT', position })} />
+          <WorldCanvas state={state} theme={theme} onSelect={(position) => dispatch({ type: 'SELECT', position })} />
           <ActionDock state={state} dispatch={dispatch} />
         </section>
 
@@ -171,8 +190,20 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
 
 export function App() {
   const [initialState, setInitialState] = useState<GameState | null>(null)
-  const start = (seed: string, size: MapSize) => setInitialState(createGame(seed, size))
+  const [theme, setTheme] = useState<ArtTheme>('verdant')
+  const start = (seed: string, size: MapSize, selectedTheme: ArtTheme) => {
+    setTheme(selectedTheme)
+    setInitialState(createGame(seed, size))
+  }
   return initialState
-    ? <GameView key={initialState.gameId} initialState={initialState} onNewWorld={() => setInitialState(null)} />
+    ? (
+        <GameView
+          key={initialState.gameId}
+          initialState={initialState}
+          theme={theme}
+          onThemeChange={setTheme}
+          onNewWorld={() => setInitialState(null)}
+        />
+      )
     : <StartScreen onStart={start} />
 }
