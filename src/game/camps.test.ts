@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { campBuildingDefinitions, campBuildingKinds, campDailyYield, campRestRecovery } from './camps'
+import { campBuildingDefinitions, campBuildingKinds, campDailyYield, campOfficeDefinitions, campOfficeKinds, campRestRecovery } from './camps'
 import type { Camp } from './types'
 
 function camp(): Camp {
@@ -10,7 +10,6 @@ function camp(): Camp {
     y: 10,
     sceneX: 0,
     sceneY: 0,
-    population: 2,
     housing: 6,
     defense: 4,
     economy: 5,
@@ -18,6 +17,7 @@ function camp(): Camp {
     morale: 6,
     controlRadius: 4,
     buildings: [],
+    offices: {},
   }
 }
 
@@ -33,12 +33,31 @@ describe('camp economy definitions', () => {
     expect(campBuildingDefinitions.shrine.gains.morale).toBe(3)
   })
 
+  it('unlocks four governance offices from the intended facilities', () => {
+    const target = camp()
+    expect(campOfficeKinds).toHaveLength(4)
+    expect(campOfficeDefinitions.mayor.unlocked(target)).toBe(true)
+    expect(campOfficeDefinitions['guard-captain'].unlocked(target)).toBe(false)
+    target.buildings.push({ x: 11, y: 10, kind: 'watchtower' })
+    expect(campOfficeDefinitions['guard-captain'].unlocked(target)).toBe(true)
+  })
+
   it('settles economy as gold and food surplus as berries', () => {
-    expect(campDailyYield(camp())).toEqual({ gold: 2, berries: 5 })
+    const target = camp()
+    const state = {
+      camps: [target],
+      residents: [
+        { id: 'r1', campId: target.id, stage: 'adult' as const },
+        { id: 'r2', campId: target.id, stage: 'adult' as const },
+      ],
+    } as Parameters<typeof campDailyYield>[0]
+    expect(campDailyYield(state, target)).toEqual({ gold: 2, berries: 5 })
   })
 
   it('turns morale into stronger exhausted rest recovery', () => {
-    expect(campRestRecovery()).toBe(3)
-    expect(campRestRecovery(camp())).toBe(5)
+    const target = camp()
+    const state = { camps: [target], residents: [] } as Parameters<typeof campRestRecovery>[0]
+    expect(campRestRecovery(state)).toBe(3)
+    expect(campRestRecovery(state, target)).toBe(5)
   })
 })

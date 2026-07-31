@@ -52,7 +52,6 @@ describe('map inspection', () => {
       y: 15,
       sceneX: 0,
       sceneY: 0,
-      population: 4,
       housing: 6,
       defense: 3,
       economy: 5,
@@ -60,6 +59,7 @@ describe('map inspection', () => {
       morale: 4,
       controlRadius: 4,
       buildings: [{ x: 16, y: 15, kind: 'market' }],
+      offices: {},
     }]
     state.world.tiles[15 * state.world.size + 15] = {
       terrain: 'meadow',

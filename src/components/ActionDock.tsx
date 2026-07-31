@@ -1,7 +1,6 @@
 import type { GameAction, GameState } from '../game/types'
 
 export function ActionDock({ state, dispatch }: { state: GameState; dispatch: React.Dispatch<GameAction> }) {
-  const followers = state.agents.filter((agent) => agent.role === 'follower').length
   const locked = Boolean(state.battle)
   return (
     <section className="action-dock" aria-label="行动">
@@ -16,16 +15,12 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
           <span className="action-glyph">⌂</span>
           <span className="action-copy"><b>建立营地</b><small>消耗 8 金币</small></span>
         </button>
-        <button onClick={() => dispatch({ type: 'STATION_FOLLOWER' })} disabled={locked || followers === 0}>
-          <span className="action-glyph">⚑</span>
-          <span className="action-copy"><b>派遣驻守</b><small>{followers ? `${followers} 名队友可用` : '暂无随行队友'}</small></span>
-        </button>
         <button disabled={locked} onClick={() => dispatch({ type: 'REST' })}>
           <span className="action-glyph">☾</span>
           <span className="action-copy"><b>休息整备</b><small>恢复体力并结算</small></span>
         </button>
       </div>
-      <p className="keyboard-hint">周围八方向 1 格的人物会出现对话气泡 · 移动 100 步消耗 1 体力</p>
+      <p className="keyboard-hint">周围八方向 1 格的人物会出现对话气泡 · 移动 10 格推进 1 天 · 100 步消耗 1 体力</p>
     </section>
   )
 }

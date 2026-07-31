@@ -25,6 +25,10 @@ directly to GitHub Pages.
   party roster with switchable portraits
 - six functional camp buildings with housing, food, defense, economy, morale,
   control range, daily yields, construction progress, and automatic return paths
+- deterministic settlement households with marriage, children, 60-day growth,
+  generated migrants, and trusted travelers who may settle from the live map
+- four building-gated camp offices that move elite followers into reversible
+  mayor, guard, production, and trade appointments
 - an eight-cell generated facility pack covering the camp core, six buildings,
   and road gate, plus settlement key art for later scene transitions
 - one-shot seeded ruin events: monsters, coins, food, full recovery, relic
@@ -57,6 +61,7 @@ src/
 │   ├── combat.ts        moves, damage categories, and equipment values
 │   ├── camps.ts         building definitions, yields, and recovery
 │   ├── facilities.ts    seeded facility events and outcome definitions
+│   ├── settlements.ts   residents, families, migration, growth, and calendar ticks
 │   ├── skills.ts        traveler challenges and party bonus aggregation
 │   ├── art.ts           canonical sprite-atlas contract
 │   └── types.ts         domain contracts
@@ -136,8 +141,14 @@ python3 scripts/ingest_facility_assets.py
 - Camp navigation: select a camp in the left list to inspect its attributes or
   auto-path home; same-scene camps automatically receive passable roads
 - Roads: road tiles spend only 0.35 movement fatigue instead of 1
-- Station: turn a follower into a resident only when housing is available.
-  Their specialty contributes defense, economy, food, morale, or control range.
+- Governance: when housing is available, assign followers to four reversible offices from the
+  camp core. Specialist offices require a watchtower, farm/workshop, or market.
+- Population: camps begin with two founders. Adults can marry every 30 days,
+  families can have children when housing and food permit, children mature in
+  60 days, and suitable camps attract generated or familiar migrants.
+- Calendar: every 10 successful movement tiles advance one day. Rest and scene
+  travel each advance one day while preserving partial movement progress; AI
+  continues to act on an independent turn counter.
 - Stamina: ordinary movement spends 1 point per 100 steps; combat steps count
   1.5×, and deterministic enemy hits cost only 0 or 1 point
 - Berries: terrain-weighted pickups enter the left inventory; click to consume

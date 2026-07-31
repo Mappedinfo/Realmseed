@@ -1,6 +1,7 @@
 import { hashString, pick, seededRandom } from './rng'
 import { starterEquipment } from './combat'
 import { agentSkillIds, partyBonuses } from './skills'
+import { effectiveCampStats } from './camps'
 import type { Agent, Direction, Faction, FogLevel, GameState, MapSize, Monster, Position, SceneSnapshot, Terrain, Tile, World } from './types'
 
 const firstNames = ['Ari', 'Bram', 'Cleo', 'Dara', 'Eli', 'Fenn', 'Gale', 'Hana', 'Ivo', 'Juno', 'Kiri', 'Lark', 'Mira', 'Nox', 'Orin', 'Pia', 'Quin', 'Rhea', 'Sora', 'Tavi']
@@ -143,7 +144,7 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
   return { seed, mapSize, size, sceneX, sceneY, sceneName, tiles }
 }
 
-export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps'>): FogLevel[] {
+export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps' | 'residents'>): FogLevel[] {
   const next = state.fog.map((level) => (level === 2 ? 1 : level)) as FogLevel[]
   const bonuses = partyBonuses(state.agents)
   const sources = [
@@ -166,9 +167,10 @@ export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'a
 
   for (const camp of state.camps) {
     if (camp.sceneX !== state.world.sceneX || camp.sceneY !== state.world.sceneY) continue
-    for (let dy = -camp.controlRadius; dy <= camp.controlRadius; dy += 1) {
-      for (let dx = -camp.controlRadius; dx <= camp.controlRadius; dx += 1) {
-        if (Math.abs(dx) + Math.abs(dy) > camp.controlRadius) continue
+    const radius = effectiveCampStats(state, camp).controlRadius
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        if (Math.abs(dx) + Math.abs(dy) > radius) continue
         const x = camp.x + dx
         const y = camp.y + dy
         if (isInside(state.world, x, y)) next[tileIndex(state.world, x, y)] = 2
@@ -285,6 +287,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     battle: null,
     equipment: starterEquipment.map((item) => ({ ...item })),
     camps: [],
+    residents: [],
     constructionSteps: 0,
     buildingCredits: 0,
     challengeMarks: {
@@ -296,6 +299,9 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
       duelist: 0,
     },
     facilityEvent: null,
+    settlementEvents: [],
+    turn: 0,
+    dayProgress: 0,
     gameId: `${seed}-${mapSize}`,
   }
   initial.fog = revealFog(initial)

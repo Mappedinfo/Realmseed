@@ -30,7 +30,7 @@ export function ExplorerTabs({
   onSelectCamp: (campId: string) => void
 }) {
   const followers = state.agents.filter((agent) => agent.role === 'follower')
-  const villagers = state.agents.filter((agent) => agent.role === 'villager')
+  const residentCount = state.residents.length + state.camps.reduce((total, camp) => total + Object.keys(camp.offices).length, 0)
   const vassals = state.factions.filter((faction) => faction.isVassal)
   const bonuses = partyBonuses(state.agents)
   const counts: Record<ExplorerTab, number> = {
@@ -131,7 +131,7 @@ export function ExplorerTabs({
           <div className="tab-panel-content territory-list">
             <button className="territory-overview" onClick={() => onFocus({ kind: 'territory' })}>
               <span>♜ 领地总览</span>
-              <small>{state.camps.length} 营地 · {villagers.length} 驻守 · {vassals.length} 附属</small>
+              <small>{state.camps.length} 营地 · {residentCount} 居民 · {vassals.length} 附属</small>
             </button>
             {state.factions.map((faction) => (
               <button key={faction.id} onClick={() => onFocus({ kind: 'territory', factionId: faction.id })}>

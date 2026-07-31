@@ -1,5 +1,5 @@
 import type { GameState, Position, Terrain } from './types'
-import { campBuildingDefinitions, campDailyYield } from './camps'
+import { campBuildingDefinitions, campDailyYield, campPopulation, effectiveCampStats } from './camps'
 import { isWithinInteractionRange } from './geometry'
 import { agentSkills } from './skills'
 import { tileIndex } from './world'
@@ -137,7 +137,8 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
       }
     }
     if (tile.structure === 'camp' && camp) {
-      const daily = campDailyYield(camp)
+      const daily = campDailyYield(state, camp)
+      const stats = effectiveCampStats(state, camp)
       return {
         ...base,
         category: '建筑',
@@ -145,12 +146,12 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
         icon: '⌂',
         description: '远征队的控制中心；控制范围内可以消耗额度修建建筑。',
         stats: [
-          { label: '人口', value: `${camp.population}/${camp.housing}` },
-          { label: '食物', value: camp.food },
-          { label: '防御', value: camp.defense },
-          { label: '经济', value: camp.economy },
-          { label: '士气', value: camp.morale },
-          { label: '范围', value: camp.controlRadius },
+          { label: '人口', value: `${campPopulation(state, camp.id)}/${camp.housing}` },
+          { label: '食物', value: stats.food },
+          { label: '防御', value: stats.defense },
+          { label: '经济', value: stats.economy },
+          { label: '士气', value: stats.morale },
+          { label: '范围', value: stats.controlRadius },
           { label: '建筑', value: camp.buildings.length },
           { label: '日产', value: `${daily.gold} 金 / ${daily.berries} 果` },
         ],

@@ -1,10 +1,19 @@
 import type { Agent, Camp, ChronicleEntry, Direction, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, equipmentDefense, equipmentPower, relicEquipment } from './combat'
-import { buildingCount, campBuildingDefinitions, campDailyYield, campRestRecovery } from './camps'
+import {
+  buildingCount,
+  campBuildingDefinitions,
+  campDailyYield,
+  campOfficeDefinitions,
+  campPopulation,
+  campRestRecovery,
+  effectiveCampStats,
+} from './camps'
 import { facilityEventDefinitions, facilityEventKind } from './facilities'
 import { isWithinInteractionRange } from './geometry'
 import { agentSkillIds, agentSkills, challengeChance, partyBonuses } from './skills'
+import { advanceCalendarDays, createFoundingResidents } from './settlements'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 
 export const STEPS_PER_STAMINA = 100
@@ -43,7 +52,7 @@ function campAt(state: GameState, position: Position): Camp | undefined {
     (camp) =>
       camp.sceneX === state.world.sceneX &&
       camp.sceneY === state.world.sceneY &&
-      distance(camp, position) <= camp.controlRadius,
+      distance(camp, position) <= effectiveCampStats(state, camp).controlRadius,
   )
 }
 
@@ -349,7 +358,7 @@ function monsterChaseStep(state: GameState, monster: GameState['monsters'][numbe
 function advanceMonsters(state: GameState): GameState['monsters'] {
   return state.monsters.map((monster, index) => {
     const playerDistance = distance(monster, state.player)
-    const noticeRoll = hashString(`${state.gameId}:notice:${state.day}:${monster.id}`) % 100
+    const noticeRoll = hashString(`${state.gameId}:notice:${state.turn}:${monster.id}`) % 100
     if ((monster.alert ?? 0) <= 0) {
       if (playerDistance <= MONSTER_NOTICE_RADIUS && noticeRoll < MONSTER_NOTICE_PERCENT) {
         return { ...monster, alert: 3, facing: facingToward(monster, state.player) }
@@ -362,8 +371,8 @@ function advanceMonsters(state: GameState): GameState['monsters'] {
       : Math.max(0, (monster.alert ?? 0) - 1)
     if (playerDistance <= 1 || alert <= 0) return { ...monster, alert, facing: facingToward(monster, state.player) }
 
-    const isSlowStep = (state.day + index) % 2 === 0
-    const chaseRoll = hashString(`${state.gameId}:chase:${state.day}:${monster.id}`) % 100
+    const isSlowStep = (state.turn + index) % 2 === 0
+    const chaseRoll = hashString(`${state.gameId}:chase:${state.turn}:${monster.id}`) % 100
     if (!isSlowStep || chaseRoll >= MONSTER_CHASE_PERCENT) {
       return { ...monster, alert, facing: facingToward(monster, state.player) }
     }
@@ -374,11 +383,11 @@ function advanceMonsters(state: GameState): GameState['monsters'] {
   })
 }
 
-function advanceAi(state: GameState): Pick<GameState, 'agents' | 'monsters' | 'day'> {
+function advanceAi(state: GameState): Pick<GameState, 'agents' | 'monsters' | 'turn'> {
   const agents = state.agents.map((agent, index) => {
     if (agent.role === 'follower') return followerStep(state, agent)
     if (agent.role !== 'wanderer') return agent
-    const cycle = (state.day + index * 3) % 4
+    const cycle = (state.turn + index * 3) % 4
     const direction = (['up', 'right', 'down', 'left'] as const)[cycle]
     const delta = directionDelta[direction]
     const x = agent.x + delta.x
@@ -386,7 +395,7 @@ function advanceAi(state: GameState): Pick<GameState, 'agents' | 'monsters' | 'd
     if (!isPassable(state.world, x, y)) return agent
     return { ...agent, x, y, facing: direction }
   })
-  return { agents, monsters: advanceMonsters({ ...state, agents }), day: state.day + 1 }
+  return { agents, monsters: advanceMonsters({ ...state, agents }), turn: state.turn + 1 }
 }
 
 function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
@@ -397,13 +406,20 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   if (revealed.battle || revealed.player.stamina <= 0) return revealed
   const attacker = revealed.monsters.find((monster) => {
     if ((monster.alert ?? 0) <= 0 || distance(monster, revealed.player) > 1) return false
-    const localDefense = campAt(revealed, revealed.player)?.defense ?? 0
+    const localCamp = campAt(revealed, revealed.player)
+    const localDefense = localCamp ? effectiveCampStats(revealed, localCamp).defense : 0
     const ambushChance = Math.max(8, MONSTER_AMBUSH_PERCENT - localDefense * 4)
-    return hashString(`${revealed.gameId}:ambush:${revealed.day}:${monster.id}`) % 100 < ambushChance
+    return hashString(`${revealed.gameId}:ambush:${revealed.turn}:${monster.id}`) % 100 < ambushChance
   })
   return attacker
     ? beginBattle(revealed, attacker, `${monsterName(attacker.species)}逼近并发起攻击！`)
     : revealed
+}
+
+function advanceMovementClock(state: GameState): GameState {
+  const progress = state.dayProgress + 1
+  if (progress < 10) return { ...state, dayProgress: progress }
+  return advanceCalendarDays({ ...state, dayProgress: 0 }, 1)
 }
 
 function addFatigue(
@@ -423,16 +439,16 @@ function automaticRest(state: GameState): GameState {
   const localCamp = campAt(state, state.player)
   const recovery = Math.min(
     state.player.maxStamina,
-    campRestRecovery(localCamp) + partyBonuses(state.agents).recovery,
+    campRestRecovery(state, localCamp) + partyBonuses(state.agents).recovery,
   )
-  return finishTurn(state, {
+  return advanceCalendarDays(finishTurn(state, {
     player: {
       ...state.player,
       stamina: recovery,
     },
     fatigue: 0,
     chronicle: log(state, `体力归零，队伍自动扎营休整，恢复到 ${recovery} 点体力。`, 'good'),
-  })
+  }), 1)
 }
 
 function move(state: GameState, direction: Direction): GameState {
@@ -513,9 +529,10 @@ function move(state: GameState, direction: Direction): GameState {
     stepped = { ...stepped, world: { ...stepped.world, tiles } }
     stepped = resolveRuinEvent(stepped, { x, y })
   }
-  const next = stepped.battle
-    ? { ...stepped, fog: revealFog(stepped) }
+  const turned = stepped.battle
+    ? { ...stepped, turn: stepped.turn + 1, fog: revealFog(stepped) }
     : finishTurn(stepped, {})
+  const next = advanceMovementClock(turned)
   return earnedCredits > 0
     ? { ...next, chronicle: log(next, '队伍完成 100 步建设勘察，获得 1 格营地建筑额度。', 'good') }
     : next
@@ -548,7 +565,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.battle) return { ...state, chronicle: log(state, '战斗中无法扎营休息。', 'danger') }
       const settlementYield = state.camps.reduce(
         (total, camp) => {
-          const daily = campDailyYield(camp)
+          const daily = campDailyYield(state, camp)
           return { gold: total.gold + daily.gold, berries: total.berries + daily.berries }
         },
         { gold: 0, berries: 0 },
@@ -558,7 +575,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const localCamp = campAt(state, state.player)
       const exhaustedRecovery = Math.min(
         state.player.maxStamina,
-        campRestRecovery(localCamp) + partyBonuses(state.agents).recovery,
+        campRestRecovery(state, localCamp) + partyBonuses(state.agents).recovery,
       )
       const patched = {
         player: {
@@ -578,7 +595,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           'good',
         ),
       }
-      return finishTurn(state, patched)
+      return advanceCalendarDays(finishTurn(state, patched), 1)
     }
     case 'EAT_BERRY': {
       if (state.player.berries <= 0) {
@@ -815,7 +832,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         y: state.player.y,
         sceneX: state.world.sceneX,
         sceneY: state.world.sceneY,
-        population: 1,
         housing: 3,
         defense: 1,
         economy: 1,
@@ -823,6 +839,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         morale: 3,
         controlRadius: 3,
         buildings: [],
+        offices: {},
       }
       const tiles = state.world.tiles.map((item, itemIndex) =>
         itemIndex === index ? { ...item, structure: 'camp' as const, campId: camp.id, road: true } : item,
@@ -832,61 +849,70 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         world: connectCampRoads({ ...state.world, tiles }, camps, camp),
         camps,
+        residents: [...state.residents, ...createFoundingResidents(state, camp)],
         player: { ...state.player, gold: state.player.gold - 8 },
         chronicle: log(
           state,
-          camps.length > 1 ? '新营地落成，并与同场景的营地自动接通道路。' : '木桩落地，旗帜升起。营地周围成为可建设的控制范围。',
+          camps.length > 1 ? '新营地落成，两名开拓居民入住，并与同场景营地接通道路。' : '木桩落地，旗帜升起。两名开拓居民入住，营地周围成为可建设的控制范围。',
           'good',
         ),
       }
       return { ...next, fog: revealFog(next) }
     }
-    case 'STATION_FOLLOWER': {
-      const follower = state.agents.find((agent) => agent.role === 'follower')
+    case 'ASSIGN_CAMP_OFFICE': {
+      const follower = state.agents.find((agent) => agent.id === action.agentId && agent.role === 'follower')
       const tile = state.world.tiles[tileIndex(state.world, state.player.x, state.player.y)]
-      if (!follower) return { ...state, chronicle: log(state, '你还没有可以驻守的随从。', 'danger') }
-      if (tile.structure !== 'camp') return { ...state, chronicle: log(state, '随从只能在已建立的营地驻守。', 'danger') }
-      const camp = state.camps.find((item) => item.id === tile.campId)
+      if (!follower) return { ...state, chronicle: log(state, '该精英已不在随行队伍中。', 'danger') }
+      if (tile.structure !== 'camp' || tile.campId !== action.campId) {
+        return { ...state, chronicle: log(state, '必须站在对应营地核心才能任命官员。', 'danger') }
+      }
+      const camp = state.camps.find((item) => item.id === action.campId)
       if (!camp) return state
-      if (camp.population >= camp.housing) {
+      const definition = campOfficeDefinitions[action.office]
+      if (!definition.unlocked(camp)) {
+        return { ...state, chronicle: log(state, `${definition.name}职位尚未由对应建筑解锁。`, 'danger') }
+      }
+      if (camp.offices[action.office]) {
+        return { ...state, chronicle: log(state, `${definition.name}已有任职者，请先召回。`, 'danger') }
+      }
+      if (campPopulation(state, camp.id) >= camp.housing) {
         return { ...state, chronicle: log(state, `${camp.name}没有空余床位，请先修建旅人居所。`, 'danger') }
       }
-      const stationGain: Record<Agent['skill'], Partial<Pick<Camp, 'defense' | 'economy' | 'food' | 'morale' | 'controlRadius'>>> = {
-        scout: { controlRadius: 1 },
-        forager: { food: follower.skillLevel },
-        guard: { defense: follower.skillLevel },
-        medic: { morale: follower.skillLevel },
-        trader: { economy: follower.skillLevel },
-        duelist: { defense: Math.ceil(follower.skillLevel / 2) },
-      }
-      const gain = stationGain[follower.skill]
+      const official = { ...follower, role: 'villager' as const, x: camp.x, y: camp.y, homeCampId: camp.id }
+      const text = `${follower.name} 被任命为${camp.name}的${definition.name}，专长开始影响聚落治理。`
+      const eventId = state.settlementEvents.reduce((maximum, event) => Math.max(maximum, event.id), 0) + 1
       const next = {
         ...state,
-        agents: state.agents.map((agent) =>
-          agent.id === follower.id
-            ? { ...agent, role: 'villager' as const, x: state.player.x, y: state.player.y, homeCampId: camp?.id }
-            : agent,
-        ),
+        agents: state.agents.filter((agent) => agent.id !== follower.id),
         camps: state.camps.map((item) =>
-          item.id === camp.id
-            ? {
-                ...item,
-                population: item.population + 1,
-                defense: item.defense + (gain.defense ?? 0),
-                economy: item.economy + (gain.economy ?? 0),
-                food: item.food + (gain.food ?? 0),
-                morale: item.morale + (gain.morale ?? 0),
-                controlRadius: Math.min(7, item.controlRadius + (gain.controlRadius ?? 0)),
-              }
-            : item,
+          item.id === camp.id ? { ...item, offices: { ...item.offices, [action.office]: official } } : item,
         ),
-        chronicle: log(
-          state,
-          `${follower.name} 以${agentSkills[follower.skill].title}身份留守${camp.name}，专长开始影响营地运营。`,
-          'good',
-        ),
+        settlementEvents: [{ id: eventId, campId: camp.id, day: state.day, kind: 'office' as const, residentIds: [follower.id], text }, ...state.settlementEvents].slice(0, 120),
+        chronicle: log(state, text, 'good'),
       }
       return { ...next, fog: revealFog(next) }
+    }
+    case 'RECALL_CAMP_OFFICIAL': {
+      const tile = state.world.tiles[tileIndex(state.world, state.player.x, state.player.y)]
+      if (tile.structure !== 'camp' || tile.campId !== action.campId) {
+        return { ...state, chronicle: log(state, '必须站在对应营地核心才能召回官员。', 'danger') }
+      }
+      const camp = state.camps.find((item) => item.id === action.campId)
+      const official = camp?.offices[action.office]
+      if (!camp || !official) return { ...state, chronicle: log(state, '该职位目前无人任职。') }
+      const definition = campOfficeDefinitions[action.office]
+      const follower: Agent = { ...official, role: 'follower', x: state.player.x, y: state.player.y, homeCampId: undefined }
+      const offices = { ...camp.offices }
+      delete offices[action.office]
+      const text = `${official.name} 卸任${camp.name}的${definition.name}，重新加入随行队伍。`
+      const eventId = state.settlementEvents.reduce((maximum, event) => Math.max(maximum, event.id), 0) + 1
+      return {
+        ...state,
+        agents: [...state.agents, follower],
+        camps: state.camps.map((item) => item.id === camp.id ? { ...item, offices } : item),
+        settlementEvents: [{ id: eventId, campId: camp.id, day: state.day, kind: 'office' as const, residentIds: [official.id], text }, ...state.settlementEvents].slice(0, 120),
+        chronicle: log(state, text, 'good'),
+      }
     }
     case 'BUILD_CAMP_TILE': {
       if (state.battle) return { ...state, chronicle: log(state, '战斗中无法施工。', 'danger') }
@@ -1083,14 +1109,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         fatigue: exertion.fatigue,
         sceneCache,
         selected: null,
-        day: state.day + 1,
+        turn: state.turn + 1,
         chronicle: log(
           state,
           `你沿古老交通线抵达${generated.world.sceneName} [${targetX}, ${targetY}]。场景由总种子继续展开。`,
           'good',
         ),
       }
-      return { ...next, fog: revealFog(next) }
+      const advanced = advanceCalendarDays(next, 1)
+      return { ...advanced, fog: revealFog(advanced) }
     }
     default:
       return state

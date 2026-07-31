@@ -16,6 +16,10 @@ export type CombatMoveId =
   | 'field-bomb'
 export type EquipmentSlot = 'weapon' | 'focus' | 'firearm' | 'explosive' | 'armor'
 export type FacilityEventKind = 'monster' | 'coins' | 'food' | 'restoration' | 'equipment' | 'companion'
+export type ResidentSex = 'female' | 'male'
+export type ResidentStage = 'child' | 'adult'
+export type ResidentOrigin = 'founder' | 'migrant' | 'familiar' | 'born'
+export type CampOffice = 'mayor' | 'guard-captain' | 'production-steward' | 'trade-steward'
 
 export interface Tile {
   terrain: Terrain
@@ -61,12 +65,26 @@ export interface Agent extends Position {
   challengeWon?: boolean
 }
 
+export interface Resident {
+  id: string
+  name: string
+  sex: ResidentSex
+  stage: ResidentStage
+  birthDay: number
+  settledDay: number
+  origin: ResidentOrigin
+  campId: string
+  spouseId?: string
+  parentIds: string[]
+  aptitude: AgentSkillId
+  lastBirthDay?: number
+}
+
 export interface Camp extends Position {
   id: string
   name: string
   sceneX: number
   sceneY: number
-  population: number
   housing: number
   defense: number
   economy: number
@@ -74,6 +92,7 @@ export interface Camp extends Position {
   morale: number
   controlRadius: number
   buildings: { x: number; y: number; kind: CampBuildingKind }[]
+  offices: Partial<Record<CampOffice, Agent>>
 }
 
 export interface Monster extends Position {
@@ -135,6 +154,15 @@ export interface FacilityEventNotice {
   description: string
 }
 
+export interface SettlementEvent {
+  id: number
+  campId: string
+  day: number
+  kind: 'marriage' | 'birth' | 'adulthood' | 'migration' | 'office'
+  residentIds: string[]
+  text: string
+}
+
 export interface GameState {
   world: World
   fog: FogLevel[]
@@ -153,10 +181,14 @@ export interface GameState {
   battle: BattleEncounter | null
   equipment: EquipmentItem[]
   camps: Camp[]
+  residents: Resident[]
   constructionSteps: number
   buildingCredits: number
   challengeMarks: Record<AgentSkillId, number>
   facilityEvent: FacilityEventNotice | null
+  settlementEvents: SettlementEvent[]
+  turn: number
+  dayProgress: number
   gameId: string
 }
 
@@ -177,7 +209,8 @@ export type GameAction =
   | { type: 'FLEE_BATTLE' }
   | { type: 'TOGGLE_EQUIPMENT'; itemId: string }
   | { type: 'FOUND_CAMP' }
-  | { type: 'STATION_FOLLOWER' }
+  | { type: 'ASSIGN_CAMP_OFFICE'; campId: string; agentId: string; office: CampOffice }
+  | { type: 'RECALL_CAMP_OFFICIAL'; campId: string; office: CampOffice }
   | { type: 'BUILD_CAMP_TILE'; kind: CampBuildingKind }
   | { type: 'RETURN_TO_CAMP'; campId: string }
   | { type: 'PLEDGE_FACTION'; factionId: string }

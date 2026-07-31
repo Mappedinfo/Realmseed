@@ -102,7 +102,7 @@ function GameView({
           <div><strong>REALMSEED</strong><small>SEED: {state.world.seed}</small></div>
         </div>
         <div className="world-status">
-          <span><small>第</small> {state.day} <small>日</small></span>
+          <span><small>第</small> {state.day} <small>日 · 行程 {state.dayProgress}/10</small></span>
           <i />
           <span>{state.weather}</span>
           <i />
@@ -146,7 +146,7 @@ function GameView({
 
           <div className="stamina-track"><i style={{ width: `${(state.player.stamina / state.player.maxStamina) * 100}%` }} /></div>
           <p className="stamina-meta">
-            步数 {Math.floor(state.fatigue * 10) / 10}/100 · 战绩 {state.combatWins} · 上限 {state.player.maxStamina}
+            今日行程 {state.dayProgress}/10 · 体力步数 {Math.floor(state.fatigue * 10) / 10}/100 · 战绩 {state.combatWins} · 上限 {state.player.maxStamina}
           </p>
 
           <ExplorerTabs

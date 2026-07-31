@@ -1,6 +1,6 @@
 import { directionalCharacterIndex, directionalCharactersUrl, directionalRow } from '../game/art'
 import { inspectPosition, type InspectionDetail } from '../game/inspection'
-import { campDailyYield } from '../game/camps'
+import { campDailyYield, campPopulation, effectiveCampStats } from '../game/camps'
 import { agentSkills } from '../game/skills'
 import type { Agent, EquipmentSlot, GameState } from '../game/types'
 import type { ExplorerFocus } from './explorerFocus'
@@ -120,7 +120,8 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
   if (focus.kind === 'camp') {
     const camp = state.camps.find((item) => item.id === focus.campId)
     if (camp) {
-      const daily = campDailyYield(camp)
+      const daily = campDailyYield(state, camp)
+      const stats = effectiveCampStats(state, camp)
       return {
         category: '营地',
         meta: `场景 ${camp.sceneX},${camp.sceneY}`,
@@ -128,12 +129,12 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
         icon: '⌂',
         description: '永久照亮控制范围，并作为建筑、道路与人口经营的中心。',
         stats: [
-          { label: '人口', value: `${camp.population}/${camp.housing}` },
-          { label: '食物', value: camp.food },
-          { label: '防御', value: camp.defense },
-          { label: '经济', value: camp.economy },
-          { label: '士气', value: camp.morale },
-          { label: '范围', value: camp.controlRadius },
+          { label: '人口', value: `${campPopulation(state, camp.id)}/${camp.housing}` },
+          { label: '食物', value: stats.food },
+          { label: '防御', value: stats.defense },
+          { label: '经济', value: stats.economy },
+          { label: '士气', value: stats.morale },
+          { label: '范围', value: stats.controlRadius },
           { label: '建筑', value: camp.buildings.length },
         ],
         hint: `每日 +${daily.gold} 金/+${daily.berries} 果 · 建设 ${state.constructionSteps}/100 · 可建 ${state.buildingCredits} 格`,
@@ -160,7 +161,7 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
     }
   }
 
-  const villagers = state.agents.filter((agent) => agent.role === 'villager').length
+  const villagers = state.residents.length + state.camps.reduce((total, camp) => total + Object.keys(camp.offices).length, 0)
   const vassals = state.factions.filter((faction) => faction.isVassal).length
   return {
     category: '领地',

@@ -21,6 +21,7 @@ import {
   type SpriteId,
 } from '../game/art'
 import { inspectPosition } from '../game/inspection'
+import { effectiveCampStats } from '../game/camps'
 import { isWithinInteractionRange } from '../game/geometry'
 import { tileIndex } from '../game/world'
 
@@ -417,13 +418,14 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
           (camp) =>
             camp.sceneX === state.world.sceneX &&
             camp.sceneY === state.world.sceneY &&
-            Math.abs(camp.x - worldX) + Math.abs(camp.y - worldY) <= camp.controlRadius,
+            Math.abs(camp.x - worldX) + Math.abs(camp.y - worldY) <= effectiveCampStats(state, camp).controlRadius,
         )
         if (controllingCamp) {
           const controlDistance = Math.abs(controllingCamp.x - worldX) + Math.abs(controllingCamp.y - worldY)
+          const controlRadius = effectiveCampStats(state, controllingCamp).controlRadius
           pixelRect(context, 'rgba(126, 214, 117, .16)', screenX, screenY, TILE, TILE)
-          context.lineWidth = controlDistance === controllingCamp.controlRadius ? 1.5 : 1
-          context.strokeStyle = controlDistance === controllingCamp.controlRadius
+          context.lineWidth = controlDistance === controlRadius ? 1.5 : 1
+          context.strokeStyle = controlDistance === controlRadius
             ? 'rgba(226, 211, 112, .68)'
             : 'rgba(151, 230, 125, .32)'
           context.strokeRect(screenX + 1.5, screenY + 1.5, TILE - 3, TILE - 3)
@@ -437,7 +439,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
           tile.road &&
           !tile.structure &&
           controllingCamp &&
-          Math.abs(controllingCamp.x - worldX) + Math.abs(controllingCamp.y - worldY) === controllingCamp.controlRadius &&
+          Math.abs(controllingCamp.x - worldX) + Math.abs(controllingCamp.y - worldY) === effectiveCampStats(state, controllingCamp).controlRadius &&
           facilitiesRef.current
         ) {
           drawGeneratedCell(context, facilitiesRef.current, facilityIndex['road-gate'], screenX, screenY)

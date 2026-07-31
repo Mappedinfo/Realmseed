@@ -1,4 +1,4 @@
-import type { Camp, CampBuildingKind } from './types'
+import type { Camp, CampBuildingKind, CampOffice, GameState } from './types'
 
 export interface CampBuildingDefinition {
   kind: CampBuildingKind
@@ -73,13 +73,114 @@ export function buildingCount(camp: Camp, kind: CampBuildingKind): number {
   return camp.buildings.filter((building) => building.kind === kind).length
 }
 
-export function campDailyYield(camp: Camp): { gold: number; berries: number } {
+export const campOfficeDefinitions: Record<CampOffice, {
+  name: string
+  glyph: string
+  detail: string
+  preferredSkills: GameState['player']['skill'][]
+  unlocked: (camp: Camp) => boolean
+}> = {
+  mayor: {
+    name: '村长', glyph: '♛', detail: '统筹士气；侦察、医疗和交易专长具有额外协同。',
+    preferredSkills: ['scout', 'medic', 'trader'],
+    unlocked: () => true,
+  },
+  'guard-captain': {
+    name: '守备长', glyph: '♜', detail: '提高防御；守卫与决斗专长效果翻倍。',
+    preferredSkills: ['guard', 'duelist'],
+    unlocked: (camp) => buildingCount(camp, 'watchtower') > 0,
+  },
+  'production-steward': {
+    name: '生产主管', glyph: '⚒', detail: '提高食物；采集专长效果翻倍，医疗专长改善家庭照护。',
+    preferredSkills: ['forager', 'medic'],
+    unlocked: (camp) => buildingCount(camp, 'farm') > 0 || buildingCount(camp, 'workshop') > 0,
+  },
+  'trade-steward': {
+    name: '商贸主管', glyph: '◇', detail: '提高经济；交易专长效果翻倍，侦察专长吸引更多移民。',
+    preferredSkills: ['trader', 'scout'],
+    unlocked: (camp) => buildingCount(camp, 'market') > 0,
+  },
+}
+
+export const campOfficeKinds = Object.keys(campOfficeDefinitions) as CampOffice[]
+
+export function campOfficials(state: Pick<GameState, 'camps'>, campId: string) {
+  const camp = state.camps.find((item) => item.id === campId)
+  return camp ? Object.values(camp.offices) : []
+}
+
+export function campPopulation(state: Pick<GameState, 'camps' | 'residents'>, campId: string): number {
+  return state.residents.filter((resident) => resident.campId === campId).length + campOfficials(state, campId).length
+}
+
+export function campFoodDemand(state: Pick<GameState, 'camps' | 'residents'>, campId: string): number {
+  const residents = state.residents.filter((resident) => resident.campId === campId)
+  const adults = residents.filter((resident) => resident.stage === 'adult').length
+  const children = residents.length - adults
+  return Math.ceil(adults + children * 0.5 + campOfficials(state, campId).length)
+}
+
+export interface EffectiveCampStats {
+  housing: number
+  defense: number
+  economy: number
+  food: number
+  morale: number
+  controlRadius: number
+  workforce: number
+}
+
+export function effectiveCampStats(
+  state: Pick<GameState, 'camps' | 'residents'>,
+  camp: Camp,
+): EffectiveCampStats {
+  const adultResidents = state.residents.filter(
+    (resident) => resident.campId === camp.id && resident.stage === 'adult',
+  ).length
+  const workforce = Math.floor(adultResidents / 3)
+  const stats: EffectiveCampStats = {
+    housing: camp.housing,
+    defense: camp.defense,
+    economy: camp.economy + workforce,
+    food: camp.food,
+    morale: camp.morale,
+    controlRadius: camp.controlRadius,
+    workforce,
+  }
+  for (const [office, agent] of Object.entries(camp.offices) as [CampOffice, GameState['player']][]) {
+    if (office === 'mayor') {
+      stats.morale += agent.skillLevel
+      if (agent.skill === 'scout') stats.controlRadius += 1
+      if (agent.skill === 'medic') stats.morale += 1
+      if (agent.skill === 'trader') stats.economy += 1
+    }
+    if (office === 'guard-captain') {
+      stats.defense += agent.skillLevel * (agent.skill === 'guard' || agent.skill === 'duelist' ? 2 : 1)
+    }
+    if (office === 'production-steward') {
+      stats.food += agent.skillLevel * (agent.skill === 'forager' ? 2 : 1)
+    }
+    if (office === 'trade-steward') {
+      stats.economy += agent.skillLevel * (agent.skill === 'trader' ? 2 : 1)
+    }
+  }
+  return stats
+}
+
+export function campDailyYield(
+  state: Pick<GameState, 'camps' | 'residents'>,
+  camp: Camp,
+): { gold: number; berries: number } {
+  const stats = effectiveCampStats(state, camp)
   return {
-    gold: Math.floor(camp.economy / 2),
-    berries: Math.max(0, camp.food - camp.population),
+    gold: Math.floor(stats.economy / 2),
+    berries: Math.max(0, stats.food - campFoodDemand(state, camp.id)),
   }
 }
 
-export function campRestRecovery(camp?: Camp): number {
-  return camp ? Math.min(6, 3 + Math.floor(camp.morale / 3)) : 3
+export function campRestRecovery(
+  state: Pick<GameState, 'camps' | 'residents'>,
+  camp?: Camp,
+): number {
+  return camp ? Math.min(6, 3 + Math.floor(effectiveCampStats(state, camp).morale / 3)) : 3
 }

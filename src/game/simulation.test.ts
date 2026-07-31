@@ -38,6 +38,46 @@ describe('game simulation', () => {
     expect(state.fatigue).toBe(0)
   })
 
+  it('advances one calendar day after ten successful tiles while AI uses independent turns', () => {
+    let state = flatState('calendar-check')
+    const initialDay = state.day
+    for (let step = 0; step < 9; step += 1) {
+      state = gameReducer(state, { type: 'MOVE', direction: step % 2 === 0 ? 'right' : 'left' })
+    }
+    expect(state.day).toBe(initialDay)
+    expect(state.dayProgress).toBe(9)
+    expect(state.turn).toBe(9)
+    state = gameReducer(state, { type: 'MOVE', direction: 'left' })
+    expect(state.day).toBe(initialDay + 1)
+    expect(state.dayProgress).toBe(0)
+    expect(state.turn).toBe(10)
+  })
+
+  it('does not advance travel time for blocked movement or entering an occupied monster tile', () => {
+    let state = flatState('calendar-block-check')
+    const targetIndex = state.player.y * state.world.size + state.player.x + 1
+    state.world.tiles[targetIndex].terrain = 'water'
+    const blocked = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    expect(blocked.dayProgress).toBe(0)
+    expect(blocked.turn).toBe(0)
+    state.world.tiles[targetIndex].terrain = 'meadow'
+    state.monsters = [{ id: 'clock-monster', species: 'slime', hp: 8, x: state.player.x + 1, y: state.player.y }]
+    const encounter = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    expect(encounter.dayProgress).toBe(0)
+    expect(encounter.player.x).toBe(state.player.x)
+  })
+
+  it('rest advances one day but preserves partial movement progress', () => {
+    let state = flatState('calendar-rest-check')
+    for (let step = 0; step < 4; step += 1) {
+      state = gameReducer(state, { type: 'MOVE', direction: step % 2 === 0 ? 'right' : 'left' })
+    }
+    const day = state.day
+    state = gameReducer(state, { type: 'REST' })
+    expect(state.day).toBe(day + 1)
+    expect(state.dayProgress).toBe(4)
+  })
+
   it('starts an encounter at 1.5x fatigue and raises max stamina after victory', () => {
     const state = flatState('combat-win-check')
     state.monsters = [{ id: 'training-slime', species: 'slime', hp: 1, x: 21, y: 20 }]
@@ -307,6 +347,8 @@ describe('game simulation', () => {
     const next = gameReducer(state, { type: 'FOUND_CAMP' })
     expect(next.world.tiles[index].structure).toBe('camp')
     expect(next.player.gold).toBe(12)
+    expect(next.residents.filter((resident) => resident.campId === next.camps[0].id)).toHaveLength(2)
+    expect(new Set(next.residents.map((resident) => resident.sex))).toEqual(new Set(['female', 'male']))
   })
 
   it('keeps the full camp control range permanently visible after the player leaves', () => {
@@ -387,7 +429,36 @@ describe('game simulation', () => {
     const gold = state.player.gold
     state = gameReducer(state, { type: 'REST' })
     expect(state.player.gold).toBe(gold + 1)
-    expect(state.player.berries).toBe(berries + 4)
+    expect(state.player.berries).toBe(berries + 3)
+  })
+
+  it('assigns and recalls a follower through a local unlocked camp office', () => {
+    let state = flatState('office-check')
+    state.player.gold = 20
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    state.camps[0].housing = 8
+    const follower = state.agents[0]
+    follower.role = 'follower'
+    follower.skill = 'trader'
+    follower.skillLevel = 2
+    const assigned = gameReducer(state, { type: 'ASSIGN_CAMP_OFFICE', campId: state.camps[0].id, agentId: follower.id, office: 'mayor' })
+    expect(assigned.camps[0].offices.mayor?.id).toBe(follower.id)
+    expect(assigned.agents.some((agent) => agent.id === follower.id)).toBe(false)
+    expect(assigned.settlementEvents[0].kind).toBe('office')
+    const recalled = gameReducer(assigned, { type: 'RECALL_CAMP_OFFICIAL', campId: state.camps[0].id, office: 'mayor' })
+    expect(recalled.camps[0].offices.mayor).toBeUndefined()
+    expect(recalled.agents.find((agent) => agent.id === follower.id)?.role).toBe('follower')
+  })
+
+  it('requires the corresponding facility before assigning specialist offices', () => {
+    let state = flatState('office-lock-check')
+    state.player.gold = 20
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    state.camps[0].housing = 8
+    state.agents[0].role = 'follower'
+    const blocked = gameReducer(state, { type: 'ASSIGN_CAMP_OFFICE', campId: state.camps[0].id, agentId: state.agents[0].id, office: 'guard-captain' })
+    expect(blocked.camps[0].offices['guard-captain']).toBeUndefined()
+    expect(blocked.chronicle[0].text).toContain('尚未')
   })
 
   it('connects two camps by road and auto-paths home with lower fatigue', () => {

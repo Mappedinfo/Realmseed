@@ -66,7 +66,9 @@ Future art packs may replace the procedural primitives, but must preserve the
 ## Current playable loop
 
 1. Choose a total seed and per-scene size.
-2. Reveal land by walking; every 100 ordinary steps spend one stamina.
+2. Reveal land by walking; every 10 successful tiles advance one calendar day,
+   while every 100 ordinary steps spend one stamina. Rest and scene travel each
+   advance a day without discarding partial movement progress.
 3. Find coins, berry patches, and ruins, meet travelers, and fight monsters.
    Terrain and regional patches make berry abundance uneven; combat steps
    accumulate fatigue 1.5× faster.
@@ -91,11 +93,18 @@ Future art packs may replace the procedural primitives, but must preserve the
    range from the left camp list. The entire
    control radius remains permanently visible after the party leaves, and a
    watchtower expands that live vision together with the control range.
+   A new camp begins with two adult founders. Suitable adults marry at 30-day
+   checkpoints, children mature after 60 days, and housing, food, morale, and
+   seeded migration rolls govern further growth. Trusted nearby travelers may
+   also choose to settle.
 7. Walk 100 successful steps after founding a camp to earn one building tile.
    Select a controlled empty tile for one of six functional facilities: lodge,
    farm, watchtower, market, workshop, or shrine. Lodges gate resident capacity;
    farms create food surplus; defense suppresses local ambush; economy settles
    gold; workshops grant local combat damage; morale improves exhausted rest.
+   From the camp core, followers can be appointed and recalled as mayor, guard
+   captain, production steward, or trade steward. These offices use dynamic
+   skill bonuses rather than permanently modifying building attributes.
    Same-scene
    camps automatically connect by passable roads; roads use 0.35 movement fatigue,
    and the camp list can run shortest-path return navigation.
