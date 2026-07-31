@@ -1,0 +1,53 @@
+{
+  "source_directory": "art/generated/directional/raw",
+  "source_grid": {
+    "rows": 4,
+    "columns": 4
+  },
+  "source_column_order": [
+    "south",
+    "north",
+    "west",
+    "east"
+  ],
+  "runtime_layout": {
+    "cell": 32,
+    "columns": {
+      "characters": [
+        "traveler",
+        "keeper",
+        "farmer",
+        "scout",
+        "merchant",
+        "healer",
+        "guard",
+        "scholar"
+      ],
+      "monsters": [
+        "slime",
+        "boar",
+        "wisp",
+        "rock-crab",
+        "marsh-crawler",
+        "ember-moth",
+        "moon-jelly",
+        "seed-guardian"
+      ]
+    },
+    "rows": [
+      "south",
+      "north",
+      "west",
+      "east"
+    ]
+  },
+  "runtime_outputs": {
+    "characters": "public/assets/art/verdant-directional-characters.png",
+    "monsters": "public/assets/art/verdant-directional-monsters.png"
+  },
+  "policy": {
+    "raw_sources_are_immutable": true,
+    "white_background_is_removed": true,
+    "runtime_palette_is_limited": true
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/farmer/east.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/farmer/east.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/farmer/east.png",
+  "source_size": [
+    314,
+    313
+  ],
+  "foreground_bbox": [
+    31,
+    11,
+    181,
+    313
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 28,
+  "actual_colors": 28,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 216,
+  "transparent_pixels": 808,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

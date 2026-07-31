@@ -72,6 +72,7 @@ npm test
 npm run build
 python3 scripts/build_pixel_atlas.py
 python3 scripts/ingest_generated_assets.py
+python3 scripts/ingest_directional_assets.py
 ```
 
 ## Controls

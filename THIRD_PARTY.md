@@ -15,6 +15,11 @@ derived from the user-provided GPT Image source images preserved under
 `art/generated/raw/`; its deterministic intake and provenance are documented in
 `art/generated/README.md`.
 
+The additional four-direction character and monster masters are likewise
+user-provided GPT Image outputs. They are preserved under
+`art/generated/directional/raw/`; their deterministic 4×4 splitting and
+normalization contract is documented in `art/generated/directional/README.md`.
+
 The game code and graphics do not copy data, replays, or graphics from
 `FromUnknown2Lover`. That project informed only the static-first deployment
 boundary and the preference for an expressive pixel map.

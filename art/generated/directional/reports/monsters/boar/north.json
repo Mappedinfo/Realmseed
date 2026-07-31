@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/monsters/boar/north.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/monsters/boar/north.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/monsters/boar/north.png",
+  "source_size": [
+    313,
+    313
+  ],
+  "foreground_bbox": [
+    90,
+    0,
+    276,
+    286
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 30,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 298,
+  "transparent_pixels": 726,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

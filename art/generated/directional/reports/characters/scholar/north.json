@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/characters/scholar/north.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/characters/scholar/north.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/characters/scholar/north.png",
+  "source_size": [
+    313,
+    314
+  ],
+  "foreground_bbox": [
+    97,
+    0,
+    264,
+    224
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 28,
+  "actual_colors": 28,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 462,
+  "transparent_pixels": 562,
+  "alpha_values": [
+    0,
+    255
+  ]
+}

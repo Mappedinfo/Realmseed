@@ -28,6 +28,8 @@ references to a specific commercial game.
 - Atlas: **128×48 px**, eight columns and three rows, one file per direction.
 - Generated terrain atlas: **256×64 px**; generated object atlas:
   **256×128 px**; generated character atlas: **256×32 px**.
+- Four-direction character and monster atlases: **256×128 px**, eight
+  identities across columns and south/north/west/east across rows.
 - Palette caps: **64 colors** per generated terrain tile and **24–32 colors**
   per generated sprite.
 - No runtime smoothing, sub-pixel placement, blur, or CSS filtering.
@@ -51,6 +53,19 @@ background removal, chroma spill cleanup, alpha cropping, palette reduction,
 and deterministic atlas packing. It also extracts review crops from the mixed
 concept board with connected-component detection. Intermediate cells, previews,
 reports, and the build manifest live under `art/generated/`.
+
+Four-direction source sheets have their own reproducible intake:
+
+```bash
+python3 scripts/ingest_directional_assets.py
+```
+
+Its source, cells, processed sprites, enlarged review previews, reports, and
+layout manifest live under `art/generated/directional/`. The checked-in runtime
+outputs are `verdant-directional-characters.png` and
+`verdant-directional-monsters.png`. The associated combat-move and equipment
+generation brief is retained in
+`art/prompts/combat-moves-equipment-gpt-image-2.md`.
 
 For one-off concept normalization, use:
 

@@ -1,0 +1,34 @@
+{
+  "input": "/private/tmp/realmseed-artwork/art/generated/directional/cells/monsters/moon-jelly/south.png",
+  "logical_output": "/private/tmp/realmseed-artwork/art/generated/directional/processed/monsters/moon-jelly/south.png",
+  "preview_output": "/private/tmp/realmseed-artwork/art/generated/directional/previews/monsters/moon-jelly/south.png",
+  "source_size": [
+    314,
+    313
+  ],
+  "foreground_bbox": [
+    110,
+    45,
+    267,
+    313
+  ],
+  "grid_size": [
+    32,
+    32
+  ],
+  "preview_scale": 8,
+  "requested_colors": 30,
+  "actual_colors": 29,
+  "key_mode": "white",
+  "key_color": [
+    255,
+    255,
+    255
+  ],
+  "foreground_pixels": 266,
+  "transparent_pixels": 758,
+  "alpha_values": [
+    0,
+    255
+  ]
+}
