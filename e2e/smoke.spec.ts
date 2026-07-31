@@ -15,10 +15,16 @@ test('starts a seeded world and advances a turn', async ({ page }) => {
   await expect(page.getByText('SEED: browser-smoke-seed')).toBeVisible()
   await expect(page.getByText('96 × 96')).toBeVisible()
   await expect(page.getByText('第').locator('..')).toContainText('1')
+  await expect(page.getByRole('button', { name: '效忠' })).toHaveCount(3)
+  await expect(page.getByRole('button', { name: '纳为附属' })).toHaveCount(3)
+  await expect(page.getByText('场景坐标 [0, 0]')).toBeVisible()
 
   await page.getByRole('button', { name: /休息/ }).click()
   await expect(page.locator('.world-status')).toContainText('2')
   await expect(page.locator('.chronicle-list')).toContainText(/恢复|度过一夜/)
+  await page.getByRole('button', { name: '向东前往相邻场景' }).click()
+  await expect(page.getByText('场景坐标 [1, 0]')).toBeVisible()
+  await expect(page.locator('.chronicle-list')).toContainText('场景由总种子继续展开')
   await page.screenshot({ path: '/tmp/realmseed-game.png', fullPage: true })
 
   expect(consoleErrors).toEqual([])

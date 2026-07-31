@@ -1,5 +1,5 @@
-import type { Agent, ChronicleEntry, Direction, GameAction, GameState, Position } from './types'
-import { isPassable, revealFog, tileIndex } from './world'
+import type { Agent, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot } from './types'
+import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 
 const directionDelta: Record<Direction, Position> = {
   up: { x: 0, y: -1 },
@@ -24,8 +24,27 @@ function nearestAgent(state: GameState): Agent | undefined {
   return state.agents.find((agent) => agent.role === 'wanderer' && distance(agent, state.player) <= 1)
 }
 
+function followerStep(state: GameState, agent: Agent): Agent {
+  if (distance(agent, state.player) <= 1) return agent
+  const dx = state.player.x - agent.x
+  const dy = state.player.y - agent.y
+  const candidates =
+    Math.abs(dx) >= Math.abs(dy)
+      ? [
+          { x: agent.x + Math.sign(dx), y: agent.y },
+          { x: agent.x, y: agent.y + Math.sign(dy) },
+        ]
+      : [
+          { x: agent.x, y: agent.y + Math.sign(dy) },
+          { x: agent.x + Math.sign(dx), y: agent.y },
+        ]
+  const step = candidates.find((position) => isPassable(state.world, position.x, position.y))
+  return step ? { ...agent, ...step } : agent
+}
+
 function advanceAi(state: GameState): Pick<GameState, 'agents' | 'day'> {
   const agents = state.agents.map((agent, index) => {
+    if (agent.role === 'follower') return followerStep(state, agent)
     if (agent.role !== 'wanderer') return agent
     const cycle = (state.day + index * 3) % 4
     const direction = (['up', 'right', 'down', 'left'] as const)[cycle]
@@ -107,7 +126,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, selected: action.position }
     }
     case 'REST': {
-      const goldIncome = state.agents.filter((agent) => agent.role === 'villager').length
+      const villageIncome = state.agents.filter((agent) => agent.role === 'villager').length
+      const vassalIncome = state.factions.filter((faction) => faction.isVassal).length * 2
+      const goldIncome = villageIncome + vassalIncome
       const patched = {
         player: {
           ...state.player,
@@ -116,7 +137,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         },
         chronicle: log(
           state,
-          goldIncome > 0 ? `营地度过一夜。村民带来 ${goldIncome} 金税收。` : '篝火熄灭前，体力已经恢复。',
+          goldIncome > 0
+            ? `营地度过一夜。村庄税收 ${villageIncome} 金，附属贡金 ${vassalIncome} 金。`
+            : '篝火熄灭前，体力已经恢复。',
           'good',
         ),
       }
@@ -179,6 +202,135 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             : agent,
         ),
         chronicle: log(state, `${follower.name} 留守营地。这里将永久保持明亮，并每天产出 1 金。`, 'good'),
+      }
+      return { ...next, fog: revealFog(next) }
+    }
+    case 'PLEDGE_FACTION': {
+      const faction = state.factions.find((item) => item.id === action.factionId)
+      if (!faction) return state
+      if (state.player.factionId !== 'free') {
+        return { ...state, chronicle: log(state, '你已经立下效忠誓言；若要改换门庭，必须先脱离。', 'danger') }
+      }
+      if (faction.isVassal) {
+        return { ...state, chronicle: log(state, `${faction.name} 已是你的附属，不能反向向它效忠。`, 'danger') }
+      }
+      if (faction.relation < 15) {
+        return { ...state, chronicle: log(state, `${faction.name} 尚不接受你的誓言（需要 15 声望）。`, 'danger') }
+      }
+      return {
+        ...state,
+        player: { ...state.player, factionId: faction.id, gold: state.player.gold + 4 },
+        factions: state.factions.map((item) =>
+          item.id === faction.id ? { ...item, isOverlord: true } : item,
+        ),
+        chronicle: log(state, `你向${faction.name}宣誓效忠，获得 4 金远征资助。`, 'good'),
+      }
+    }
+    case 'BREAK_OATH': {
+      if (state.player.factionId === 'free') {
+        return { ...state, chronicle: log(state, '你没有需要解除的效忠关系。') }
+      }
+      const overlord = state.factions.find((item) => item.id === state.player.factionId)
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          factionId: 'free',
+          gold: Math.max(0, state.player.gold - 3),
+        },
+        factions: state.factions.map((item) =>
+          item.id === state.player.factionId
+            ? { ...item, isOverlord: false, relation: Math.max(-100, item.relation - 20) }
+            : item,
+        ),
+        chronicle: log(
+          state,
+          `你撕毁了对${overlord?.name ?? '旧领主'}的誓约，支付 3 金并失去 20 声望。`,
+          'danger',
+        ),
+      }
+    }
+    case 'MAKE_VASSAL': {
+      const faction = state.factions.find((item) => item.id === action.factionId)
+      if (!faction) return state
+      if (state.player.factionId !== 'free') {
+        return { ...state, chronicle: log(state, '效忠他人时不能建立自己的附属体系。', 'danger') }
+      }
+      if (faction.isVassal) {
+        return { ...state, chronicle: log(state, `${faction.name} 已经承认你的宗主权。`) }
+      }
+      const villages = state.agents.filter((agent) => agent.role === 'villager').length
+      if (villages < 1) {
+        return { ...state, chronicle: log(state, '至少需要一处有村民驻守的领地，才能提出附属契约。', 'danger') }
+      }
+      if (faction.relation < 30) {
+        return { ...state, chronicle: log(state, `${faction.name} 尚未充分信任你（需要 30 声望）。`, 'danger') }
+      }
+      if (state.player.gold < 10) {
+        return { ...state, chronicle: log(state, '缔结保护与贡赋契约需要 10 金。', 'danger') }
+      }
+      return {
+        ...state,
+        player: { ...state.player, gold: state.player.gold - 10 },
+        factions: state.factions.map((item) =>
+          item.id === faction.id ? { ...item, isVassal: true } : item,
+        ),
+        chronicle: log(state, `${faction.name} 接受保护契约，成为你的附属，每日进贡 2 金。`, 'good'),
+      }
+    }
+    case 'TRAVEL': {
+      if (state.player.stamina < 2) {
+        return { ...state, chronicle: log(state, '穿越场景边界需要 2 点体力。先休息再远行。', 'danger') }
+      }
+      const delta = directionDelta[action.direction]
+      const targetX = state.world.sceneX + delta.x
+      const targetY = state.world.sceneY + delta.y
+      const currentKey = sceneKey(state.world.sceneX, state.world.sceneY)
+      const targetKey = sceneKey(targetX, targetY)
+      const followers = state.agents.filter((agent) => agent.role === 'follower')
+      const sceneCache = {
+        ...state.sceneCache,
+        [currentKey]: {
+          world: state.world,
+          fog: state.fog,
+          agents: state.agents.filter((agent) => agent.role !== 'follower'),
+          monsters: state.monsters,
+        },
+      }
+      const cached = sceneCache[targetKey]
+      const generated: SceneSnapshot = cached ?? {
+        ...createScene(state.world.seed, state.world.mapSize, targetX, targetY),
+        fog: new Array<FogLevel>(state.world.tiles.length).fill(0),
+      }
+      const entry = sceneEntry(generated.world, action.direction)
+      const player = {
+        ...state.player,
+        ...entry,
+        stamina: state.player.stamina - 2,
+      }
+      const agents = [
+        ...generated.agents.filter((agent) => agent.role !== 'follower'),
+        ...followers.map((follower, index) => ({
+          ...follower,
+          x: Math.max(1, Math.min(generated.world.size - 2, entry.x + (index % 2))),
+          y: Math.max(1, Math.min(generated.world.size - 2, entry.y + Math.floor(index / 2))),
+        })),
+      ]
+      const next: GameState = {
+        ...state,
+        world: generated.world,
+        fog: generated.fog,
+        agents,
+        monsters: generated.monsters,
+        player,
+        sceneCache,
+        selected: null,
+        day: state.day + 1,
+        chronicle: log(
+          state,
+          `你沿古老交通线抵达${generated.world.sceneName} [${targetX}, ${targetY}]。场景由总种子继续展开。`,
+          'good',
+        ),
       }
       return { ...next, fog: revealFog(next) }
     }

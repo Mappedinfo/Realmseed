@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useState } from 'react'
 import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
 import { MiniMap } from './components/MiniMap'
+import { SceneTransit } from './components/SceneTransit'
 import { StartScreen } from './components/StartScreen'
 import { WorldCanvas } from './components/WorldCanvas'
 import { gameReducer, visibleCounts } from './game/simulation'
@@ -13,6 +14,9 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
   const counts = useMemo(() => visibleCounts(state), [state])
   const followers = state.agents.filter((agent) => agent.role === 'follower')
   const villagers = state.agents.filter((agent) => agent.role === 'villager')
+  const overlord = state.factions.find((faction) => faction.id === state.player.factionId)
+  const vassals = state.factions.filter((faction) => faction.isVassal)
+  const socialRank = overlord ? `${overlord.name}属臣` : vassals.length > 0 ? '独立领主' : '自由旅人'
   const nearest = state.agents
     .filter((agent) => agent.role === 'wanderer')
     .map((agent) => ({ agent, distance: Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) }))
@@ -47,7 +51,7 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
           <i />
           <span>{state.weather}</span>
           <i />
-          <span>{state.world.size} × {state.world.size}</span>
+          <span>{state.world.sceneName} [{state.world.sceneX}, {state.world.sceneY}] · {state.world.size} × {state.world.size}</span>
         </div>
         <div className="header-actions">
           <AudioControl />
@@ -60,7 +64,7 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
           <p className="panel-kicker">EXPLORER</p>
           <div className="portrait" aria-hidden="true"><span>◆</span></div>
           <h2>{state.player.name}</h2>
-          <p className="free-banner">自由旅人</p>
+          <p className="free-banner">{socialRank}</p>
 
           <div className="resource-row">
             <div><span className="coin-dot">●</span><strong>{state.player.gold}</strong><small>金币</small></div>
@@ -75,8 +79,13 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
           </div>
 
           <div className="panel-section">
-            <h3>领地 <span>{villagers.length}</span></h3>
-            <p className="empty-copy">{villagers.length ? `常亮村庄 ${villagers.length} 处 · 每日 +${villagers.length} 金` : '建立营地，再让随从驻守。'}</p>
+            <h3>领地 / 附属 <span>{villagers.length} / {vassals.length}</span></h3>
+            <p className="empty-copy">
+              {villagers.length
+                ? `常亮村庄 ${villagers.length} 处 · 村税 +${villagers.length} 金`
+                : '建立营地，再让随从驻守。'}
+              {vassals.length ? ` · 贡金 +${vassals.length * 2} 金` : ''}
+            </p>
           </div>
         </aside>
 
@@ -86,6 +95,7 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
         </section>
 
         <aside className="side-panel intel-panel">
+          <SceneTransit state={state} dispatch={dispatch} />
           <div className="map-panel-head">
             <div><p className="panel-kicker">WORLD MAP</p><strong>{Math.round((counts.explored / counts.total) * 100)}% 已探索</strong></div>
             <span>{counts.visible} 格明亮</span>
@@ -100,10 +110,36 @@ function GameView({ initialState, onNewWorld }: { initialState: GameState; onNew
           <div className="panel-section factions">
             <h3>阵营关系</h3>
             {state.factions.map((faction) => (
-              <div className="faction-row" key={faction.id}>
-                <i style={{ background: faction.color }} />
-                <span>{faction.name}</span>
-                <strong>{faction.relation >= 0 ? '+' : ''}{faction.relation}</strong>
+              <div className="faction-contract" key={faction.id}>
+                <div className="faction-row">
+                  <i style={{ background: faction.color }} />
+                  <span>
+                    {faction.name}
+                    {faction.isOverlord ? <small>宗主</small> : null}
+                    {faction.isVassal ? <small>附属</small> : null}
+                  </span>
+                  <strong>{faction.relation >= 0 ? '+' : ''}{faction.relation}</strong>
+                </div>
+                <div className="contract-actions">
+                  {faction.isOverlord ? (
+                    <button onClick={() => dispatch({ type: 'BREAK_OATH' })}>解除誓约</button>
+                  ) : (
+                    <button
+                      onClick={() => dispatch({ type: 'PLEDGE_FACTION', factionId: faction.id })}
+                      disabled={state.player.factionId !== 'free' || faction.isVassal}
+                      title="需要 15 声望；获得 4 金远征资助"
+                    >
+                      效忠
+                    </button>
+                  )}
+                  <button
+                    onClick={() => dispatch({ type: 'MAKE_VASSAL', factionId: faction.id })}
+                    disabled={state.player.factionId !== 'free' || faction.isVassal}
+                    title="需要 1 座村庄、30 声望和 10 金"
+                  >
+                    {faction.isVassal ? '已附属' : '纳为附属'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

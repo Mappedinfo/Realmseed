@@ -25,8 +25,9 @@ export function StartScreen({ onStart }: StartScreenProps) {
         <h1>REALMSEED</h1>
         <p className="title-cn">一粒种子，一方世界</p>
         <p className="title-copy">
-          在迷雾里找路，在路上认识人。你会建立村庄、收服随从，
-          也可能成为某个阵营的盟友——或它未来的领主。
+          在迷雾里找路，在路上认识人。每片区域都有四条交通线，
+          世界会沿场景坐标持续展开；你可以建立村庄、收服随从，
+          也可能成为某个阵营的属臣——或它未来的领主。
         </p>
 
         <div className="seed-form">
@@ -48,12 +49,12 @@ export function StartScreen({ onStart }: StartScreenProps) {
             <label className={size === 'small' ? 'is-selected' : ''}>
               <input type="radio" name="size" value="small" checked={size === 'small'} onChange={() => setSize('small')} />
               <strong>小地图</strong>
-              <span>40 × 40 · 快速开局</span>
+              <span>每场景 40 × 40 · 无限相邻场景</span>
             </label>
             <label className={size === 'large' ? 'is-selected' : ''}>
               <input type="radio" name="size" value="large" checked={size === 'large'} onChange={() => setSize('large')} />
               <strong>大地图</strong>
-              <span>96 × 96 · 漫长远征</span>
+              <span>每场景 96 × 96 · 无限相邻场景</span>
             </label>
           </fieldset>
 
@@ -61,7 +62,7 @@ export function StartScreen({ onStart }: StartScreenProps) {
             展开这个世界 <span>→</span>
           </button>
         </div>
-        <p className="title-note">同一种子生成同一片大陆 · 无账号 · 无服务器 · 本地运行</p>
+        <p className="title-note">同一总种子 + 场景坐标生成同一区域 · 无账号 · 无服务器 · 本地运行</p>
       </section>
     </main>
   )

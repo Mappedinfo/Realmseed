@@ -253,7 +253,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   display: block;
   width: 100%;
   max-height: calc(100vh - 190px);
-  aspect-ratio: 648 / 456;
+  aspect-ratio: 800 / 544;
   object-fit: contain;
   image-rendering: pixelated;
   cursor: crosshair;
@@ -298,7 +298,25 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .fog-dark { background: #111713; border: 1px solid #384038; }
 .faction-row { display: grid; grid-template-columns: 9px 1fr auto; gap: 7px; align-items: center; padding: 5px 0; font-size: 11px; }
 .faction-row i { width: 7px; height: 7px; }
+.faction-row span small {
+  margin-left: 5px;
+  padding: 1px 3px;
+  color: #172019;
+  background: var(--gold);
+  font-size: 7px;
+}
 .faction-row strong { color: #aab59f; }
+.faction-contract + .faction-contract { border-top: 1px dotted #37433a; }
+.contract-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 4px; margin: 1px 0 5px 16px; }
+.contract-actions button {
+  padding: 4px 3px;
+  color: #aebaa9;
+  background: #25342b;
+  border: 1px solid #465544;
+  font-size: 8px;
+}
+.contract-actions button:hover:not(:disabled) { color: var(--gold); border-color: var(--gold); }
+.contract-actions button:disabled { opacity: .32; cursor: not-allowed; }
 .nearby-card { padding: 9px; background: #16211b; border-left: 3px solid var(--leaf); }
 .nearby-card strong { display: block; color: #d8deca; font-size: 12px; }
 .nearby-card span { display: block; color: #778477; font-size: 9px; margin: 3px 0 5px; }
@@ -308,10 +326,58 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .chronicle-list p span { color: #657568; }
 .chronicle-list p.good { color: #a9c998; }
 .chronicle-list p.danger { color: #db9276; }
+.scene-transit {
+  margin: -3px -3px 13px;
+  padding: 10px;
+  background: #152019;
+  border: 1px solid #435243;
+}
+.transit-copy { text-align: center; }
+.transit-copy .panel-kicker { margin-bottom: 3px; font-size: 7px; }
+.transit-copy strong { display: block; color: var(--gold); font-size: 15px; letter-spacing: .08em; }
+.transit-copy span { color: #7f8d7e; font-size: 9px; }
+.transit-grid {
+  width: 94px;
+  height: 82px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 3px;
+  margin: 8px auto 5px;
+}
+.transit-grid button {
+  display: grid;
+  place-items: center;
+  gap: 0;
+  padding: 2px;
+  color: #c4cdb9;
+  background: #27372d;
+  border: 1px solid #536251;
+  line-height: 1;
+}
+.transit-grid button:hover { color: var(--gold); border-color: var(--gold); }
+.transit-grid button b { font-size: 8px; }
+.transit-grid button small { font-size: 7px; }
+.route-up { grid-column: 2; grid-row: 1; }
+.route-left { grid-column: 1; grid-row: 2; }
+.route-right { grid-column: 3; grid-row: 2; }
+.route-down { grid-column: 2; grid-row: 3; }
+.transit-core {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  color: var(--gold);
+  background: #1d2a22;
+  border: 1px solid #3d4b3f;
+  font-size: 10px;
+}
+.scene-transit > p { margin: 0; color: #6f7e70; font-size: 8px; line-height: 1.4; text-align: center; }
 
 @media (max-width: 1050px) {
   .game-grid { grid-template-columns: 190px minmax(520px, 1fr); }
   .intel-panel { grid-column: 1 / -1; display: grid; grid-template-columns: 170px 170px 1fr 1.2fr; gap: 12px; align-items: start; }
+  .intel-panel .scene-transit { margin: 0; }
   .intel-panel .panel-section { margin-top: 0; padding-top: 0; border-top: 0; }
   .map-panel-head { display: block; }
   .fog-legend { flex-direction: column; }
@@ -333,6 +399,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   .dpad { margin: auto; }
   .keyboard-hint { grid-column: 1; text-align: center; }
   .intel-panel { display: grid; grid-template-columns: 135px 1fr; }
+  .intel-panel .scene-transit { grid-column: 1 / -1; }
   .intel-panel .factions, .intel-panel .chronicle { grid-column: 1 / -1; }
   .title-card { padding: 34px 24px 27px; }
 }

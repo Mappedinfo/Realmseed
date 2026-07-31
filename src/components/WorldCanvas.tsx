@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { GameState, Position, Terrain } from '../game/types'
 import { tileIndex } from '../game/world'
 
-const TILE = 24
-const VIEW_COLS = 27
-const VIEW_ROWS = 19
+const TILE = 32
+const VIEW_COLS = 25
+const VIEW_ROWS = 17
 const terrainColors: Record<Terrain, [string, string]> = {
   meadow: ['#6f9b5b', '#88ad65'],
   forest: ['#315d45', '#4a7650'],
@@ -38,24 +38,34 @@ function drawTile(
   pixelRect(context, base, x, y, TILE, TILE)
   const pattern = Math.abs((worldX * 17 + worldY * 31) % 5)
   if (terrain === 'water') {
-    pixelRect(context, accent, x + 3 + pattern, y + 7, 9, 2)
-    pixelRect(context, '#285665', x + 12, y + 16, 8, 2)
+    pixelRect(context, accent, x + 3 + pattern, y + 8, 13, 2)
+    pixelRect(context, '#285665', x + 15, y + 20, 12, 2)
+    pixelRect(context, '#5a95a3', x + 4, y + 27, 8, 1)
   } else if (terrain === 'forest') {
     pixelRect(context, '#234b38', x + 4, y + 5, 7, 8)
     pixelRect(context, accent, x + 6, y + 3, 5, 5)
     pixelRect(context, '#6f593e', x + 7, y + 13, 2, 5)
-    if (pattern > 2) pixelRect(context, '#294d38', x + 15, y + 10, 5, 7)
+    pixelRect(context, '#294d38', x + 19, y + 13, 8, 9)
+    pixelRect(context, '#4f8056', x + 21, y + 9, 5, 7)
+    pixelRect(context, '#6f593e', x + 22, y + 22, 2, 5)
+    if (pattern > 2) pixelRect(context, '#9ab66e', x + 14, y + 26, 3, 2)
   } else if (terrain === 'mountain') {
-    pixelRect(context, '#504f4d', x + 4, y + 14, 16, 5)
-    pixelRect(context, accent, x + 8, y + 7, 9, 8)
-    pixelRect(context, '#d5d0bf', x + 11, y + 7, 4, 3)
+    pixelRect(context, '#504f4d', x + 4, y + 20, 24, 7)
+    pixelRect(context, accent, x + 9, y + 8, 15, 14)
+    pixelRect(context, '#d5d0bf', x + 14, y + 8, 7, 5)
+    pixelRect(context, '#5d5c58', x + 7, y + 26, 18, 3)
   } else if (terrain === 'marsh') {
-    pixelRect(context, '#294f4d', x + 2, y + 16, 12, 3)
-    pixelRect(context, accent, x + 15, y + 7, 2, 9)
-    pixelRect(context, accent, x + 19, y + 11, 2, 7)
+    pixelRect(context, '#294f4d', x + 2, y + 21, 16, 4)
+    pixelRect(context, accent, x + 19, y + 8, 2, 14)
+    pixelRect(context, accent, x + 25, y + 14, 2, 11)
+    pixelRect(context, '#76917b', x + 7, y + 10, 5, 2)
   } else {
-    pixelRect(context, accent, x + 3 + pattern * 2, y + 6 + pattern, 3, 3)
-    if (terrain === 'meadow') pixelRect(context, '#b5c66b', x + 17, y + 15, 2, 4)
+    pixelRect(context, accent, x + 3 + pattern * 3, y + 6 + pattern, 3, 3)
+    pixelRect(context, accent, x + 23 - pattern, y + 24, 2, 2)
+    if (terrain === 'meadow') {
+      pixelRect(context, '#b5c66b', x + 23, y + 16, 2, 6)
+      pixelRect(context, '#d6d77a', x + 21, y + 15, 2, 2)
+    }
   }
 }
 
@@ -66,37 +76,51 @@ function drawPerson(
   color: string,
   isPlayer = false,
 ) {
-  const ox = x + 7
-  const oy = y + 4
-  pixelRect(context, '#e7bc88', ox + 3, oy, 5, 5)
-  pixelRect(context, isPlayer ? '#f4d35e' : color, ox + 2, oy + 5, 7, 8)
-  pixelRect(context, '#23312b', ox + 2, oy + 13, 3, 5)
-  pixelRect(context, '#23312b', ox + 6, oy + 13, 3, 5)
+  const ox = x + 10
+  const oy = y + 6
+  pixelRect(context, 'rgba(10, 17, 13, .4)', x + 7, y + 26, 19, 3)
+  pixelRect(context, '#513e31', ox + 2, oy - 2, 9, 4)
+  pixelRect(context, '#e7bc88', ox + 3, oy + 1, 7, 7)
+  pixelRect(context, isPlayer ? '#f4d35e' : color, ox + 1, oy + 8, 11, 10)
+  pixelRect(context, '#efe5c2', ox + 4, oy + 10, 5, 3)
+  pixelRect(context, '#23312b', ox + 2, oy + 18, 4, 6)
+  pixelRect(context, '#23312b', ox + 8, oy + 18, 4, 6)
   if (isPlayer) {
     context.strokeStyle = '#fff0a6'
     context.lineWidth = 1
-    context.strokeRect(ox, oy - 2, 11, 21)
+    context.strokeRect(ox - 2, oy - 4, 16, 30)
   }
 }
 
 function drawMonster(context: CanvasRenderingContext2D, x: number, y: number, species: string) {
   const colors = species === 'slime' ? ['#7e66a8', '#ab8ed2'] : species === 'boar' ? ['#714b39', '#a76b4d'] : ['#4ea0a7', '#8bd0c8']
-  pixelRect(context, colors[0], x + 5, y + 10, 14, 9)
-  pixelRect(context, colors[1], x + 8, y + 7, 8, 6)
-  pixelRect(context, '#e9f4dc', x + 9, y + 12, 2, 2)
-  pixelRect(context, '#e9f4dc', x + 15, y + 12, 2, 2)
+  pixelRect(context, 'rgba(10, 17, 13, .35)', x + 6, y + 27, 21, 3)
+  pixelRect(context, colors[0], x + 7, y + 14, 19, 12)
+  pixelRect(context, colors[1], x + 11, y + 9, 11, 8)
+  pixelRect(context, '#e9f4dc', x + 12, y + 17, 3, 3)
+  pixelRect(context, '#e9f4dc', x + 20, y + 17, 3, 3)
 }
 
 function drawStructure(context: CanvasRenderingContext2D, x: number, y: number, structure: string) {
-  if (structure === 'ruin') {
-    pixelRect(context, '#756c64', x + 4, y + 8, 15, 11)
-    pixelRect(context, '#9a8d7e', x + 7, y + 5, 4, 7)
-    pixelRect(context, '#25332c', x + 11, y + 13, 5, 6)
+  if (structure === 'waystone') {
+    pixelRect(context, 'rgba(104, 213, 191, .18)', x + 3, y + 3, 26, 26)
+    pixelRect(context, '#6f8279', x + 7, y + 6, 5, 22)
+    pixelRect(context, '#6f8279', x + 20, y + 6, 5, 22)
+    pixelRect(context, '#91aaa0', x + 7, y + 4, 18, 5)
+    pixelRect(context, '#172a26', x + 12, y + 10, 8, 18)
+    pixelRect(context, '#72d2bd', x + 14, y + 14, 4, 7)
+    pixelRect(context, '#a5f0d8', x + 15, y + 15, 2, 3)
+  } else if (structure === 'ruin') {
+    pixelRect(context, '#756c64', x + 5, y + 11, 22, 16)
+    pixelRect(context, '#9a8d7e', x + 8, y + 7, 6, 10)
+    pixelRect(context, '#25332c', x + 15, y + 19, 7, 8)
+    pixelRect(context, '#5d5650', x + 3, y + 27, 26, 3)
   } else {
-    pixelRect(context, '#6a4331', x + 5, y + 10, 15, 10)
-    pixelRect(context, '#d07b4f', x + 3, y + 7, 19, 5)
-    pixelRect(context, '#f1c96c', x + 13, y + 12, 3, 7)
-    if (structure === 'village') pixelRect(context, '#f3e3a1', x + 2, y + 2, 2, 7)
+    pixelRect(context, '#6a4331', x + 6, y + 14, 21, 14)
+    pixelRect(context, '#d07b4f', x + 4, y + 9, 25, 7)
+    pixelRect(context, '#f1c96c', x + 18, y + 18, 4, 10)
+    pixelRect(context, '#8a593d', x + 8, y + 18, 6, 5)
+    if (structure === 'village') pixelRect(context, '#f3e3a1', x + 3, y + 2, 3, 10)
   }
 }
 

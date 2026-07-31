@@ -1,9 +1,11 @@
 import { hashString, pick, seededRandom } from './rng'
-import type { Agent, Faction, FogLevel, GameState, MapSize, Monster, Position, Terrain, Tile, World } from './types'
+import type { Agent, Direction, Faction, FogLevel, GameState, MapSize, Monster, Position, SceneSnapshot, Terrain, Tile, World } from './types'
 
 const firstNames = ['Ari', 'Bram', 'Cleo', 'Dara', 'Eli', 'Fenn', 'Gale', 'Hana', 'Ivo', 'Juno', 'Kiri', 'Lark', 'Mira', 'Nox', 'Orin', 'Pia', 'Quin', 'Rhea', 'Sora', 'Tavi']
 const lastNames = ['Ash', 'Bell', 'Brook', 'Dew', 'Ember', 'Fallow', 'Grove', 'Hearth', 'Isle', 'Juniper', 'Kestrel', 'Lumen', 'Moss', 'North', 'Oak', 'Pine', 'Reed', 'Stone', 'Thorn', 'Vale']
 const weathers = ['苔光晴日', '薄雾低垂', '金叶微风', '远雷将至', '萤火之夜']
+const scenePrefixes = ['琥珀', '苍苔', '雾杉', '风铃', '月泉', '星落', '灰烬', '碧潮', '金穗', '霜叶']
+const sceneSuffixes = ['原', '谷', '林', '泽', '丘', '岸', '径', '台地', '荒野', '秘境']
 
 function smoothstep(value: number): number {
   return value * value * (3 - 2 * value)
@@ -84,14 +86,19 @@ function randomPassable(world: World, random: () => number, occupied: Set<string
   return nearestPassable(world, { x: world.size / 2, y: world.size / 2 })
 }
 
-export function createWorld(seed: string, mapSize: MapSize): World {
+export function sceneKey(sceneX: number, sceneY: number): string {
+  return `${sceneX},${sceneY}`
+}
+
+export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY = 0): World {
   const size = mapSize === 'large' ? 96 : 40
-  const random = seededRandom(`${seed}:resources`)
+  const sceneSeed = `${seed}:scene:${sceneX}:${sceneY}`
+  const random = seededRandom(`${sceneSeed}:resources`)
   const tiles: Tile[] = []
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
-      const terrain = terrainAt(seed, x, y, size)
+      const terrain = terrainAt(sceneSeed, x, y, size)
       const traversable = terrain !== 'water' && terrain !== 'mountain'
       const roll = random()
       tiles.push({
@@ -101,7 +108,25 @@ export function createWorld(seed: string, mapSize: MapSize): World {
       })
     }
   }
-  return { seed, size, tiles }
+  const midpoint = Math.floor(size / 2)
+  const waystones = [
+    { x: midpoint, y: 1 },
+    { x: midpoint, y: size - 2 },
+    { x: 1, y: midpoint },
+    { x: size - 2, y: midpoint },
+  ]
+  for (const waystone of waystones) {
+    for (let offset = -1; offset <= 1; offset += 1) {
+      const horizontalIndex = waystone.y * size + Math.max(0, Math.min(size - 1, waystone.x + offset))
+      const verticalIndex = Math.max(0, Math.min(size - 1, waystone.y + offset)) * size + waystone.x
+      tiles[horizontalIndex] = { terrain: 'meadow', coin: 0 }
+      tiles[verticalIndex] = { terrain: 'meadow', coin: 0 }
+    }
+    tiles[waystone.y * size + waystone.x] = { terrain: 'meadow', coin: 0, structure: 'waystone' }
+  }
+  const nameRandom = seededRandom(`${sceneSeed}:name`)
+  const sceneName = `${pick(nameRandom, scenePrefixes)}${pick(nameRandom, sceneSuffixes)}`
+  return { seed, mapSize, size, sceneX, sceneY, sceneName, tiles }
 }
 
 export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents'>): FogLevel[] {
@@ -130,12 +155,53 @@ function makeName(random: () => number): string {
   return `${pick(random, firstNames)} ${pick(random, lastNames)}`
 }
 
-export function createGame(seed: string, mapSize: MapSize): GameState {
-  const world = createWorld(seed, mapSize)
-  const random = seededRandom(`${seed}:society`)
+export function createScene(
+  seed: string,
+  mapSize: MapSize,
+  sceneX: number,
+  sceneY: number,
+): Omit<SceneSnapshot, 'fog'> {
+  const world = createWorld(seed, mapSize, sceneX, sceneY)
+  const random = seededRandom(`${seed}:scene:${sceneX}:${sceneY}:society`)
   const occupied = new Set<string>()
-  const start = nearestPassable(world, { x: Math.floor(world.size / 2), y: Math.floor(world.size / 2) })
-  occupied.add(`${start.x},${start.y}`)
+  const midpoint = Math.floor(world.size / 2)
+  occupied.add(`${midpoint},${midpoint}`)
+  const factionIds = ['moss', 'ember', 'tide'] as const
+  const sceneId = `${sceneX}_${sceneY}`
+  const agents: Agent[] = Array.from({ length: mapSize === 'large' ? 28 : 12 }, (_, index) => ({
+    id: `agent-${sceneId}-${index}`,
+    name: makeName(random),
+    factionId: pick(random, factionIds),
+    role: 'wanderer' as const,
+    ...randomPassable(world, random, occupied),
+    affection: 0,
+    stamina: 7,
+    maxStamina: 7,
+    gold: 2 + Math.floor(random() * 8),
+  }))
+  const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
+    id: `monster-${sceneId}-${index}`,
+    species: pick(random, ['slime', 'boar', 'wisp'] as const),
+    hp: 1 + Math.floor(random() * 3),
+    ...randomPassable(world, random, occupied),
+  }))
+  return { world, agents, monsters }
+}
+
+export function sceneEntry(world: World, direction?: Direction): Position {
+  const midpoint = Math.floor(world.size / 2)
+  if (direction === 'right') return { x: 2, y: midpoint }
+  if (direction === 'left') return { x: world.size - 3, y: midpoint }
+  if (direction === 'up') return { x: midpoint, y: world.size - 3 }
+  if (direction === 'down') return { x: midpoint, y: 2 }
+  return nearestPassable(world, { x: midpoint, y: midpoint })
+}
+
+export function createGame(seed: string, mapSize: MapSize): GameState {
+  const scene = createScene(seed, mapSize, 0, 0)
+  const { world, agents, monsters } = scene
+  const random = seededRandom(`${seed}:player`)
+  const start = sceneEntry(world)
   const factionTemplates = [
     ['moss', '苔冠盟', '#83b36c'],
     ['ember', '余烬社', '#df815f'],
@@ -147,6 +213,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     color,
     relation: 0,
     isVassal: false,
+    isOverlord: false,
   }))
   const player: Agent = {
     id: 'player',
@@ -159,23 +226,6 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     maxStamina: 12,
     gold: 7,
   }
-  const agents: Agent[] = Array.from({ length: mapSize === 'large' ? 28 : 12 }, (_, index) => ({
-    id: `agent-${index}`,
-    name: makeName(random),
-    factionId: pick(random, factions).id,
-    role: 'wanderer' as const,
-    ...randomPassable(world, random, occupied),
-    affection: 0,
-    stamina: 7,
-    maxStamina: 7,
-    gold: 2 + Math.floor(random() * 8),
-  }))
-  const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
-    id: `monster-${index}`,
-    species: pick(random, ['slime', 'boar', 'wisp'] as const),
-    hp: 1 + Math.floor(random() * 3),
-    ...randomPassable(world, random, occupied),
-  }))
   const fog = new Array<FogLevel>(world.tiles.length).fill(0)
   const initial: GameState = {
     world,
@@ -184,6 +234,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     agents,
     monsters,
     factions,
+    sceneCache: {},
     day: 1,
     weather: pick(random, weathers),
     chronicle: [

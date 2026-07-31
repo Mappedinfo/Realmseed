@@ -6,9 +6,24 @@ describe('procedural world', () => {
     expect(createWorld('willow-reach', 'small')).toEqual(createWorld('willow-reach', 'small'))
   })
 
+  it('deterministically unfolds distinct neighboring scenes without a fixed world edge', () => {
+    const origin = createWorld('endless-check', 'small', 0, 0)
+    const east = createWorld('endless-check', 'small', 1, 0)
+    expect(east).toEqual(createWorld('endless-check', 'small', 1, 0))
+    expect(east.sceneX).toBe(1)
+    expect(east.sceneY).toBe(0)
+    expect(east.tiles).not.toEqual(origin.tiles)
+    expect(east.sceneName.length).toBeGreaterThan(1)
+  })
+
   it('supports small and large worlds', () => {
     expect(createWorld('a', 'small').tiles).toHaveLength(40 * 40)
     expect(createWorld('a', 'large').tiles).toHaveLength(96 * 96)
+  })
+
+  it('places four detailed waystone transport facilities in every scene', () => {
+    const world = createWorld('waystone-check', 'small', -4, 9)
+    expect(world.tiles.filter((tile) => tile.structure === 'waystone')).toHaveLength(4)
   })
 
   it('starts with three fog states available after exploration', () => {

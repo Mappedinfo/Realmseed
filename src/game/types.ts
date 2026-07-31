@@ -1,7 +1,7 @@
 export type Terrain = 'meadow' | 'forest' | 'water' | 'mountain' | 'marsh' | 'sand'
 export type FogLevel = 0 | 1 | 2
 export type MapSize = 'small' | 'large'
-export type Structure = 'camp' | 'village' | 'ruin'
+export type Structure = 'camp' | 'village' | 'ruin' | 'waystone'
 
 export interface Tile {
   terrain: Terrain
@@ -20,6 +20,7 @@ export interface Faction {
   color: string
   relation: number
   isVassal: boolean
+  isOverlord: boolean
 }
 
 export interface Agent extends Position {
@@ -41,8 +42,19 @@ export interface Monster extends Position {
 
 export interface World {
   seed: string
+  mapSize: MapSize
   size: number
+  sceneX: number
+  sceneY: number
+  sceneName: string
   tiles: Tile[]
+}
+
+export interface SceneSnapshot {
+  world: World
+  fog: FogLevel[]
+  agents: Agent[]
+  monsters: Monster[]
 }
 
 export interface ChronicleEntry {
@@ -59,6 +71,7 @@ export interface GameState {
   agents: Agent[]
   monsters: Monster[]
   factions: Faction[]
+  sceneCache: Record<string, SceneSnapshot>
   day: number
   weather: string
   chronicle: ChronicleEntry[]
@@ -76,3 +89,7 @@ export type GameAction =
   | { type: 'RECRUIT' }
   | { type: 'FOUND_CAMP' }
   | { type: 'STATION_FOLLOWER' }
+  | { type: 'PLEDGE_FACTION'; factionId: string }
+  | { type: 'BREAK_OATH' }
+  | { type: 'MAKE_VASSAL'; factionId: string }
+  | { type: 'TRAVEL'; direction: Direction }
