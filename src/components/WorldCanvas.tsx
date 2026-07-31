@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameState, Position, Terrain } from '../game/types'
+import { ART_CELL, atlasUrl, spriteIndex, type SpriteId } from '../game/art'
 import { tileIndex } from '../game/world'
 
 const TILE = 32
@@ -12,6 +13,19 @@ const terrainColors: Record<Terrain, [string, string]> = {
   mountain: ['#6a6964', '#858078'],
   marsh: ['#476b5f', '#5f8270'],
   sand: ['#bca96f', '#d0be82'],
+}
+
+function drawSprite(
+  context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement,
+  sprite: SpriteId,
+  x: number,
+  y: number,
+) {
+  const index = spriteIndex[sprite]
+  const sourceX = (index % 8) * ART_CELL
+  const sourceY = Math.floor(index / 8) * ART_CELL
+  context.drawImage(atlas, sourceX, sourceY, ART_CELL, ART_CELL, x, y, TILE, TILE)
 }
 
 function pixelRect(
@@ -28,12 +42,18 @@ function pixelRect(
 
 function drawTile(
   context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement | null,
   terrain: Terrain,
   x: number,
   y: number,
   worldX: number,
   worldY: number,
 ) {
+  if (atlas) {
+    const variant = Math.abs((worldX * 17 + worldY * 31) % 2) as 0 | 1
+    drawSprite(context, atlas, `${terrain}-${variant}`, x, y)
+    return
+  }
   const [base, accent] = terrainColors[terrain]
   pixelRect(context, base, x, y, TILE, TILE)
   const pattern = Math.abs((worldX * 17 + worldY * 31) % 5)
@@ -71,11 +91,26 @@ function drawTile(
 
 function drawPerson(
   context: CanvasRenderingContext2D,
+  atlas: HTMLImageElement | null,
   x: number,
   y: number,
   color: string,
   isPlayer = false,
+  role: 'wanderer' | 'villager' | 'follower' = 'wanderer',
 ) {
+  if (atlas) {
+    drawSprite(context, atlas, isPlayer ? 'player' : role, x, y)
+    if (!isPlayer) {
+      context.fillStyle = color
+      context.fillRect(x + 13, y + 3, 3, 3)
+    }
+    if (isPlayer) {
+      context.strokeStyle = '#fff0a6'
+      context.lineWidth = 1
+      context.strokeRect(x + 4.5, y + 1.5, 23, 29)
+    }
+    return
+  }
   const ox = x + 10
   const oy = y + 6
   pixelRect(context, 'rgba(10, 17, 13, .4)', x + 7, y + 26, 19, 3)
@@ -92,7 +127,11 @@ function drawPerson(
   }
 }
 
-function drawMonster(context: CanvasRenderingContext2D, x: number, y: number, species: string) {
+function drawMonster(context: CanvasRenderingContext2D, atlas: HTMLImageElement | null, x: number, y: number, species: string) {
+  if (atlas) {
+    drawSprite(context, atlas, species as 'slime' | 'boar' | 'wisp', x, y)
+    return
+  }
   const colors = species === 'slime' ? ['#7e66a8', '#ab8ed2'] : species === 'boar' ? ['#714b39', '#a76b4d'] : ['#4ea0a7', '#8bd0c8']
   pixelRect(context, 'rgba(10, 17, 13, .35)', x + 6, y + 27, 21, 3)
   pixelRect(context, colors[0], x + 7, y + 14, 19, 12)
@@ -101,7 +140,11 @@ function drawMonster(context: CanvasRenderingContext2D, x: number, y: number, sp
   pixelRect(context, '#e9f4dc', x + 20, y + 17, 3, 3)
 }
 
-function drawStructure(context: CanvasRenderingContext2D, x: number, y: number, structure: string) {
+function drawStructure(context: CanvasRenderingContext2D, atlas: HTMLImageElement | null, x: number, y: number, structure: string) {
+  if (atlas) {
+    drawSprite(context, atlas, structure as 'camp' | 'village' | 'ruin' | 'waystone', x, y)
+    return
+  }
   if (structure === 'waystone') {
     pixelRect(context, 'rgba(104, 213, 191, .18)', x + 3, y + 3, 26, 26)
     pixelRect(context, '#6f8279', x + 7, y + 6, 5, 22)
@@ -131,10 +174,24 @@ interface WorldCanvasProps {
 
 export function WorldCanvas({ state, onSelect }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const atlasRef = useRef<HTMLImageElement | null>(null)
+  const [atlasReady, setAtlasReady] = useState(false)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
     y: Math.max(0, Math.min(state.world.size - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
   }
+
+  useEffect(() => {
+    const atlas = new Image()
+    atlas.onload = () => {
+      atlasRef.current = atlas
+      setAtlasReady(true)
+    }
+    atlas.src = atlasUrl()
+    return () => {
+      atlas.onload = null
+    }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -162,20 +219,24 @@ export function WorldCanvas({ state, onSelect }: WorldCanvasProps) {
           continue
         }
         const tile = state.world.tiles[index]
-        drawTile(context, tile.terrain, screenX, screenY, worldX, worldY)
-        if (tile.structure) drawStructure(context, screenX, screenY, tile.structure)
+        drawTile(context, atlasRef.current, tile.terrain, screenX, screenY, worldX, worldY)
+        if (tile.structure) drawStructure(context, atlasRef.current, screenX, screenY, tile.structure)
         if (tile.coin > 0 && fog === 2) {
-          pixelRect(context, '#f4d35e', screenX + 10, screenY + 10, 5, 5)
-          pixelRect(context, '#fff1a4', screenX + 11, screenY + 10, 2, 2)
+          if (atlasRef.current) drawSprite(context, atlasRef.current, 'coin', screenX, screenY)
+          else {
+            pixelRect(context, '#f4d35e', screenX + 10, screenY + 10, 5, 5)
+            pixelRect(context, '#fff1a4', screenX + 11, screenY + 10, 2, 2)
+          }
         }
 
         if (fog === 2) {
           const monster = state.monsters.find((item) => item.x === worldX && item.y === worldY)
-          if (monster) drawMonster(context, screenX, screenY, monster.species)
+          if (monster) drawMonster(context, atlasRef.current, screenX, screenY, monster.species)
           const agent = state.agents.find((item) => item.x === worldX && item.y === worldY)
           if (agent) {
             const color = state.factions.find((faction) => faction.id === agent.factionId)?.color ?? '#eee'
-            drawPerson(context, screenX, screenY, color)
+            const role = agent.role === 'villager' || agent.role === 'follower' ? agent.role : 'wanderer'
+            drawPerson(context, atlasRef.current, screenX, screenY, color, false, role)
           }
         }
 
@@ -190,7 +251,7 @@ export function WorldCanvas({ state, onSelect }: WorldCanvasProps) {
 
     const playerX = (state.player.x - origin.x) * TILE
     const playerY = (state.player.y - origin.y) * TILE
-    drawPerson(context, playerX, playerY, '#f4d35e', true)
+    drawPerson(context, atlasRef.current, playerX, playerY, '#f4d35e', true)
 
     if (state.selected) {
       const sx = (state.selected.x - origin.x) * TILE
@@ -199,7 +260,7 @@ export function WorldCanvas({ state, onSelect }: WorldCanvasProps) {
       context.lineWidth = 2
       context.strokeRect(sx + 2, sy + 2, TILE - 4, TILE - 4)
     }
-  }, [origin.x, origin.y, state])
+  }, [atlasReady, origin.x, origin.y, state])
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {

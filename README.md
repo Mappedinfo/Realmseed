@@ -8,6 +8,8 @@ generate connected regions, their terrain, travelers, factions, monsters,
 coins, and ruins. Everything runs locally in the browser and can be deployed
 directly to GitHub Pages.
 
+![Verdant Relic gameplay](docs/screenshots/verdant-relic-gameplay.png)
+
 ## Playable prototype
 
 - an unbounded scene grid: travel north, south, east, or west forever
@@ -24,6 +26,7 @@ directly to GitHub Pages.
 - three AI factions, wandering agents, followers, and monsters
 - responsive pixel UI with a full-world minimap
 - 32×32 terrain cells and higher-detail characters, monsters, buildings, and waystones
+- deterministic 16×16 source atlas, nearest-neighbor rendered on a strict 32×32 grid
 - optional CC0 music with a visible playback control
 
 ## Architecture
@@ -35,6 +38,7 @@ src/
 │   ├── rng.ts           deterministic seeded random utilities
 │   ├── world.ts         terrain, society, monster, and fog generation
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
+│   ├── art.ts           canonical sprite-atlas contract
 │   └── types.ts         domain contracts
 ├── App.tsx              application composition
 └── styles.css           responsive pixel-art design system
@@ -46,6 +50,9 @@ workers, multiplayer adapters, or richer AI policies.
 
 The full product and system rationale is documented in
 [`docs/game-design.md`](docs/game-design.md).
+The three visual directions, pixel contract, generation prompts, and
+normalization pipeline are documented in
+[`docs/art-direction.md`](docs/art-direction.md).
 
 ## Local development
 
@@ -59,6 +66,7 @@ Quality checks:
 ```bash
 npm test
 npm run build
+python3 scripts/build_pixel_atlas.py
 ```
 
 ## Controls
