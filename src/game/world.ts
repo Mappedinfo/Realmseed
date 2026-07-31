@@ -284,6 +284,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     fatigue: 0,
     combatWins: 0,
     combatPreference: 'field',
+    fieldCombatAlwaysOn: true,
     battle: null,
     equipment: starterEquipment.map((item) => ({ ...item })),
     camps: [],

@@ -246,6 +246,36 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .world-status i { width: 3px; height: 3px; background: #61705f; }
 .header-actions { display: flex; gap: 7px; }
 .header-actions button, .audio-button { padding: 8px 10px; font-size: 12px; }
+.field-combat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 112px;
+  padding: 5px 8px;
+  color: #9aa697;
+  background: #17211b;
+  border: 1px solid #465342;
+  cursor: pointer;
+}
+.field-combat-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle-track {
+  width: 28px;
+  height: 14px;
+  padding: 2px;
+  display: block;
+  background: #29352d;
+  border: 1px solid #5c6959;
+  box-shadow: inset 0 0 0 1px #101713;
+}
+.toggle-track i { width: 8px; height: 8px; display: block; background: #7d887c; transition: transform .14s steps(2); }
+.toggle-copy b, .toggle-copy small { display: block; }
+.toggle-copy b { color: #cbd3c5; font-size: 9px; white-space: nowrap; }
+.toggle-copy small { margin-top: 2px; color: #7f8a7e; font-size: 7px; letter-spacing: .12em; }
+.field-combat-toggle.is-on { border-color: #d4bc5f; background: #292b1d; box-shadow: inset 0 -2px 0 rgba(225, 202, 112, .15); }
+.field-combat-toggle.is-on .toggle-track { background: #71632e; border-color: #f1d976; }
+.field-combat-toggle.is-on .toggle-track i { background: #fff0a5; transform: translateX(14px); }
+.field-combat-toggle.is-on .toggle-copy small { color: #e1ca70; }
+.field-combat-toggle:focus-within { outline: 1px solid #fff1a4; outline-offset: 2px; }
 .art-theme-control {
   display: flex;
   align-items: center;
@@ -1065,6 +1095,25 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .battle-mode-switch button.is-selected { color: #1a201a; background: var(--gold); border-color: #fff1a4; }
 .battle-mode-switch .flee-button { margin-left: 5px; color: #dc8a6b; border-color: #744937; }
+.field-lock-badge {
+  padding: 5px 8px;
+  color: #ead77d;
+  background: #35331e;
+  border: 1px solid #756b32;
+  font-size: 8px;
+  font-weight: normal;
+  letter-spacing: .04em;
+}
+.battle-result {
+  max-width: 190px;
+  overflow: hidden;
+  color: #99aa9b;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.battle-result.hit { color: #e6d382; }
+.battle-result.miss { color: #d9846c; }
 .duel-stage {
   min-height: 138px;
   display: grid;
@@ -1151,6 +1200,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .combat-move strong { font-size: 9px; }
 .combat-move small { margin-top: 2px; color: #849184; font-size: 7px; }
 .combat-move:hover:not(:disabled) small { color: #4b462e; }
+.combat-move.is-casting {
+  color: #181d17;
+  background: #f0d778;
+  border-color: #fff6bd;
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px #786528, 0 0 10px rgba(240, 215, 120, .38);
+}
+.combat-move.is-casting small { color: #51472b; }
 .field-combat-bar {
   display: grid;
   grid-template-columns: 155px 1fr;
@@ -1168,6 +1225,92 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .field-target > span small, .field-target > span strong { display: block; }
 .field-target > span small { color: #788579; font-size: 7px; }
 .field-target > span strong { margin: 3px 0 6px; color: #f0e7ca; font-size: 10px; }
+
+/* Combat effects are deliberately separate from character sprites. */
+.combat-effect {
+  position: absolute;
+  z-index: 8;
+  inset: 36px 0 0;
+  overflow: hidden;
+  pointer-events: none;
+  filter: drop-shadow(0 0 3px rgba(255, 238, 151, .6));
+}
+.combat-effect i { position: absolute; display: block; image-rendering: pixelated; }
+.combat-effect .effect-core,
+.combat-effect .effect-trail,
+.combat-effect .effect-impact { left: 70%; top: 35%; }
+.field .combat-effect .effect-core,
+.field .combat-effect .effect-trail,
+.field .combat-effect .effect-impact { left: 14%; top: 38%; }
+.effect-quick-strike .effect-core {
+  width: 66px; height: 5px; margin-left: -33px;
+  background: #fff4b0; box-shadow: 0 -5px 0 #8edcb3, 0 5px 0 #d78555;
+  animation: quick-slash 640ms steps(6) both;
+}
+.effect-quick-strike .effect-impact { width: 8px; height: 28px; margin: -11px 0 0 26px; background: #fff; animation: impact-pop 640ms steps(5) both; }
+.effect-heavy-cleave .effect-core {
+  width: 8px; height: 88px; margin: -41px 0 0 -4px;
+  background: #ffeaa0; box-shadow: 7px 0 #e27a4f, -7px 0 #92c685;
+  transform: rotate(-48deg); transform-origin: 50% 85%;
+  animation: heavy-cleave 640ms steps(7) both;
+}
+.effect-heavy-cleave .effect-impact { width: 34px; height: 7px; margin: 21px 0 0 -17px; background: #ff714b; box-shadow: 0 8px #f2cb6e; animation: impact-pop 640ms steps(5) both; }
+.effect-arrow-shot .effect-core {
+  left: 24%; top: 38%; width: 35px; height: 4px;
+  background: #ead99b; box-shadow: -7px -5px #78aa66, -7px 5px #78aa66;
+  animation: arrow-flight 640ms linear both;
+}
+.field .effect-arrow-shot .effect-core { left: 74%; animation-name: arrow-flight-reverse; }
+.effect-arrow-shot .effect-impact { width: 22px; height: 22px; margin: -9px; border: 3px dotted #d9ef89; animation: impact-pop 640ms steps(5) both; }
+.effect-seed-bolt .effect-core {
+  left: 24%; top: 38%; width: 14px; height: 14px;
+  background: #79f1c0; border: 3px solid #d9ffe4; transform: rotate(45deg);
+  box-shadow: 0 0 0 4px #287d70;
+  animation: seed-flight 640ms steps(8) both;
+}
+.field .effect-seed-bolt .effect-core { left: 74%; animation-name: seed-flight-reverse; }
+.effect-seed-bolt .effect-impact { width: 42px; height: 42px; margin: -17px; border: 4px dashed #71e2a9; border-radius: 50%; animation: rune-bloom 640ms steps(6) both; }
+.effect-rifle-shot .effect-trail {
+  left: 25%; top: 38%; width: 47%; height: 3px;
+  background: linear-gradient(90deg, transparent, #fff8c4 15%, #ffb347 75%, transparent);
+  box-shadow: 0 3px #b94536;
+  animation: rifle-tracer 640ms steps(6) both;
+}
+.field .effect-rifle-shot .effect-trail { left: 14%; width: 60%; transform: scaleX(-1); }
+.effect-rifle-shot .effect-impact { width: 11px; height: 11px; margin: -4px; background: #fff; box-shadow: 9px 0 #ffad45, -9px 0 #ffad45, 0 9px #d95b43, 0 -9px #d95b43; animation: impact-pop 640ms steps(5) both; }
+.effect-rifle-shot .effect-smoke { left: 72%; top: 31%; width: 12px; height: 12px; background: #9da69c; box-shadow: 10px -7px #667369, 19px -11px #3f4a42; animation: smoke-rise 640ms steps(6) both; }
+.field .effect-rifle-shot .effect-smoke { left: 12%; }
+.effect-field-bomb .effect-core {
+  left: 27%; top: 58%; width: 16px; height: 16px;
+  background: #d7673e; border: 3px solid #382820; border-radius: 50%; box-shadow: inset 4px 0 #efcf59;
+  animation: bomb-arc 640ms steps(8) both;
+}
+.field .effect-field-bomb .effect-core { left: 72%; animation-name: bomb-arc-reverse; }
+.effect-field-bomb .effect-impact {
+  width: 24px; height: 24px; margin: -9px;
+  background: #fff2a2; box-shadow: 20px 0 #ed773e, -20px 0 #ed773e, 0 20px #ffb443, 0 -20px #ffb443, 14px 14px #bd4839, -14px -14px #bd4839;
+  animation: bomb-burst 640ms steps(7) both;
+}
+.effect-field-bomb .effect-smoke { left: 68%; top: 29%; width: 19px; height: 19px; background: #8c9589; box-shadow: 17px -11px #59645c, -14px -17px #6c776e, 3px -29px #3d4941; animation: smoke-rise 640ms steps(6) both; }
+.field .effect-field-bomb .effect-smoke { left: 11%; }
+
+@keyframes quick-slash { 0% { opacity: 0; transform: translateX(-34px) scaleX(.2); } 28% { opacity: 1; } 70% { transform: translateX(22px) scaleX(1); } 100% { opacity: 0; transform: translateX(38px) scaleX(.3); } }
+@keyframes heavy-cleave { 0% { opacity: 0; transform: rotate(-82deg) scaleY(.4); } 25% { opacity: 1; } 72% { transform: rotate(38deg) scaleY(1); } 100% { opacity: 0; transform: rotate(58deg) scaleY(.5); } }
+@keyframes arrow-flight { 0% { opacity: 0; transform: translateX(0); } 12% { opacity: 1; } 76% { opacity: 1; transform: translateX(46vw); } 100% { opacity: 0; transform: translateX(48vw); } }
+@keyframes arrow-flight-reverse { 0% { opacity: 0; transform: translateX(0) scaleX(-1); } 12% { opacity: 1; } 76% { opacity: 1; transform: translateX(-60vw) scaleX(-1); } 100% { opacity: 0; transform: translateX(-62vw) scaleX(-1); } }
+@keyframes seed-flight { 0% { opacity: 0; transform: translateX(0) rotate(0); } 14% { opacity: 1; } 74% { opacity: 1; transform: translateX(46vw) rotate(315deg); } 100% { opacity: 0; transform: translateX(48vw) rotate(405deg); } }
+@keyframes seed-flight-reverse { 0% { opacity: 0; transform: translateX(0) rotate(0); } 14% { opacity: 1; } 74% { opacity: 1; transform: translateX(-60vw) rotate(-315deg); } 100% { opacity: 0; transform: translateX(-62vw) rotate(-405deg); } }
+@keyframes rifle-tracer { 0%, 12% { opacity: 0; transform: scaleX(.05); transform-origin: left; } 18%, 42% { opacity: 1; transform: scaleX(1); transform-origin: left; } 100% { opacity: 0; } }
+@keyframes bomb-arc { 0% { opacity: 0; transform: translate(0, 0) rotate(0); } 12% { opacity: 1; } 65% { opacity: 1; transform: translate(40vw, -70px) rotate(540deg); } 78% { transform: translate(44vw, -18px) rotate(680deg); opacity: 1; } 100% { transform: translate(44vw, -18px); opacity: 0; } }
+@keyframes bomb-arc-reverse { 0% { opacity: 0; transform: translate(0, 0) rotate(0); } 12% { opacity: 1; } 65% { opacity: 1; transform: translate(-55vw, -70px) rotate(-540deg); } 78% { transform: translate(-58vw, -18px) rotate(-680deg); opacity: 1; } 100% { transform: translate(-58vw, -18px); opacity: 0; } }
+@keyframes impact-pop { 0%, 55% { opacity: 0; transform: scale(.1); } 65% { opacity: 1; transform: scale(1.35); } 83% { opacity: 1; transform: scale(.8); } 100% { opacity: 0; transform: scale(1.6); } }
+@keyframes rune-bloom { 0%, 50% { opacity: 0; transform: scale(.1) rotate(0); } 68% { opacity: 1; transform: scale(1) rotate(90deg); } 100% { opacity: 0; transform: scale(1.5) rotate(180deg); } }
+@keyframes bomb-burst { 0%, 48% { opacity: 0; transform: scale(.1) rotate(0); } 61% { opacity: 1; transform: scale(1.7) rotate(45deg); } 82% { opacity: 1; transform: scale(1) rotate(90deg); } 100% { opacity: 0; transform: scale(2.2) rotate(135deg); } }
+@keyframes smoke-rise { 0%, 48% { opacity: 0; transform: translateY(15px) scale(.3); } 64% { opacity: .9; } 100% { opacity: 0; transform: translateY(-28px) scale(1.5); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .combat-effect i { animation-duration: 80ms !important; animation-timing-function: step-end !important; }
+}
 .action-dock { margin-top: 10px; padding: 10px; display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; }
 .dpad { display: grid; grid-template-columns: repeat(3, 31px); grid-template-rows: repeat(2, 28px); gap: 3px; }
 .dpad button { background: #27372d; border: 1px solid #536251; font-size: 10px; }

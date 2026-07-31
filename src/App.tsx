@@ -44,6 +44,11 @@ function GameView({
     window.localStorage.setItem('realmseed-combat-mode', mode)
     dispatch({ type: 'SET_COMBAT_PREFERENCE', mode })
   }
+  const setFieldCombatAlwaysOn = (enabled: boolean) => {
+    window.localStorage.setItem('realmseed-field-combat-always-on', String(enabled))
+    if (enabled) window.localStorage.setItem('realmseed-combat-mode', 'field')
+    dispatch({ type: 'SET_FIELD_COMBAT_ALWAYS_ON', enabled })
+  }
   const selectAgent = (agentId: string) => {
     const agent = state.agents.find((item) => item.id === agentId)
     if (agent) {
@@ -109,6 +114,16 @@ function GameView({
           <span>{state.world.sceneName} [{state.world.sceneX}, {state.world.sceneY}] · {state.world.size} × {state.world.size}</span>
         </div>
         <div className="header-actions">
+          <label className={`field-combat-toggle ${state.fieldCombatAlwaysOn ? 'is-on' : ''}`}>
+            <input
+              type="checkbox"
+              checked={state.fieldCombatAlwaysOn}
+              onChange={(event) => setFieldCombatAlwaysOn(event.target.checked)}
+              aria-label="地图直战常开"
+            />
+            <span className="toggle-track"><i /></span>
+            <span className="toggle-copy"><b>地图直战</b><small>{state.fieldCombatAlwaysOn ? '常开' : '可切换'}</small></span>
+          </label>
           <label className="art-theme-control">
             <span>美术</span>
             <select value={theme} onChange={(event) => onThemeChange(event.target.value as ArtTheme)}>
@@ -123,6 +138,7 @@ function GameView({
               value={state.combatPreference}
               onChange={(event) => setCombatPreference(event.target.value as BattleMode)}
               aria-label="默认战斗模式"
+              disabled={state.fieldCombatAlwaysOn}
             >
               <option value="field">地图直战</option>
               <option value="duel">左右回合</option>
@@ -272,6 +288,9 @@ export function App() {
     const next = createGame(seed, size)
     const savedMode = window.localStorage.getItem('realmseed-combat-mode')
     if (savedMode === 'duel' || savedMode === 'field') next.combatPreference = savedMode
+    const savedFieldCombatAlwaysOn = window.localStorage.getItem('realmseed-field-combat-always-on')
+    next.fieldCombatAlwaysOn = savedFieldCombatAlwaysOn !== 'false'
+    if (next.fieldCombatAlwaysOn) next.combatPreference = 'field'
     setInitialState(next)
   }
   return initialState

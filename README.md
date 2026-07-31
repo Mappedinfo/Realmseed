@@ -38,8 +38,11 @@ directly to GitHub Pages.
 - three AI factions, wandering agents with six seeded specialties, followers,
   skill challenges, and monsters
 - four-direction characters, probabilistic monster alerts and pursuit
-- persistent default plus per-encounter field/duel combat modes
-- melee/ranged physical, magic, firearm, and explosive moves with equipment bonuses
+- a persistent top-right map-direct lock plus optional field/duel encounter modes
+- six distinct no-character-motion combat effects for slash, cleave, arrow,
+  seed magic, rifle smoke, and bomb explosion
+- melee/ranged physical, magic, firearm, and explosive moves with explicit
+  range, accuracy, critical, equipment, and area-splash values
 - responsive pixel UI with a full-world minimap
 - a hybrid Verdant art pack: detailed 32×32 terrain beneath processed pixel
   characters, monsters, buildings, resources, and waystones
@@ -81,6 +84,9 @@ normalization pipeline are documented in
 The production prompt for the settlement heart, six facilities, road gate, and
 settlement key art is in
 [`art/prompts/camp-settlement-gpt-image-2.md`](art/prompts/camp-settlement-gpt-image-2.md).
+The green-screen 2×4 frame prompts for all combat effects, colored bombs,
+explosions, and smoke are in
+[`art/prompts/combat-effects-gpt-image-2.md`](art/prompts/combat-effects-gpt-image-2.md).
 
 ## Local development
 
@@ -159,9 +165,12 @@ python3 scripts/ingest_facility_assets.py
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world
-- Combat: choose map-direct or left/right duel as the persistent default, then
-  temporarily override it per encounter; six moves cover melee/ranged and all
-  four damage categories. Enabling game music automatically switches from the
+- Combat: the top-right `地图直战` switch stays enabled across new worlds and
+  locks every encounter to the map-direct interface. Turn it off to restore the
+  persistent default and per-encounter duel controls. Six moves expose range,
+  hit rate, critical rate, power, stamina cost, and bomb radius directly in the
+  battle panel; their independent effect animations finish before deterministic
+  damage is applied. Enabling game music automatically switches from the
   exploration loop to the CC0 chiptune battle loop for the encounter.
 - Equipment: equip numerical bonuses in the left panel without drawing gear on
   the character sprite

@@ -1,6 +1,6 @@
 import type { Agent, Camp, ChronicleEntry, Direction, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
-import { combatMove, equipmentDefense, equipmentPower, relicEquipment } from './combat'
+import { combatMove, equipmentDefense, equipmentPower, relicEquipment, resolveCombatRoll } from './combat'
 import {
   buildingCount,
   campBuildingDefinitions,
@@ -123,7 +123,7 @@ function beginBattle(
     ...state,
     battle: {
       monsterId: monster.id,
-      mode: state.combatPreference,
+      mode: state.fieldCombatAlwaysOn ? 'field' : state.combatPreference,
       round: 1,
       monsterMaxHp: monster.hp,
     },
@@ -615,8 +615,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     case 'SET_COMBAT_PREFERENCE':
-      return { ...state, combatPreference: action.mode }
+      return state.fieldCombatAlwaysOn && action.mode === 'duel'
+        ? state
+        : { ...state, combatPreference: action.mode }
+    case 'SET_FIELD_COMBAT_ALWAYS_ON':
+      return {
+        ...state,
+        fieldCombatAlwaysOn: action.enabled,
+        combatPreference: action.enabled ? 'field' : state.combatPreference,
+        battle: state.battle && action.enabled ? { ...state.battle, mode: 'field' } : state.battle,
+        chronicle: log(state, action.enabled ? '地图直战已设为常开，后续遭遇将锁定地图战斗界面。' : '地图直战常开已关闭，可重新选择默认与本次战斗模式。'),
+      }
     case 'SET_BATTLE_MODE':
+      if (state.fieldCombatAlwaysOn && action.mode === 'duel') {
+        return { ...state, chronicle: log(state, '请先关闭右上角的地图直战常开开关。') }
+      }
       return state.battle
         ? {
             ...state,
@@ -639,11 +652,29 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.player.stamina < move.staminaCost) {
         return { ...state, chronicle: log(state, `${move.name}需要 ${move.staminaCost} 点体力。`, 'danger') }
       }
+      // A monster occupying the player's destination is represented on the same
+      // logical tile during the encounter, but still fights from the adjacent band.
+      const targetDistance = Math.max(1, distance(state.player, monster))
+      if (targetDistance < move.minRange || targetDistance > move.maxRange) {
+        return { ...state, chronicle: log(state, `${move.name}射程 ${move.minRange}–${move.maxRange} 格，当前目标距离 ${targetDistance} 格。`, 'danger') }
+      }
       const bonuses = partyBonuses(state.agents)
       const localCamp = campAt(state, state.player)
       const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
-      const damage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
+      const roll = resolveCombatRoll(state.gameId, monster.id, state.battle.round, move)
+      const baseDamage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
+      const damage = Math.floor(baseDamage * roll.multiplier)
       const remainingHp = Math.max(0, monster.hp - damage)
+      const splashDamage = roll.hit && move.target === 'area' ? Math.max(1, Math.floor(damage * move.splashRatio)) : 0
+      const splashTargets = splashDamage > 0
+        ? state.monsters.filter((item) => item.id !== monster.id && distance(item, monster) <= move.blastRadius)
+        : []
+      const splashIds = new Set(splashTargets.map((item) => item.id))
+      const damagedMonsters = state.monsters.map((item) =>
+        item.id === monster.id ? { ...item, hp: remainingHp, alert: 3, facing: facingToward(item, state.player) }
+          : splashIds.has(item.id) ? { ...item, hp: Math.max(0, item.hp - splashDamage), alert: 3 }
+            : item,
+      )
       const exertion = addFatigue(
         state,
         state.player.stamina - move.staminaCost,
@@ -654,7 +685,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return {
           ...state,
           battle: null,
-          monsters: state.monsters.filter((item) => item.id !== monster.id),
+          monsters: damagedMonsters.filter((item) => item.hp > 0 && item.id !== monster.id),
           player: {
             ...state.player,
             stamina: exertion.stamina,
@@ -665,7 +696,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           combatWins: state.combatWins + 1,
           chronicle: log(
             state,
-            `${move.name}造成 ${damage} 点伤害，击退${monsterName(monster.species)}。获得 2 金，体力上限提升到 ${maxStamina}。`,
+            `${move.name}${roll.critical ? '触发暴击，' : ''}造成 ${damage} 点伤害，击退${monsterName(monster.species)}${splashTargets.length ? `，并波及 ${splashTargets.length} 个邻近目标` : ''}。获得 2 金，体力上限提升到 ${maxStamina}。`,
             'good',
           ),
         }
@@ -679,18 +710,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         battle: stamina <= 0
           ? null
-          : { ...state.battle, round: state.battle.round + 1, lastMoveId: move.id },
-        monsters: state.monsters.map((item) =>
-          item.id === monster.id
-            ? { ...item, hp: remainingHp, alert: 3, facing: facingToward(item, state.player) }
-            : item,
-        ),
+          : {
+              ...state.battle,
+              round: state.battle.round + 1,
+              lastMoveId: move.id,
+              lastDamage: damage,
+              lastHit: roll.hit,
+              lastCritical: roll.critical,
+            },
+        monsters: damagedMonsters.filter((item) => item.hp > 0),
         player: { ...state.player, stamina },
         fatigue: exertion.fatigue,
         chronicle: log(
           state,
-          `${move.name}造成 ${damage} 点伤害；${blocked ? '旅衣挡下反击' : hit ? '怪物反击造成 1 点体力损失' : '怪物反击落空'}。`,
-          hit ? 'danger' : 'plain',
+          `${move.name}${roll.hit ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害${splashTargets.length ? `并波及 ${splashTargets.length} 个目标` : ''}` : '未命中'}；${blocked ? '旅衣挡下反击' : hit ? '怪物反击造成 1 点体力损失' : '怪物反击落空'}。`,
+          hit || !roll.hit ? 'danger' : 'plain',
         ),
       }
     }

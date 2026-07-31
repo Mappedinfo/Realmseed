@@ -70,6 +70,13 @@ outputs are `verdant-directional-characters.png` and
 generation brief is retained in
 `art/prompts/combat-moves-equipment-gpt-image-2.md`.
 
+The isolated 2×4-frame effect sheets for horizontal slash, diagonal cleave,
+arrow, seed bolt, rifle tracer/smoke, colored bombs, explosions, and smoke use a
+strict `#00FF66` key background and are specified in
+`art/prompts/combat-effects-gpt-image-2.md`. Runtime CSS effects currently honor
+the same timing contract, so generated sheets can replace them without moving
+character sprites or changing combat simulation code.
+
 For one-off concept normalization, use:
 
 ```bash

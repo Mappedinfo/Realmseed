@@ -120,6 +120,9 @@ export interface BattleEncounter {
   round: number
   monsterMaxHp: number
   lastMoveId?: CombatMoveId
+  lastDamage?: number
+  lastHit?: boolean
+  lastCritical?: boolean
 }
 
 export interface World {
@@ -178,6 +181,7 @@ export interface GameState {
   fatigue: number
   combatWins: number
   combatPreference: BattleMode
+  fieldCombatAlwaysOn: boolean
   battle: BattleEncounter | null
   equipment: EquipmentItem[]
   camps: Camp[]
@@ -204,6 +208,7 @@ export type GameAction =
   | { type: 'EAT_BERRY' }
   | { type: 'TRADE_BERRIES'; agentId: string; direction: 'buy' | 'sell' }
   | { type: 'SET_COMBAT_PREFERENCE'; mode: BattleMode }
+  | { type: 'SET_FIELD_COMBAT_ALWAYS_ON'; enabled: boolean }
   | { type: 'SET_BATTLE_MODE'; mode: BattleMode }
   | { type: 'COMBAT_ACTION'; moveId: CombatMoveId }
   | { type: 'FLEE_BATTLE' }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { berryExchangeRate, gameReducer } from './simulation'
+import { combatMove, resolveCombatRoll } from './combat'
 import { hashString } from './rng'
 import { facilityEventKind } from './facilities'
 import { createGame, isPassable, revealFog } from './world'
@@ -104,7 +105,8 @@ describe('game simulation', () => {
 
   it('keeps a persistent default combat mode and permits a temporary encounter override', () => {
     const state = flatState('combat-mode-check')
-    const preferred = gameReducer(state, { type: 'SET_COMBAT_PREFERENCE', mode: 'duel' })
+    const unlocked = gameReducer(state, { type: 'SET_FIELD_COMBAT_ALWAYS_ON', enabled: false })
+    const preferred = gameReducer(unlocked, { type: 'SET_COMBAT_PREFERENCE', mode: 'duel' })
     preferred.monsters = [{ id: 'mode-slime', species: 'slime', hp: 8, x: 21, y: 20 }]
     const engaged = gameReducer(preferred, { type: 'MOVE', direction: 'right' })
     expect(engaged.combatPreference).toBe('duel')
@@ -113,6 +115,45 @@ describe('game simulation', () => {
     const overridden = gameReducer(engaged, { type: 'SET_BATTLE_MODE', mode: 'field' })
     expect(overridden.combatPreference).toBe('duel')
     expect(overridden.battle?.mode).toBe('field')
+  })
+
+  it('keeps field combat locked when the persistent always-on switch is enabled', () => {
+    const state = flatState('field-lock-check')
+    state.monsters = [{ id: 'locked-slime', species: 'slime', hp: 8, x: 21, y: 20 }]
+    const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    expect(engaged.fieldCombatAlwaysOn).toBe(true)
+    expect(engaged.battle?.mode).toBe('field')
+    const rejected = gameReducer(engaged, { type: 'SET_BATTLE_MODE', mode: 'duel' })
+    expect(rejected.battle?.mode).toBe('field')
+  })
+
+  it('enforces melee and ranged attack bands from the target distance', () => {
+    const state = flatState('combat-range-check')
+    state.monsters = [{ id: 'range-boar', species: 'boar', hp: 50, x: 21, y: 20 }]
+    const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    engaged.monsters[0].x = 25
+    const rejected = gameReducer(engaged, { type: 'COMBAT_ACTION', moveId: 'quick-strike' })
+    expect(rejected.battle?.round).toBe(1)
+    expect(rejected.chronicle[0].text).toContain('射程 1–1 格')
+    const ranged = gameReducer(engaged, { type: 'COMBAT_ACTION', moveId: 'arrow-shot' })
+    expect(ranged.battle?.round).toBe(2)
+  })
+
+  it('applies deterministic bomb splash damage to monsters in the blast radius', () => {
+    const state = flatState('combat-splash-check')
+    state.monsters = [
+      { id: 'bomb-target', species: 'boar', hp: 50, x: 21, y: 20 },
+      { id: 'bomb-neighbor', species: 'slime', hp: 20, x: 21, y: 21 },
+      { id: 'bomb-distant', species: 'wisp', hp: 20, x: 24, y: 20 },
+    ]
+    const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    let attempt = 0
+    while (!resolveCombatRoll(engaged.gameId, 'bomb-target', 1, combatMove('field-bomb')).hit) {
+      engaged.gameId = `combat-splash-hit-${attempt++}`
+    }
+    const resolved = gameReducer(engaged, { type: 'COMBAT_ACTION', moveId: 'field-bomb' })
+    expect(resolved.monsters.find((monster) => monster.id === 'bomb-neighbor')?.hp).toBeLessThan(20)
+    expect(resolved.monsters.find((monster) => monster.id === 'bomb-distant')?.hp).toBe(20)
   })
 
   it('turns adjacent conversation partners to face one another', () => {

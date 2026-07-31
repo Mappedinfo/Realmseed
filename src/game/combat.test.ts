@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { combatMoves, combatPowerSummary, equipmentDefense } from './combat'
+import { combatMove, combatMoves, combatPowerSummary, equipmentDefense, resolveCombatRoll } from './combat'
 import { createGame } from './world'
 
 describe('combat and equipment contract', () => {
@@ -9,6 +9,17 @@ describe('combat and equipment contract', () => {
       new Set(['physical', 'magic', 'firearm', 'explosive']),
     )
     expect(new Set(combatMoves.map((move) => move.size))).toEqual(new Set(['small', 'large']))
+    expect(combatMoves.filter((move) => move.range === 'melee').every((move) => move.maxRange === 1)).toBe(true)
+    expect(combatMoves.filter((move) => move.range === 'ranged').every((move) => move.maxRange > 1)).toBe(true)
+    expect(combatMoves.every((move) => move.accuracy > 0 && move.accuracy <= 100)).toBe(true)
+    expect(combatMove('field-bomb')).toMatchObject({ target: 'area', blastRadius: 1, splashRatio: 0.5 })
+  })
+
+  it('replays deterministic hit and critical rolls from game, target, round, and move ids', () => {
+    const move = combatMove('rifle-shot')
+    const first = resolveCombatRoll('replay-world', 'replay-boar', 4, move)
+    expect(resolveCombatRoll('replay-world', 'replay-boar', 4, move)).toEqual(first)
+    expect(first.multiplier).toBe(first.critical ? 1.5 : first.hit ? 1 : 0)
   })
 
   it('derives attack and defense bonuses only from equipped inventory items', () => {

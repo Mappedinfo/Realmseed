@@ -1,4 +1,5 @@
 import type { CombatMoveId, DamageKind, EquipmentItem, GameState } from './types'
+import { hashString } from './rng'
 
 export interface CombatMove {
   id: CombatMoveId
@@ -8,6 +9,13 @@ export interface CombatMove {
   size: 'small' | 'large'
   power: number
   staminaCost: number
+  minRange: number
+  maxRange: number
+  accuracy: number
+  criticalChance: number
+  target: 'single' | 'area'
+  blastRadius: number
+  splashRatio: number
   glyph: string
   description: string
 }
@@ -21,6 +29,8 @@ export const combatMoves: CombatMove[] = [
     size: 'small',
     power: 2,
     staminaCost: 0,
+    minRange: 1, maxRange: 1, accuracy: 96, criticalChance: 18,
+    target: 'single', blastRadius: 0, splashRatio: 0,
     glyph: '╱',
     description: '近程物理小招，稳定且不额外消耗体力。',
   },
@@ -32,6 +42,8 @@ export const combatMoves: CombatMove[] = [
     size: 'large',
     power: 4,
     staminaCost: 1,
+    minRange: 1, maxRange: 1, accuracy: 78, criticalChance: 28,
+    target: 'single', blastRadius: 0, splashRatio: 0,
     glyph: '✦',
     description: '近程物理大招，破坏力强。',
   },
@@ -43,6 +55,8 @@ export const combatMoves: CombatMove[] = [
     size: 'small',
     power: 3,
     staminaCost: 0,
+    minRange: 1, maxRange: 5, accuracy: 88, criticalChance: 16,
+    target: 'single', blastRadius: 0, splashRatio: 0,
     glyph: '➶',
     description: '远程物理小招，适合稳妥输出。',
   },
@@ -54,6 +68,8 @@ export const combatMoves: CombatMove[] = [
     size: 'small',
     power: 3,
     staminaCost: 1,
+    minRange: 1, maxRange: 4, accuracy: 92, criticalChance: 12,
+    target: 'single', blastRadius: 0, splashRatio: 0,
     glyph: '◆',
     description: '远程魔法攻击，受到法器增幅。',
   },
@@ -65,6 +81,8 @@ export const combatMoves: CombatMove[] = [
     size: 'large',
     power: 4,
     staminaCost: 1,
+    minRange: 1, maxRange: 6, accuracy: 82, criticalChance: 30,
+    target: 'single', blastRadius: 0, splashRatio: 0,
     glyph: '⌁',
     description: '远程枪械大招，单点威力高。',
   },
@@ -76,10 +94,30 @@ export const combatMoves: CombatMove[] = [
     size: 'large',
     power: 5,
     staminaCost: 2,
+    minRange: 1, maxRange: 4, accuracy: 76, criticalChance: 0,
+    target: 'area', blastRadius: 1, splashRatio: 0.5,
     glyph: '✹',
     description: '远程爆炸大招，威力最高且消耗更多体力。',
   },
 ]
+
+export interface CombatRoll {
+  hit: boolean
+  critical: boolean
+  multiplier: number
+}
+
+export function resolveCombatRoll(
+  gameId: string,
+  monsterId: string,
+  round: number,
+  move: CombatMove,
+): CombatRoll {
+  const hit = hashString(`${gameId}:attack-hit:${monsterId}:${round}:${move.id}`) % 100 < move.accuracy
+  const critical = hit && move.criticalChance > 0 &&
+    hashString(`${gameId}:attack-critical:${monsterId}:${round}:${move.id}`) % 100 < move.criticalChance
+  return { hit, critical, multiplier: critical ? 1.5 : hit ? 1 : 0 }
+}
 
 export const starterEquipment: EquipmentItem[] = [
   {
