@@ -142,7 +142,7 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
   return { seed, mapSize, size, sceneX, sceneY, sceneName, tiles }
 }
 
-export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents'>): FogLevel[] {
+export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps'>): FogLevel[] {
   const next = state.fog.map((level) => (level === 2 ? 1 : level)) as FogLevel[]
   const sources = [
     { x: state.player.x, y: state.player.y, radius: 4 },
@@ -157,6 +157,18 @@ export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'a
         if (dx * dx + dy * dy > source.radius * source.radius + 2) continue
         const x = source.x + dx
         const y = source.y + dy
+        if (isInside(state.world, x, y)) next[tileIndex(state.world, x, y)] = 2
+      }
+    }
+  }
+
+  for (const camp of state.camps) {
+    if (camp.sceneX !== state.world.sceneX || camp.sceneY !== state.world.sceneY) continue
+    for (let dy = -camp.controlRadius; dy <= camp.controlRadius; dy += 1) {
+      for (let dx = -camp.controlRadius; dx <= camp.controlRadius; dx += 1) {
+        if (Math.abs(dx) + Math.abs(dy) > camp.controlRadius) continue
+        const x = camp.x + dx
+        const y = camp.y + dy
         if (isInside(state.world, x, y)) next[tileIndex(state.world, x, y)] = 2
       }
     }

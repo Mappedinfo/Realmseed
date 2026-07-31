@@ -95,7 +95,8 @@ python3 scripts/ingest_directional_assets.py
 - Recruit: requires 3 affection and 5 gold
 - Party: recruited followers are hidden from the world canvas; click the left
   roster to switch the top-left portrait, which defaults to the player
-- Build camp: requires 8 gold and creates a highlighted control radius
+- Build camp: requires 8 gold and creates a highlighted, permanently visible
+  control radius; watchtowers expand both control and permanent vision in real time
 - Construction: after founding a camp, each 100 successful movement steps grant
   one building tile; select a highlighted empty tile, then build a house,
   watchtower, or market

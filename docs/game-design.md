@@ -79,7 +79,9 @@ Future art packs may replace the procedural primitives, but must preserve the
    instead of occupying a world tile, while still contributing combat strength
    and party vision. Click roster entries to switch the top-left portrait.
 6. Build a camp to create a highlighted control radius and inspect population,
-   defense, economy, buildings, and range from the left camp list.
+   defense, economy, buildings, and range from the left camp list. The entire
+   control radius remains permanently visible after the party leaves, and a
+   watchtower expands that live vision together with the control range.
 7. Walk 100 successful steps after founding a camp to earn one building tile.
    Select a controlled empty tile for a house, watchtower, or market. Same-scene
    camps automatically connect by passable roads; roads use 0.35 movement fatigue,

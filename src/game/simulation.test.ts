@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { berryExchangeRate, gameReducer } from './simulation'
-import { createGame, isPassable } from './world'
+import { createGame, isPassable, revealFog } from './world'
 
 function passableDirection(state: ReturnType<typeof createGame>) {
   const directions = [
@@ -206,6 +206,21 @@ describe('game simulation', () => {
     expect(next.player.gold).toBe(12)
   })
 
+  it('keeps the full camp control range permanently visible after the player leaves', () => {
+    let state = flatState('camp-vision-check')
+    state.player.gold = 20
+    state = gameReducer(state, { type: 'FOUND_CAMP' })
+    const camp = state.camps[0]
+    state.player = { ...state.player, x: camp.x + 10, y: camp.y + 10 }
+    const fog = revealFog(state)
+    for (let dy = -camp.controlRadius; dy <= camp.controlRadius; dy += 1) {
+      for (let dx = -camp.controlRadius; dx <= camp.controlRadius; dx += 1) {
+        if (Math.abs(dx) + Math.abs(dy) > camp.controlRadius) continue
+        expect(fog[(camp.y + dy) * state.world.size + camp.x + dx]).toBe(2)
+      }
+    }
+  })
+
   it('keeps recruited followers in the party model instead of nearby interaction', () => {
     const state = flatState('hidden-party-check')
     state.agents = [{
@@ -244,6 +259,9 @@ describe('game simulation', () => {
     expect(built.camps[0].defense).toBe(3)
     expect(built.camps[0].controlRadius).toBe(4)
     expect(built.buildingCredits).toBe(0)
+    built.player = { ...built.player, x: built.player.x + 10, y: built.player.y + 10 }
+    const expandedFog = revealFog(built)
+    expect(expandedFog[built.camps[0].y * built.world.size + built.camps[0].x + 4]).toBe(2)
   })
 
   it('connects two camps by road and auto-paths home with lower fatigue', () => {

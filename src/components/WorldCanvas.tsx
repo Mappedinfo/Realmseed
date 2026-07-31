@@ -404,9 +404,14 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
             Math.abs(camp.x - worldX) + Math.abs(camp.y - worldY) <= camp.controlRadius,
         )
         if (controllingCamp) {
-          pixelRect(context, 'rgba(126, 214, 117, .12)', screenX, screenY, TILE, TILE)
-          context.strokeStyle = 'rgba(151, 230, 125, .28)'
+          const controlDistance = Math.abs(controllingCamp.x - worldX) + Math.abs(controllingCamp.y - worldY)
+          pixelRect(context, 'rgba(126, 214, 117, .16)', screenX, screenY, TILE, TILE)
+          context.lineWidth = controlDistance === controllingCamp.controlRadius ? 1.5 : 1
+          context.strokeStyle = controlDistance === controllingCamp.controlRadius
+            ? 'rgba(226, 211, 112, .68)'
+            : 'rgba(151, 230, 125, .32)'
           context.strokeRect(screenX + 1.5, screenY + 1.5, TILE - 3, TILE - 3)
+          context.lineWidth = 1
         }
         if (tile.road) {
           pixelRect(context, 'rgba(63, 43, 29, .78)', screenX, screenY + 13, TILE, 7)

@@ -570,7 +570,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         itemIndex === index ? { ...item, structure: 'camp' as const, campId: camp.id, road: true } : item,
       )
       const camps = [...state.camps, camp]
-      return {
+      const next = {
         ...state,
         world: connectCampRoads({ ...state.world, tiles }, camps, camp),
         camps,
@@ -581,6 +581,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           'good',
         ),
       }
+      return { ...next, fog: revealFog(next) }
     }
     case 'STATION_FOLLOWER': {
       const follower = state.agents.find((agent) => agent.role === 'follower')
@@ -629,7 +630,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ? { ...item, structure: 'camp-building' as const, campId: camp.id, buildingKind: action.kind }
           : item,
       )
-      return {
+      const next = {
         ...state,
         world: { ...state.world, tiles },
         camps: state.camps.map((item) =>
@@ -647,6 +648,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         buildingCredits: state.buildingCredits - 1,
         chronicle: log(state, `${camp.name}建成一格${labels[action.kind]}。`, 'good'),
       }
+      return { ...next, fog: revealFog(next) }
     }
     case 'RETURN_TO_CAMP': {
       if (state.battle) return { ...state, chronicle: log(state, '先结束战斗，才能自动寻路。', 'danger') }
