@@ -78,8 +78,13 @@ python3 scripts/build_pixel_atlas.py
 - Build camp: requires 8 gold
 - Station: turn a follower into a villager at a camp; the village stays lit and
   produces 1 gold each rest
-- Rest: restore stamina, collect village income, and advance the world
-- Scene travel: spend 2 stamina to take a waystone route to the adjacent
+- Stamina: ordinary movement spends 1 point per 100 steps; combat steps count
+  1.5×, and deterministic enemy hits cost only 0 or 1 point
+- Food: seeded pickups are consumed immediately and restore 1–2 stamina
+- Combat growth: every victory raises maximum stamina by 1, capped at 30
+- Rest: restore full stamina normally; at zero, manual or automatic exhausted
+  rest recovers to 3, resets step fatigue, collects income, and advances the world
+- Scene travel: accumulate 25 steps of fatigue to take a waystone route to the adjacent
   deterministic scene; followers travel with you while staffed villages remain
   behind and continue to preserve that scene's explored state
 - Swear fealty: requires 15 faction reputation and grants 4 expedition gold

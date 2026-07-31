@@ -305,6 +305,12 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .heart-dot { color: var(--ember); }
 .stamina-track { height: 5px; margin: 5px 0 14px; background: #111813; }
 .stamina-track i { display: block; height: 100%; background: var(--ember); transition: width .2s; }
+.stamina-meta {
+  margin: -8px 0 12px;
+  color: #849083;
+  font-size: 9px;
+  text-align: center;
+}
 .panel-section { margin-top: 15px; padding-top: 12px; border-top: 1px solid #38443a; }
 .panel-section h3 { display: flex; justify-content: space-between; margin: 0 0 8px; color: #cbd0bc; font-size: 13px; letter-spacing: .08em; }
 .panel-section h3 span { color: var(--gold); }

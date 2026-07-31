@@ -28,7 +28,7 @@ export function SceneTransit({
             className={`route-${route.direction}`}
             onClick={() => dispatch({ type: 'TRAVEL', direction: route.direction })}
             aria-label={`向${route.label}前往相邻场景`}
-            title={`消耗 2 体力，前往${route.label}侧相邻场景`}
+            title={`累计 25 步疲劳，前往${route.label}侧相邻场景`}
           >
             <b>{route.symbol}</b>
             <small>{route.label}</small>

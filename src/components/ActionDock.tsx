@@ -17,7 +17,7 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
         <button onClick={() => dispatch({ type: 'STATION_FOLLOWER' })} disabled={followers === 0}><span>⚑</span> 驻守</button>
         <button onClick={() => dispatch({ type: 'REST' })}><span>☾</span> 休息</button>
       </div>
-      <p className="keyboard-hint">WASD / 方向键移动 · 点击相邻格也可前进</p>
+      <p className="keyboard-hint">移动 100 步消耗 1 体力 · 战斗步数 ×1.5 · 食物自动恢复</p>
     </section>
   )
 }

@@ -104,6 +104,7 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
       tiles.push({
         terrain,
         coin: traversable && roll > 0.946 ? 1 + Math.floor(random() * 4) : 0,
+        food: traversable && roll >= 0.012 && roll < 0.03 ? 1 + Math.floor(random() * 2) : 0,
         structure: traversable && roll < 0.009 ? 'ruin' : undefined,
       })
     }
@@ -242,6 +243,8 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
       { id: 2, day: 1, text: '远方有炊烟，也有低吼。先点亮地图，再决定效忠谁。', tone: 'plain' },
     ],
     selected: null,
+    fatigue: 0,
+    combatWins: 0,
     gameId: `${seed}-${mapSize}`,
   }
   initial.fog = revealFog(initial)

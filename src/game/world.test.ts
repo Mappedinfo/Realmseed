@@ -26,6 +26,13 @@ describe('procedural world', () => {
     expect(world.tiles.filter((tile) => tile.structure === 'waystone')).toHaveLength(4)
   })
 
+  it('places deterministic food pickups on traversable terrain', () => {
+    const world = createWorld('food-resource-check', 'small')
+    const foodTiles = world.tiles.filter((tile) => (tile.food ?? 0) > 0)
+    expect(foodTiles.length).toBeGreaterThan(0)
+    expect(foodTiles.every((tile) => tile.terrain !== 'water' && tile.terrain !== 'mountain')).toBe(true)
+  })
+
   it('starts with three fog states available after exploration', () => {
     const state = createGame('fog-check', 'small')
     expect(state.fog.some((level) => level === 2)).toBe(true)

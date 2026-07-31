@@ -140,6 +140,15 @@ function drawMonster(context: CanvasRenderingContext2D, atlas: HTMLImageElement 
   pixelRect(context, '#e9f4dc', x + 20, y + 17, 3, 3)
 }
 
+function drawFood(context: CanvasRenderingContext2D, x: number, y: number) {
+  pixelRect(context, 'rgba(10, 17, 13, .35)', x + 17, y + 24, 12, 2)
+  pixelRect(context, '#315d45', x + 22, y + 9, 3, 7)
+  pixelRect(context, '#9fc96d', x + 19, y + 8, 4, 3)
+  pixelRect(context, '#df815f', x + 18, y + 14, 9, 9)
+  pixelRect(context, '#f3c16f', x + 20, y + 15, 3, 3)
+  pixelRect(context, '#a84f45', x + 24, y + 19, 3, 4)
+}
+
 function drawStructure(context: CanvasRenderingContext2D, atlas: HTMLImageElement | null, x: number, y: number, structure: string) {
   if (atlas) {
     drawSprite(context, atlas, structure as 'camp' | 'village' | 'ruin' | 'waystone', x, y)
@@ -231,6 +240,7 @@ export function WorldCanvas({ state, theme, onSelect }: WorldCanvasProps) {
             pixelRect(context, '#fff1a4', screenX + 11, screenY + 10, 2, 2)
           }
         }
+        if ((tile.food ?? 0) > 0 && fog === 2) drawFood(context, screenX, screenY)
 
         if (fog === 2) {
           const monster = state.monsters.find((item) => item.x === worldX && item.y === worldY)

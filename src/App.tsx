@@ -91,6 +91,9 @@ function GameView({
           </div>
 
           <div className="stamina-track"><i style={{ width: `${(state.player.stamina / state.player.maxStamina) * 100}%` }} /></div>
+          <p className="stamina-meta">
+            步数 {Math.floor(state.fatigue * 10) / 10}/100 · 战绩 {state.combatWins} · 上限 {state.player.maxStamina}
+          </p>
 
           <div className="panel-section">
             <h3>同行者 <span>{followers.length}</span></h3>

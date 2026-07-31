@@ -38,10 +38,11 @@ enormous array.
 ```
 
 Each scene is either 40×40 or 96×96 tiles. Four waystones identify its routes.
-Travel costs two stamina and changes one coordinate. Scene generation has no
-authored outer boundary; practical limits are browser memory and JavaScript's
-safe integer range. The prototype keeps visited scenes in memory. IndexedDB
-serialization and cache eviction are the next persistence milestone.
+Travel accumulates 25 steps of fatigue and changes one coordinate. Scene
+generation has no authored outer boundary; practical limits are browser memory
+and JavaScript's safe integer range. The prototype keeps visited scenes in
+memory. IndexedDB serialization and cache eviction are the next persistence
+milestone.
 
 This model keeps rendering and AI work bounded to one active region while
 retaining the feeling that the world can continue in every direction.
@@ -65,8 +66,9 @@ Future art packs may replace the procedural primitives, but must preserve the
 ## Current playable loop
 
 1. Choose a total seed and per-scene size.
-2. Reveal land by walking; spend more stamina in marshes.
-3. Find coins and ruins, meet travelers, and fight monsters.
+2. Reveal land by walking; every 100 ordinary steps spend one stamina.
+3. Find coins, food, and ruins, meet travelers, and fight monsters. Food
+   restores stamina immediately; combat steps accumulate fatigue 1.5× faster.
 4. Talk to increase affection and faction reputation.
 5. Recruit a trusted traveler; follower AI trails the player and contributes
    combat strength and vision.
@@ -81,11 +83,11 @@ Future art packs may replace the procedural primitives, but must preserve the
 | System | Prototype rule | Planned depth |
 |---|---|---|
 | Coins | pickups, recruitment/building costs, taxes, tribute | markets and production chains |
-| Stamina | movement, marsh cost, conversation, travel, rest | food and equipment modifiers |
+| Stamina | 100-step cost, 1.5× combat fatigue, 0/1 hit loss, food recovery, exhausted rest to 3 | equipment and biome modifiers |
 | Affection | 0–5 per traveler; 3 enables recruitment | memories, preferences, conflicts |
 | Followers | trail, reveal, fight, or become villagers | gather, guard, scout, craft |
 | Factions | reputation, fealty, oath breaking, vassalage | diplomacy, war, borders |
-| Monsters | three seeded species with simple HP | behaviors, drops, bosses |
+| Monsters | three seeded species, simple HP, victory raises max stamina to a cap of 30 | behaviors, drops, bosses |
 | Fog | visible / explored / unseen per scene | line of sight and watchtowers |
 | Scenes | deterministic four-way unbounded graph | portals, boats, biomes, cache eviction |
 

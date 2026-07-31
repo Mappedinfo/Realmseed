@@ -1,5 +1,13 @@
 import type { Agent, ChronicleEntry, Direction, FogLevel, GameAction, GameState, Position, SceneSnapshot } from './types'
+import { hashString } from './rng'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
+
+export const STEPS_PER_STAMINA = 100
+export const COMBAT_STEP_MULTIPLIER = 1.5
+export const TALK_STEP_COST = 10
+export const SCENE_TRAVEL_STEP_COST = 25
+export const EXHAUSTED_REST_RECOVERY = 3
+export const MAX_STAMINA_CAP = 30
 
 const directionDelta: Record<Direction, Position> = {
   up: { x: 0, y: -1 },
@@ -64,9 +72,33 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   return { ...next, fog: revealFog(next) }
 }
 
+function addFatigue(
+  state: Pick<GameState, 'fatigue'>,
+  stamina: number,
+  steps: number,
+): { stamina: number; fatigue: number } {
+  const total = state.fatigue + steps
+  const staminaCost = Math.floor(total / STEPS_PER_STAMINA)
+  return {
+    stamina: Math.max(0, stamina - staminaCost),
+    fatigue: total % STEPS_PER_STAMINA,
+  }
+}
+
+function automaticRest(state: GameState): GameState {
+  return finishTurn(state, {
+    player: {
+      ...state.player,
+      stamina: Math.min(EXHAUSTED_REST_RECOVERY, state.player.maxStamina),
+    },
+    fatigue: 0,
+    chronicle: log(state, `体力归零，队伍自动扎营休整，恢复到 ${Math.min(EXHAUSTED_REST_RECOVERY, state.player.maxStamina)} 点体力。`, 'good'),
+  })
+}
+
 function move(state: GameState, direction: Direction): GameState {
   if (state.player.stamina <= 0) {
-    return { ...state, chronicle: log(state, '体力耗尽。扎营休息，明天再走。', 'danger') }
+    return automaticRest(state)
   }
   const delta = directionDelta[direction]
   const x = state.player.x + delta.x
@@ -79,9 +111,16 @@ function move(state: GameState, direction: Direction): GameState {
   const index = tileIndex(state.world, x, y)
   const tile = tiles[index]
   let gold = state.player.gold
-  let stamina = state.player.stamina - (tile.terrain === 'marsh' ? 2 : 1)
+  let stamina = state.player.stamina
+  let maxStamina = state.player.maxStamina
+  let fatigue = state.fatigue
+  let combatWins = state.combatWins
   let monsters = state.monsters
   let chronicle = state.chronicle
+  const monster = monsters.find((item) => item.x === x && item.y === y)
+  const exertion = addFatigue(state, stamina, monster ? COMBAT_STEP_MULTIPLIER : 1)
+  stamina = exertion.stamina
+  fatigue = exertion.fatigue
 
   if (tile.coin > 0) {
     gold += tile.coin
@@ -89,22 +128,51 @@ function move(state: GameState, direction: Direction): GameState {
     tile.coin = 0
   }
 
-  const monster = monsters.find((item) => item.x === x && item.y === y)
+  if ((tile.food ?? 0) > 0) {
+    const food = tile.food ?? 0
+    const recovered = Math.min(food, maxStamina - stamina)
+    stamina = Math.min(maxStamina, stamina + food)
+    chronicle = log(
+      { ...state, chronicle },
+      recovered > 0
+        ? `采到 ${food} 份野外食物，自动恢复 ${recovered} 点体力。`
+        : `采到 ${food} 份野外食物，但体力已经充足。`,
+      'good',
+    )
+    tile.food = 0
+  }
+
   if (monster) {
     const power = 1 + state.agents.filter((agent) => agent.role === 'follower').length
     if (power >= monster.hp) {
       monsters = monsters.filter((item) => item.id !== monster.id)
       gold += 2
-      chronicle = log({ ...state, chronicle }, `随行队伍击退了${monster.species === 'slime' ? '泥团怪' : monster.species === 'boar' ? '棘背兽' : '迷雾精'}，获得 2 金。`, 'good')
+      combatWins += 1
+      const previousMax = maxStamina
+      maxStamina = Math.min(MAX_STAMINA_CAP, maxStamina + 1)
+      chronicle = log(
+        { ...state, chronicle },
+        `随行队伍击退了${monster.species === 'slime' ? '泥团怪' : monster.species === 'boar' ? '棘背兽' : '迷雾精'}，获得 2 金。${maxStamina > previousMax ? `体力上限提升到 ${maxStamina}。` : ''}`,
+        'good',
+      )
     } else {
-      stamina = Math.max(0, stamina - 2)
-      chronicle = log({ ...state, chronicle }, '怪物逼近！队伍势单力薄，仓促脱身损失 2 体力。', 'danger')
+      const hit = hashString(`${state.gameId}:hit:${state.day}:${monster.id}:${x}:${y}`) % 2
+      stamina = Math.max(0, stamina - hit)
+      chronicle = log(
+        { ...state, chronicle },
+        hit > 0
+          ? '怪物击中了队伍，损失 1 点体力；战斗步数按 1.5 倍累计。'
+          : '怪物的攻击被挡住，没有损失体力；战斗步数仍按 1.5 倍累计。',
+        hit > 0 ? 'danger' : 'plain',
+      )
     }
   }
 
   const next = finishTurn(state, {
     world: { ...state.world, tiles },
-    player: { ...state.player, x, y, gold, stamina: Math.max(0, stamina) },
+    player: { ...state.player, x, y, gold, stamina, maxStamina },
+    fatigue,
+    combatWins,
     monsters,
     chronicle,
     selected: { x, y },
@@ -132,9 +200,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const patched = {
         player: {
           ...state.player,
-          stamina: state.player.maxStamina,
+          stamina: state.player.stamina <= 0
+            ? Math.min(EXHAUSTED_REST_RECOVERY, state.player.maxStamina)
+            : state.player.maxStamina,
           gold: state.player.gold + goldIncome,
         },
+        fatigue: 0,
         chronicle: log(
           state,
           goldIncome > 0
@@ -146,9 +217,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return finishTurn(state, patched)
     }
     case 'TALK': {
-      if (state.player.stamina <= 0) return { ...state, chronicle: log(state, '没有体力继续交谈。', 'danger') }
+      if (state.player.stamina <= 0) return automaticRest(state)
       const target = nearestAgent(state)
       if (!target) return { ...state, chronicle: log(state, '附近没有可以交谈的旅人。') }
+      const exertion = addFatigue(state, state.player.stamina, TALK_STEP_COST)
       const agents = state.agents.map((agent) =>
         agent.id === target.id ? { ...agent, affection: Math.min(5, agent.affection + 1) } : agent,
       )
@@ -158,7 +230,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return finishTurn(state, {
         agents,
         factions,
-        player: { ...state.player, stamina: state.player.stamina - 1 },
+        player: { ...state.player, stamina: exertion.stamina },
+        fatigue: exertion.fatigue,
         chronicle: log(state, `你与 ${target.name} 分享了旅途见闻。好感 +1，阵营声望 +5。`, 'good'),
       })
     }
@@ -279,9 +352,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     case 'TRAVEL': {
-      if (state.player.stamina < 2) {
-        return { ...state, chronicle: log(state, '穿越场景边界需要 2 点体力。先休息再远行。', 'danger') }
-      }
+      if (state.player.stamina <= 0) return automaticRest(state)
       const delta = directionDelta[action.direction]
       const targetX = state.world.sceneX + delta.x
       const targetY = state.world.sceneY + delta.y
@@ -303,10 +374,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         fog: new Array<FogLevel>(state.world.tiles.length).fill(0),
       }
       const entry = sceneEntry(generated.world, action.direction)
+      const exertion = addFatigue(state, state.player.stamina, SCENE_TRAVEL_STEP_COST)
       const player = {
         ...state.player,
         ...entry,
-        stamina: state.player.stamina - 2,
+        stamina: exertion.stamina,
       }
       const agents = [
         ...generated.agents.filter((agent) => agent.role !== 'follower'),
@@ -323,6 +395,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         agents,
         monsters: generated.monsters,
         player,
+        fatigue: exertion.fatigue,
         sceneCache,
         selected: null,
         day: state.day + 1,

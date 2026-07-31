@@ -6,6 +6,7 @@ export type Structure = 'camp' | 'village' | 'ruin' | 'waystone'
 export interface Tile {
   terrain: Terrain
   coin: number
+  food?: number
   structure?: Structure
 }
 
@@ -76,6 +77,8 @@ export interface GameState {
   weather: string
   chronicle: ChronicleEntry[]
   selected: Position | null
+  fatigue: number
+  combatWins: number
   gameId: string
 }
 
