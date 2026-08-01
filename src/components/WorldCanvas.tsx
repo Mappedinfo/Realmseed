@@ -21,7 +21,7 @@ import {
   type SpriteId,
 } from '../game/art'
 import { inspectPosition } from '../game/inspection'
-import { walkBobOffset } from '../game/motion'
+import { addFootprint, FOOTPRINT_LIFETIME_MS, footprintOpacity, type Footprint } from '../game/footprints'
 import { effectiveCampStats } from '../game/camps'
 import { isWithinInteractionRange } from '../game/geometry'
 import { tileIndex } from '../game/world'
@@ -380,6 +380,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const [assetRevision, setAssetRevision] = useState(0)
   const visualPlayerRef = useRef({ x: state.player.x, y: state.player.y, motion: 1 })
   const [visualPlayer, setVisualPlayer] = useState(visualPlayerRef.current)
+  const [footprints, setFootprints] = useState<Footprint[]>([])
+  const [footprintClock, setFootprintClock] = useState(0)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
     y: Math.max(0, Math.min((state.world.height ?? state.world.size) - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
@@ -433,11 +435,15 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (distance === 0) return
     if (distance > 1 || reducedMotion) {
+      setFootprints([])
       const settled = { ...to, motion: 1 }
       visualPlayerRef.current = settled
       setVisualPlayer(settled)
       return
     }
+    const createdAt = performance.now()
+    setFootprints((trail) => addFootprint(trail, from, to, createdAt))
+    setFootprintClock(createdAt)
     let frame = 0
     const started = performance.now()
     const duration = 125
@@ -456,6 +462,21 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
     frame = window.requestAnimationFrame(animate)
     return () => window.cancelAnimationFrame(frame)
   }, [state.player.x, state.player.y])
+
+  useEffect(() => {
+    if (!footprints.length) return
+    let frame = 0
+    const tick = (now: number) => {
+      setFootprintClock(now)
+      if (footprints.some((footprint) => now - footprint.createdAt < FOOTPRINT_LIFETIME_MS)) {
+        frame = window.requestAnimationFrame(tick)
+      } else {
+        setFootprints([])
+      }
+    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [footprints])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -613,8 +634,29 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       }
     })
 
+    footprints.forEach((footprint) => {
+      const alpha = footprintOpacity(footprint, footprintClock)
+      if (alpha <= 0 || footprint.x < origin.x || footprint.x >= origin.x + VIEW_COLS || footprint.y < origin.y || footprint.y >= origin.y + VIEW_ROWS) return
+      const x = (footprint.x - origin.x) * TILE
+      const y = (footprint.y - origin.y) * TILE
+      const color = `rgba(43, 34, 24, ${alpha})`
+      if (footprint.direction === 'up') {
+        pixelRect(context, color, x + 17, y + 9, 3, 5)
+        pixelRect(context, color, x + 12, y + 17, 3, 5)
+      } else if (footprint.direction === 'down') {
+        pixelRect(context, color, x + 12, y + 10, 3, 5)
+        pixelRect(context, color, x + 17, y + 18, 3, 5)
+      } else if (footprint.direction === 'left') {
+        pixelRect(context, color, x + 9, y + 17, 5, 3)
+        pixelRect(context, color, x + 17, y + 12, 5, 3)
+      } else {
+        pixelRect(context, color, x + 10, y + 12, 5, 3)
+        pixelRect(context, color, x + 18, y + 17, 5, 3)
+      }
+    })
+
     const playerX = (visualPlayer.x - origin.x) * TILE
-    const playerY = (visualPlayer.y - origin.y) * TILE - walkBobOffset(visualPlayer.motion)
+    const playerY = (visualPlayer.y - origin.y) * TILE
     if (state.redNameMode) {
       for (let viewY = 0; viewY < VIEW_ROWS; viewY += 1) {
         for (let viewX = 0; viewX < VIEW_COLS; viewX += 1) {
@@ -740,6 +782,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         data-visible-tiles={state.fog.filter((level) => level === 2).length}
         data-player-visual-x={visualPlayer.x.toFixed(3)}
         data-player-visual-y={visualPlayer.y.toFixed(3)}
+        data-footprint-count={footprints.length}
         data-navigation-steps={navigationPath.length}
         aria-label="Realmseed 像素世界地图"
       />

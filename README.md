@@ -20,7 +20,7 @@ directly to GitHub Pages.
 - three-state fog of war: visible, explored, unseen
 - villagers and the abstracted traveling party provide persistent vision
 - keyboard, button, adjacent-tile movement, and double-click shortest-path navigation
-- restrained sub-pixel walking bob (0.2 px) so vertical travel stays readable without distracting bounce
+- short-lived directional pixel footprints for movement feedback without character flashing or bounce
 - stamina, coins, affection, recruitment, camps, buildings, roads, and settlement income
 - recruited followers leave the crowded world canvas and move into a clickable
   party roster with switchable portraits

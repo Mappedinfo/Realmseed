@@ -90,6 +90,8 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
   await expect(page.getByText('AUTO ROUTE')).toBeVisible()
   await page.screenshot({ path: '/tmp/realmseed-navigation.png', fullPage: true })
   await interpolationSeen
+  await expect.poll(async () => Number(await canvas.getAttribute('data-footprint-count'))).toBeGreaterThan(0)
+  await page.screenshot({ path: '/tmp/realmseed-footprints.png', fullPage: true })
   await page.waitForFunction(
     ([x, y]) => {
       const element = document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')
