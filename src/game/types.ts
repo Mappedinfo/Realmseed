@@ -56,6 +56,14 @@ export interface Position {
   y: number
 }
 
+export interface GatheringActivity {
+  target: Position
+  kind: ResourceNodeKind
+  phase: 'routing' | 'working'
+  strike: number
+  totalStrikes: number
+}
+
 export interface Faction {
   id: string
   name: string

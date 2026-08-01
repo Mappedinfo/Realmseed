@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CampBuildingKind, CombatMoveId, Direction, GameAction, GameState, Position, Structure, Terrain } from '../game/types'
+import type { CampBuildingKind, CombatMoveId, Direction, GameAction, GameState, GatheringActivity, Position, Structure, Terrain } from '../game/types'
 import {
   ART_CELL,
   GENERATED_CELL,
@@ -366,10 +366,11 @@ interface WorldCanvasProps {
   onSelect: (position: Position) => void
   onNavigate: (position: Position) => void
   navigationPath: Position[]
+  gathering: GatheringActivity | null
   dispatch: React.Dispatch<GameAction>
 }
 
-export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect, onNavigate, navigationPath, dispatch }: WorldCanvasProps) {
+export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect, onNavigate, navigationPath, gathering, dispatch }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const atlasRef = useRef<HTMLImageElement | null>(null)
   const generatedTerrainRef = useRef<HTMLImageElement | null>(null)
@@ -856,6 +857,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         data-water-animation-frame={waterClock % 8}
         data-visible-fishing-signals={state.world.tiles.reduce((total, tile, index) => total + (tile.terrain === 'water' && state.fog[index] === 2 && fishingSignalAt(state.world, { x: index % state.world.size, y: Math.floor(index / state.world.size) }) ? 1 : 0), 0)}
         data-navigation-steps={navigationPath.length}
+        data-gathering-phase={gathering?.phase ?? 'idle'}
+        data-gathering-strike={gathering?.strike ?? 0}
         aria-label="Realmseed 像素世界地图"
       />
       {visibleTargets.map((position) => {
@@ -926,9 +929,23 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         return <span key={`witness-${agent.id}`} className="npc-alert" style={{ left: `${left}%`, top: `${top}%` }} aria-label={`${agent.name}对红名者保持警惕`}>!</span>
       })}
       {state.redNameMode ? <RedNameOverlay state={state} origin={origin} dispatch={dispatch} /> : null}
+      {gathering && gathering.target.x >= origin.x && gathering.target.x < origin.x + VIEW_COLS && gathering.target.y >= origin.y && gathering.target.y < origin.y + VIEW_ROWS ? (
+        <div
+          key={`${gathering.kind}-${gathering.phase}-${gathering.strike}`}
+          className={`gather-map-effect kind-${gathering.kind} phase-${gathering.phase}`}
+          style={{
+            left: `${(((gathering.target.x - origin.x) * TILE + TILE / 2) / (VIEW_COLS * TILE)) * 100}%`,
+            top: `${(((gathering.target.y - origin.y) * TILE + TILE / 2) / (VIEW_ROWS * TILE)) * 100}%`,
+          }}
+          aria-label={`${gathering.kind === 'wood' ? '自动伐木' : '自动采石'}，${gathering.phase === 'routing' ? '正在前往作业区' : `第 ${gathering.strike}/${gathering.totalStrikes} 击`}`}
+        >
+          <i className="gather-tool" /><i className="gather-chip chip-one" /><i className="gather-chip chip-two" /><i className="gather-chip chip-three" />
+          <span>{gathering.phase === 'routing' ? 'ROUTE' : `${gathering.strike}/${gathering.totalStrikes}`}</span>
+        </div>
+      ) : null}
       {navigationPath.length ? (
         <div className="auto-route-status" aria-live="polite">
-          <i>◆</i><span><b>AUTO ROUTE</b><small>自动行进 · 剩余 {navigationPath.length} 格</small></span><kbd>任意操作取消</kbd>
+          <i>{gathering ? gathering.kind === 'wood' ? '▥' : '◆' : '◆'}</i><span><b>{gathering ? 'AUTO HARVEST' : 'AUTO ROUTE'}</b><small>{gathering ? gathering.kind === 'wood' ? '前往林木作业区' : '前往石料作业区' : '自动行进'} · 剩余 {navigationPath.length} 格</small></span><kbd>任意操作取消</kbd>
         </div>
       ) : null}
     </div>

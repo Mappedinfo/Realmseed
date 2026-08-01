@@ -17,7 +17,7 @@ import { isWithinInteractionRange } from './game/geometry'
 import { findNavigationPath, navigationGoals, navigationStopsAdjacent } from './game/navigation'
 import { BrowserSaveStore, clearSavedGame, createSaveEnvelope, writeSavedGame, type SaveProblem, type SavedGame } from './game/persistence'
 import { gameReducer, visibleCounts } from './game/simulation'
-import type { BattleMode, GameAction, GameState, MapSize, Position } from './game/types'
+import type { BattleMode, GameAction, GameState, GatheringActivity, MapSize, Position } from './game/types'
 import { createGame } from './game/world'
 
 function GameView({
@@ -40,6 +40,7 @@ function GameView({
   const [activeExplorerTab, setActiveExplorerTab] = useState<ExplorerTab>('inventory')
   const [navigationPath, setNavigationPath] = useState<Position[]>([])
   const [navigationTarget, setNavigationTarget] = useState<Position | null>(null)
+  const [gathering, setGathering] = useState<GatheringActivity | null>(null)
   const saveStore = useMemo(() => new BrowserSaveStore(window.localStorage), [])
   const [saveStatus, setSaveStatus] = useState('IndexedDB 自动存档准备就绪')
   const latestSaveRef = useRef({ state, theme })
@@ -69,6 +70,7 @@ function GameView({
   const cancelNavigation = useCallback(() => {
     setNavigationPath([])
     setNavigationTarget(null)
+    setGathering(null)
   }, [])
   const userDispatch = useCallback((action: GameAction) => {
     if (action.type !== 'FISH_TICK') cancelNavigation()
@@ -100,6 +102,7 @@ function GameView({
   }
   const navigateTo = useCallback((position: Position) => {
     if (state.battle || state.fishing || state.player.stamina <= 0) return
+    setGathering(null)
     const index = position.y * state.world.size + position.x
     const tile = state.world.tiles[index]
     if (!tile || state.fog[index] === 0) return
@@ -120,6 +123,21 @@ function GameView({
     setNavigationTarget(position)
     setNavigationPath(path)
   }, [state.battle, state.fishing, state.fog, state.player, state.world])
+  const startGathering = useCallback((position: Position) => {
+    if (state.battle || state.fishing || state.activeDungeon || state.player.stamina <= 0) return
+    const index = position.y * state.world.size + position.x
+    const tile = state.world.tiles[index]
+    if (!tile?.resourceNode || (tile.resourceReadyDay !== undefined && tile.resourceReadyDay > state.day)) return
+    const adjacent = Math.abs(position.x - state.player.x) + Math.abs(position.y - state.player.y) === 1
+    const path = adjacent ? [] : findNavigationPath(state.world, state.player, position, true)
+    cancelNavigation()
+    dispatch({ type: 'SELECT', position })
+    setExplorerFocus({ kind: 'map', position })
+    if (!adjacent && !path.length) return
+    setGathering({ target: position, kind: tile.resourceNode, phase: path.length ? 'routing' : 'working', strike: 0, totalStrikes: tile.resourceNode === 'wood' ? 3 : 5 })
+    setNavigationTarget(path.length ? position : null)
+    setNavigationPath(path)
+  }, [cancelNavigation, state.activeDungeon, state.battle, state.day, state.fishing, state.player, state.world])
   const changeExplorerTab = (tab: ExplorerTab) => {
     setActiveExplorerTab(tab)
     if (tab === 'inventory') setExplorerFocus({ kind: 'inventory', item: 'berries' })
@@ -171,8 +189,36 @@ function GameView({
   useEffect(() => {
     if (!navigationTarget || navigationPath.length || state.battle || state.fishing) return
     dispatch({ type: 'SELECT', position: navigationTarget })
+    if (gathering && gathering.target.x === navigationTarget.x && gathering.target.y === navigationTarget.y) {
+      const adjacent = Math.abs(navigationTarget.x - state.player.x) + Math.abs(navigationTarget.y - state.player.y) === 1
+      setGathering(adjacent ? { ...gathering, phase: 'working' } : null)
+    }
     setNavigationTarget(null)
-  }, [navigationPath.length, navigationTarget, state.battle, state.fishing])
+  }, [gathering, navigationPath.length, navigationTarget, state.battle, state.fishing, state.player.x, state.player.y])
+
+  useEffect(() => {
+    if (!gathering || gathering.phase !== 'working') return
+    const index = gathering.target.y * state.world.size + gathering.target.x
+    const tile = state.world.tiles[index]
+    const adjacent = Math.abs(gathering.target.x - state.player.x) + Math.abs(gathering.target.y - state.player.y) === 1
+    if (state.battle || state.fishing || state.player.stamina <= 0 || !adjacent || tile?.resourceNode !== gathering.kind || (tile.resourceReadyDay !== undefined && tile.resourceReadyDay > state.day)) {
+      setGathering(null)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      if (gathering.strike >= gathering.totalStrikes) {
+        dispatch({ type: 'GATHER_RESOURCE', position: gathering.target })
+        setGathering(null)
+      } else {
+        setGathering({ ...gathering, strike: gathering.strike + 1 })
+      }
+    }, gathering.strike >= gathering.totalStrikes ? 240 : 430)
+    return () => window.clearTimeout(timer)
+  }, [gathering, state.battle, state.day, state.fishing, state.player.stamina, state.player.x, state.player.y, state.world])
+
+  useEffect(() => {
+    if (gathering && (state.battle || state.fishing || state.player.stamina <= 0)) cancelNavigation()
+  }, [cancelNavigation, gathering, state.battle, state.fishing, state.player.stamina])
 
   useEffect(() => {
     if (state.activeDungeon) {
@@ -307,6 +353,7 @@ function GameView({
             onSelect={selectPosition}
             onNavigate={navigateTo}
             navigationPath={navigationPath}
+            gathering={gathering}
           />
           {!state.battle && activeAgent && activeAgentNearby ? (
             <InteractionPanel
@@ -319,7 +366,7 @@ function GameView({
           ) : null}
           <FacilityEventPanel state={state} dispatch={userDispatch} />
           <BattlePanel state={state} dispatch={userDispatch} />
-          <ActionDock state={state} dispatch={userDispatch} />
+          <ActionDock state={state} dispatch={userDispatch} gathering={gathering} onGather={startGathering} />
         </section>
 
         <aside className="side-panel intel-panel">

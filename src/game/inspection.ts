@@ -242,7 +242,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
         { label: '基础产量', value: tile.resourceAmount ?? 2 },
         { label: '坐标', value: `${position.x}, ${position.y}` },
       ],
-      hint: ready ? '站在相邻一格，使用下方行动栏主动采集。' : '离开场景后仍会按日期恢复。',
+      hint: ready ? `使用下方行动栏自动寻路并完成${tile.resourceNode === 'wood' ? '三次斧击' : '五次锤击'}。` : '离开场景后仍会按日期恢复。',
       tone: ready ? 'good' : 'neutral',
     }
   }

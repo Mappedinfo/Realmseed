@@ -904,6 +904,33 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .auto-route-status small { margin-top: 2px; color: #9eb09e; font-size: 7px; }
 .auto-route-status kbd { margin-left: 5px; padding: 3px 5px; color: #718276; background: #101914; border: 1px solid #34453a; font: inherit; font-size: 7px; }
 @keyframes route-pulse { 50% { opacity: .35; transform: translateX(2px); } }
+.gather-map-effect {
+  position: absolute; z-index: 6; width: 48px; height: 48px; margin: -28px 0 0 -24px;
+  pointer-events: none; image-rendering: pixelated;
+}
+.gather-map-effect > i { position: absolute; display: block; }
+.gather-map-effect > span {
+  position: absolute; left: 50%; bottom: -7px; min-width: 30px; padding: 2px 3px;
+  color: #f2df9a; background: rgba(13, 21, 16, .9); border: 1px solid #756d43;
+  font-size: 6px; line-height: 1; text-align: center; transform: translateX(-50%);
+}
+.gather-tool {
+  left: 22px; top: 3px; width: 5px; height: 34px; background: #9b6841;
+  box-shadow: inset -2px 0 #513823; transform-origin: 3px 31px;
+  animation: gather-swing 430ms steps(5, end) both;
+}
+.gather-tool::before { content: ""; position: absolute; left: -9px; top: -3px; width: 21px; height: 9px; }
+.kind-wood .gather-tool::before { background: #c3c8b2; box-shadow: inset 0 -3px #667063, 3px 3px #667063; clip-path: polygon(0 0, 100% 24%, 78% 100%, 10% 74%); }
+.kind-stone .gather-tool::before { left: -12px; width: 27px; height: 8px; background: #adb8ae; box-shadow: inset 0 -3px #59645d; }
+.gather-chip { opacity: 0; width: 5px; height: 5px; animation: gather-chip 430ms steps(4, end) both; }
+.kind-wood .gather-chip { background: #c28a45; box-shadow: 3px 2px #72492c; }
+.kind-stone .gather-chip { background: #a8aaa0; box-shadow: 3px 2px #5c615b; }
+.gather-map-effect .chip-one { left: 12px; top: 29px; --chip-x: -11px; --chip-y: -12px; }
+.gather-map-effect .chip-two { left: 25px; top: 30px; --chip-x: 12px; --chip-y: -9px; animation-delay: 40ms; }
+.gather-map-effect .chip-three { left: 20px; top: 31px; --chip-x: 3px; --chip-y: -17px; animation-delay: 70ms; }
+.gather-map-effect.phase-routing .gather-tool, .gather-map-effect.phase-routing .gather-chip { display: none; }
+@keyframes gather-swing { 0% { opacity: 0; transform: rotate(-62deg); } 18% { opacity: 1; } 66% { transform: rotate(38deg); } 78% { transform: rotate(28deg); } 100% { opacity: 0; transform: rotate(19deg); } }
+@keyframes gather-chip { 0%, 57% { opacity: 0; transform: translate(0, 0); } 65% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--chip-x), var(--chip-y)); } }
 .talk-bubble {
   position: absolute;
   z-index: 3;
@@ -1522,6 +1549,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 @media (prefers-reduced-motion: reduce) {
   .combat-effect i { animation-duration: 80ms !important; animation-timing-function: step-end !important; }
   .auto-route-status > i { animation: none; }
+  .gather-map-effect > i { animation-duration: 80ms !important; animation-timing-function: step-end !important; }
 }
 .action-dock { margin-top: 10px; padding: 10px; display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; }
 .dpad { display: grid; grid-template-columns: repeat(3, 31px); grid-template-rows: repeat(2, 28px); gap: 3px; }

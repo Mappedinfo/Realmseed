@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { GameAction, GameState, Position } from '../game/types'
+import type { GameAction, GameState, GatheringActivity, Position } from '../game/types'
 import { tileIndex } from '../game/world'
 import { FISHING_SPOT_CAPACITY, fishingFatigue, fishingSignalNames, fishingSpotKey, fishingSpotProgress } from '../game/fishing'
 
@@ -7,7 +7,7 @@ function isAdjacent(a: Position, b: Position) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1
 }
 
-export function ActionDock({ state, dispatch }: { state: GameState; dispatch: React.Dispatch<GameAction> }) {
+export function ActionDock({ state, dispatch, gathering, onGather }: { state: GameState; dispatch: React.Dispatch<GameAction>; gathering: GatheringActivity | null; onGather: (position: Position) => void }) {
   const locked = Boolean(state.battle || state.fishing)
   const selectedTile = state.selected ? state.world.tiles[tileIndex(state.world, state.selected.x, state.selected.y)] : undefined
   const adjacent = Boolean(state.selected && isAdjacent(state.player, state.selected))
@@ -31,12 +31,20 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
     }
   }, [dispatch, fishingActive, state.fishing?.phase])
 
-  const contexts: { key: string; glyph: string; title: string; detail: string; disabled?: boolean; action: GameAction }[] = []
+  const contexts: { key: string; glyph: string; title: string; detail: string; disabled?: boolean; action?: GameAction; run?: () => void }[] = []
   if (state.activeDungeon) {
     contexts.push({ key: 'retreat', glyph: '↥', title: state.activeDungeon.bossDefeated ? '携宝返程' : '撤退', detail: '保留已取得战利品', action: { type: 'RETREAT_DUNGEON' } })
   }
-  if (state.selected && adjacent && resourceReady) {
-    contexts.push({ key: 'gather', glyph: selectedTile!.resourceNode === 'wood' ? '▥' : '◆', title: selectedTile!.resourceNode === 'wood' ? '采集木材' : '开采石料', detail: '疲劳 +20 · 行程 +1', action: { type: 'GATHER_RESOURCE', position: state.selected } })
+  if (state.selected && resourceReady && state.world.kind === 'overworld') {
+    const kind = selectedTile!.resourceNode!
+    contexts.push({
+      key: 'gather',
+      glyph: kind === 'wood' ? '▥' : '◆',
+      title: gathering ? gathering.kind === 'wood' ? '正在自动伐木' : '正在自动采石' : kind === 'wood' ? '自动伐木' : '自动采石',
+      detail: state.player.stamina <= 0 ? '体力耗尽 · 休息后才能作业' : gathering ? `${gathering.phase === 'routing' ? '前往作业区' : `敲击 ${gathering.strike}/${gathering.totalStrikes}`} · 点击其他行动取消` : `${adjacent ? '原地开工' : '自动寻路'} · ${kind === 'wood' ? '3 斧' : '5 锤'} · 疲劳 +20`,
+      disabled: Boolean(gathering) || state.player.stamina <= 0,
+      run: () => onGather(state.selected!),
+    })
   }
   if (state.selected && adjacent && (selectedTile?.structure === 'cave' || selectedTile?.structure === 'nest')) {
     contexts.push({ key: 'enter', glyph: '▼', title: `进入${selectedTile.structure === 'cave' ? '洞穴' : '巢穴'}`, detail: '固定三层 · 次日重置', action: { type: 'ENTER_DUNGEON', position: state.selected } })
@@ -86,11 +94,11 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
           <button disabled={locked} onClick={() => dispatch({ type: 'MOVE', direction: 'right' })} aria-label="向右">▶</button>
         </div>
         <div className="action-buttons">
-          {contexts.map((context) => <button key={context.key} disabled={locked || context.disabled} onClick={() => dispatch(context.action)}><span className="action-glyph">{context.glyph}</span><span className="action-copy"><b>{context.title}</b><small>{context.detail}</small></span></button>)}
+          {contexts.map((context) => <button key={context.key} disabled={locked || context.disabled} onClick={() => context.run ? context.run() : context.action && dispatch(context.action)}><span className="action-glyph">{context.glyph}</span><span className="action-copy"><b>{context.title}</b><small>{context.detail}</small></span></button>)}
           {!state.activeDungeon ? <button disabled={locked || state.resources.wood < 8 || state.resources.stone < 5} onClick={() => dispatch({ type: 'FOUND_CAMP' })}><span className="action-glyph">⌂</span><span className="action-copy"><b>建立营地</b><small>8 木 · 5 石</small></span></button> : null}
           <button disabled={locked} onClick={() => dispatch({ type: 'REST' })}><span className="action-glyph">☾</span><span className="action-copy"><b>休息整备</b><small>恢复体力并结算</small></span></button>
         </div>
-        <p className="keyboard-hint">双击地图自动寻路 · 任意手动操作取消 · 点击相邻资源、水域或设施显示行动</p>
+        <p className="keyboard-hint">选择资源可自动寻路作业 · 伐木 3 斧 / 采石 5 锤 · 任意手动操作取消</p>
       </section>
     </>
   )

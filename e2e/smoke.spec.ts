@@ -156,11 +156,11 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
     const y = Number(element.dataset.playerVisualY)
     return Math.abs(x - Math.round(x)) > .01 || Math.abs(y - Math.round(y)) > .01
   })
+  const footprintSeen = page.waitForFunction(() => Number(document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')?.dataset.footprintCount) > 0)
   await page.mouse.dblclick(screenX, screenY, { delay: 45 })
   await expect(page.getByText('AUTO ROUTE')).toBeVisible()
   await page.screenshot({ path: '/tmp/realmseed-navigation.png', fullPage: true })
-  await interpolationSeen
-  await expect.poll(async () => Number(await canvas.getAttribute('data-footprint-count'))).toBeGreaterThan(0)
+  await Promise.all([interpolationSeen, footprintSeen])
   await page.screenshot({ path: '/tmp/realmseed-footprints.png', fullPage: true })
   await page.waitForFunction(
     ([x, y]) => {
@@ -172,6 +172,28 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
   )
   await page.keyboard.press('ArrowUp')
   await expect(page.getByText('AUTO ROUTE')).toBeHidden()
+})
+
+test('auto-routes to resource regions and shows three axe or five hammer strikes', async ({ page }) => {
+  await page.goto(appUrl)
+  await page.getByLabel('世界种子').fill('auto-gather-browser')
+  await page.getByRole('button', { name: /展开这个世界/ }).click()
+  const canvas = page.getByLabel('Realmseed 像素世界地图')
+
+  await page.getByRole('button', { name: '查看林木资源点详情' }).first().click()
+  await page.getByRole('button', { name: '自动伐木' }).click()
+  await expect(page.getByLabel(/自动伐木/)).toBeVisible()
+  await page.waitForFunction(() => Number(document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')?.dataset.gatheringStrike) === 3)
+  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).toBe('idle')
+  await expect(page.locator('.chronicle-list')).toContainText('采集木材 +')
+
+  await page.getByRole('button', { name: '查看山缘石料点详情' }).first().click()
+  await page.getByRole('button', { name: '自动采石' }).click()
+  await expect(page.getByLabel(/自动采石/)).toBeVisible()
+  await page.waitForFunction(() => Number(document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')?.dataset.gatheringStrike) === 5)
+  await page.screenshot({ path: '/tmp/realmseed-auto-gather.png', fullPage: true })
+  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).toBe('idle')
+  await expect(page.locator('.chronicle-list')).toContainText('开采石料 +')
 })
 
 test('keeps the fishing panel open between casts and animates seeded water signals', async ({ page }) => {
