@@ -64,7 +64,8 @@ directly to GitHub Pages.
   palette reduction, and strict 32×32 atlas packing
 - original 16×16 source atlases as fallbacks for the Ember and Moonlit themes
 - three selectable art directions that can be switched without restarting the world
-- optional CC0 exploration and chiptune battle music with automatic encounter switching
+- optional CC0 exploration and battle music, plus an original procedural
+  shoreline score, water ambience, and catch-tier landing effects
 
 ## Architecture
 

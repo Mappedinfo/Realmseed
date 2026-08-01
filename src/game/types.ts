@@ -223,6 +223,8 @@ export interface FishingInfluence {
 export interface FishingResult {
   quality: 'failed' | 'success' | 'perfect'
   kind: 'empty' | 'wood' | 'fish' | 'gold' | 'equipment'
+  fishId?: FishId
+  amount?: number
   label: string
   tone: 'plain' | 'good' | 'danger'
 }

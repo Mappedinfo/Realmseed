@@ -126,6 +126,10 @@ test('keeps the fishing panel open between casts and animates seeded water signa
   await expect(cast).toBeVisible({ timeout: 10_000 })
   await cast.click()
   const fishing = page.getByLabel('钓鱼判定')
+  const audio = page.locator('.audio-button')
+  await expect(audio).toHaveAttribute('data-audio-mode', 'shore')
+  await audio.click()
+  await expect(audio).toContainText('水岸乐声：开')
   await expect(fishing).toContainText('第 1 杆')
   await expect(fishing).toContainText('弱钓讯')
   const firstFrame = await canvas.getAttribute('data-water-animation-frame')
@@ -134,6 +138,7 @@ test('keeps the fishing panel open between casts and animates seeded water signa
 
   await page.keyboard.press('Space')
   await expect(fishing).toContainText(/本杆落空|成功收竿|完美收竿/)
+  await expect(audio).not.toHaveAttribute('data-last-fishing-sound', 'none')
   await expect(fishing).toContainText('已钓 1/10')
   await page.reload()
   await expect(page.getByLabel('钓鱼判定')).toContainText('已钓 1/10')

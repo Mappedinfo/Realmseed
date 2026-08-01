@@ -38,6 +38,21 @@ function GameView({
   const [navigationPath, setNavigationPath] = useState<Position[]>([])
   const [navigationTarget, setNavigationTarget] = useState<Position | null>(null)
   const counts = useMemo(() => visibleCounts(state), [state])
+  const nearWater = useMemo(() => {
+    if (state.activeDungeon) return false
+    const height = state.world.height ?? state.world.size
+    for (let y = Math.max(0, state.player.y - 2); y <= Math.min(height - 1, state.player.y + 2); y += 1) {
+      for (let x = Math.max(0, state.player.x - 2); x <= Math.min(state.world.size - 1, state.player.x + 2); x += 1) {
+        if (Math.abs(x - state.player.x) + Math.abs(y - state.player.y) > 2) continue
+        if (state.world.tiles[y * state.world.size + x]?.terrain === 'water') return true
+      }
+    }
+    return false
+  }, [state.activeDungeon, state.player.x, state.player.y, state.world])
+  const fishingResult = state.fishing?.phase === 'result' ? state.fishing.result : undefined
+  const fishingResultKey = fishingResult && state.fishing
+    ? `${state.world.sceneX}:${state.world.sceneY}:${state.fishing.water.x}:${state.fishing.water.y}:${state.fishing.castNumber}:${state.turn}`
+    : undefined
   const activeAgent = state.agents.find((agent) => agent.id === activeAgentId)
   const activeAgentNearby = Boolean(activeAgent && isWithinInteractionRange(activeAgent, state.player))
   const nearest = state.agents
@@ -221,7 +236,12 @@ function GameView({
               <option value="duel">左右回合</option>
             </select>
           </label>
-          <AudioControl battleActive={Boolean(state.battle)} />
+          <AudioControl
+            battleActive={Boolean(state.battle)}
+            shoreActive={Boolean(state.fishing) || nearWater}
+            fishingResult={fishingResult}
+            fishingResultKey={fishingResultKey}
+          />
           <button onClick={onNewWorld}>新世界</button>
         </div>
       </header>

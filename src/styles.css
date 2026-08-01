@@ -306,6 +306,12 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .audio-button span { color: var(--gold); margin-right: 5px; }
 .audio-button.is-playing { border-color: var(--leaf); }
+.audio-button.is-shore {
+  border-color: #609a9b;
+  background: #203b3a;
+  box-shadow: 2px 2px 0 #091715, inset 0 -2px rgba(94, 158, 157, .12);
+}
+.audio-button.is-shore span { color: #9cd5c7; }
 .audio-button.is-battle {
   color: #ffe0b3;
   border-color: #cf754f;

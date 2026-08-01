@@ -35,3 +35,7 @@ normalization contract is documented in `art/generated/directional/README.md`.
 The game code and graphics do not copy data, replays, or graphics from
 `FromUnknown2Lover`. That project informed only the static-first deployment
 boundary and the preference for an expressive pixel map.
+
+The shoreline score, water ambience, and fishing catch effects are synthesized
+at runtime by `src/audio/fishingAudio.ts`. They are original project code and do
+not contain recorded or third-party audio samples.

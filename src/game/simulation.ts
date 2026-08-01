@@ -1133,7 +1133,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         player,
         equipment,
         fishingSpots: { ...state.fishingSpots, [key]: spot },
-        fishing: { ...state.fishing, phase: 'result', result: { quality, kind, label, tone } },
+        fishing: { ...state.fishing, phase: 'result', result: { quality, kind, fishId: kind === 'fish' ? loot.fishId : undefined, amount: loot.amount, label, tone } },
         chronicle: log(state, `${label}${uses >= FISHING_SPOT_CAPACITY ? ` 钓位将在第 ${spot.readyDay} 日恢复。` : ''}`, tone),
       }
     }
