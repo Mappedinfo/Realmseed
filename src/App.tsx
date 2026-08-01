@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
 import { BattlePanel } from './components/BattlePanel'
@@ -15,7 +15,7 @@ import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
 import { isWithinInteractionRange } from './game/geometry'
 import { findNavigationPath, navigationGoals, navigationStopsAdjacent } from './game/navigation'
-import { BrowserSaveStore, clearSavedGame, createSaveEnvelope, LEGACY_SAVE_KEY, readSavedGame, writeSavedGame, type SavedGame } from './game/persistence'
+import { BrowserSaveStore, clearSavedGame, createSaveEnvelope, writeSavedGame, type SaveProblem, type SavedGame } from './game/persistence'
 import { gameReducer, visibleCounts } from './game/simulation'
 import type { BattleMode, GameAction, GameState, MapSize, Position } from './game/types'
 import { createGame } from './game/world'
@@ -41,6 +41,9 @@ function GameView({
   const [navigationPath, setNavigationPath] = useState<Position[]>([])
   const [navigationTarget, setNavigationTarget] = useState<Position | null>(null)
   const saveStore = useMemo(() => new BrowserSaveStore(window.localStorage), [])
+  const [saveStatus, setSaveStatus] = useState('IndexedDB 自动存档准备就绪')
+  const latestSaveRef = useRef({ state, theme })
+  latestSaveRef.current = { state, theme }
   const counts = useMemo(() => visibleCounts(state), [state])
   const nearWater = useMemo(() => {
     if (state.activeDungeon) return false
@@ -174,21 +177,24 @@ function GameView({
   useEffect(() => {
     if (state.activeDungeon) {
       writeSavedGame(window.localStorage, state, theme)
-      void saveStore.save(createSaveEnvelope(state, theme))
+      void saveStore.save(createSaveEnvelope(state, theme)).then((result) => setSaveStatus(result.degraded ? 'IndexedDB 不可用，已降级为 localStorage' : 'IndexedDB 自动存档正常')).catch(() => setSaveStatus('自动保存失败，请立即导出存档'))
       return
     }
     const timer = window.setTimeout(() => {
       writeSavedGame(window.localStorage, state, theme)
-      void saveStore.save(createSaveEnvelope(state, theme))
+      void saveStore.save(createSaveEnvelope(state, theme)).then((result) => setSaveStatus(result.degraded ? 'IndexedDB 不可用，已降级为 localStorage' : `已保存 · ${new Date().toLocaleTimeString()}`)).catch(() => setSaveStatus('自动保存失败，请立即导出存档'))
     }, 200)
     return () => window.clearTimeout(timer)
   }, [saveStore, state, theme])
 
   useEffect(() => {
-    const persist = () => writeSavedGame(window.localStorage, state, theme)
+    const persist = () => {
+      const latest = latestSaveRef.current
+      writeSavedGame(window.localStorage, latest.state, latest.theme)
+    }
     window.addEventListener('pagehide', persist)
     return () => window.removeEventListener('pagehide', persist)
-  }, [state, theme])
+  }, [])
 
   useEffect(() => {
     if (state.battle) {
@@ -244,7 +250,7 @@ function GameView({
               <option value="duel">左右回合</option>
             </select>
           </label>
-          <SaveManager state={state} theme={theme} onImport={onImport} />
+          <SaveManager state={state} theme={theme} onImport={onImport} saveStatus={saveStatus} />
           <AudioControl
             battleActive={Boolean(state.battle)}
             shoreActive={Boolean(state.fishing) || nearWater}
@@ -403,20 +409,19 @@ function GameView({
 }
 
 export function App() {
-  const [restored] = useState(() => readSavedGame(window.localStorage))
-  const [initialState, setInitialState] = useState<GameState | null>(restored?.state ?? null)
-  const [theme, setTheme] = useState<ArtTheme>(restored?.theme ?? 'verdant')
+  const [initialState, setInitialState] = useState<GameState | null>(null)
+  const [theme, setTheme] = useState<ArtTheme>('verdant')
   const [session, setSession] = useState(0)
-  const importSave = (save: SavedGame) => { setTheme(save.theme); setInitialState(save.state); setSession((value) => value + 1) }
+  const [booting, setBooting] = useState(true)
+  const [saveProblem, setSaveProblem] = useState<SaveProblem | undefined>()
+  const importSave = (save: SavedGame) => { setSaveProblem(undefined); setTheme(save.theme); setInitialState(save.state); setSession((value) => value + 1) }
   useEffect(() => {
-    if (restored) return
-    void new BrowserSaveStore(window.localStorage).load().then((saved) => { if (saved) importSave(saved) })
-  }, [restored])
-  useEffect(() => {
-    if (!restored) return
     const store = new BrowserSaveStore(window.localStorage)
-    if (window.localStorage.getItem(LEGACY_SAVE_KEY)) void store.backup(restored, 'migration').then(() => store.save(restored))
-  }, [restored])
+    void store.loadDetailed().then((result) => {
+      if (result.save) importSave(result.save)
+      if (result.problem) setSaveProblem(result.problem)
+    }).finally(() => setBooting(false))
+  }, [])
   const start = (seed: string, size: MapSize, selectedTheme: ArtTheme) => {
     clearSavedGame(window.localStorage)
     void new BrowserSaveStore(window.localStorage).clearActive()
@@ -427,6 +432,7 @@ export function App() {
     next.redNameMode = window.localStorage.getItem('realmseed-red-name-mode') === 'true'
     setInitialState(next)
   }
+  if (booting) return <main className="save-bootstrap"><span>◆</span><b>正在核验远征档案…</b><small>检查 IndexedDB、备份与版本迁移</small></main>
   return initialState
     ? (
         <GameView
@@ -442,5 +448,9 @@ export function App() {
           onImport={importSave}
         />
       )
-    : <StartScreen onStart={start} onImport={importSave} />
+    : <StartScreen onStart={start} onImport={importSave} saveProblem={saveProblem} onDiscardProblem={() => {
+        clearSavedGame(window.localStorage)
+        void new BrowserSaveStore(window.localStorage).clearActive()
+        setSaveProblem(undefined)
+      }} />
 }

@@ -2,15 +2,17 @@ import { useState, type CSSProperties } from 'react'
 import { artThemes, atlasPreviewUrl, generatedSceneUrl, type ArtTheme } from '../game/art'
 import { randomSeed } from '../game/rng'
 import type { MapSize } from '../game/types'
-import type { SavedGame } from '../game/persistence'
+import type { SaveProblem, SavedGame } from '../game/persistence'
 import { SaveManager } from './SaveManager'
 
 interface StartScreenProps {
   onStart: (seed: string, size: MapSize, theme: ArtTheme) => void
   onImport: (save: SavedGame) => void
+  saveProblem?: SaveProblem
+  onDiscardProblem: () => void
 }
 
-export function StartScreen({ onStart, onImport }: StartScreenProps) {
+export function StartScreen({ onStart, onImport, saveProblem, onDiscardProblem }: StartScreenProps) {
   const [seed, setSeed] = useState(randomSeed)
   const [size, setSize] = useState<MapSize>('large')
   const [theme, setTheme] = useState<ArtTheme>('verdant')
@@ -80,10 +82,10 @@ export function StartScreen({ onStart, onImport }: StartScreenProps) {
             ))}
           </fieldset>
 
-          <button type="button" className="primary-button" onClick={() => onStart(seed.trim() || randomSeed(), size, theme)}>
+          <button type="button" className="primary-button" disabled={Boolean(saveProblem)} onClick={() => onStart(seed.trim() || randomSeed(), size, theme)}>
             展开这个世界 <span>→</span>
           </button>
-          <SaveManager onImport={onImport} />
+          <SaveManager onImport={onImport} problem={saveProblem} onDiscardProblem={onDiscardProblem} />
         </div>
         <p className="title-note">同一总种子 + 场景坐标生成同一区域 · 无账号 · 无服务器 · 本地运行</p>
       </section>

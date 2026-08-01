@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { clearSavedGame, createSaveEnvelope, exportSaveText, GAME_SAVE_KEY, parseSaveText, readSavedGame, writeSavedGame, type StorageLike } from './persistence'
+import { describe, expect, it, vi } from 'vitest'
+import { BrowserSaveStore, clearSavedGame, createSaveEnvelope, exportSaveText, GAME_SAVE_KEY, parseSaveText, parseSaveTextDetailed, readSavedGame, writeSavedGame, type StorageLike } from './persistence'
 import { gameReducer } from './simulation'
 import { createGame, isPassable } from './world'
 import type { GameState } from './types'
@@ -65,5 +65,41 @@ describe('local game persistence', () => {
     const restored = readSavedGame(storage)?.state
     expect(restored?.fishingSpots).toEqual({})
     expect(restored?.fishing).toMatchObject({ phase: 'timing', castNumber: 1, fatigueCost: 10 })
+  })
+
+  it('reports a deterministic migration path and validates critical world invariants', () => {
+    const legacy = createGame('migration-path', 'small')
+    const parsed = parseSaveTextDetailed(JSON.stringify({ version: 1, savedAt: 5, theme: 'verdant', state: legacy }))
+    expect(parsed.migrationPath).toEqual(['V1 → V2'])
+    expect(parseSaveTextDetailed(JSON.stringify(parsed.save)).migrationPath).toEqual([])
+    legacy.player.x = -1
+    expect(() => parseSaveTextDetailed(JSON.stringify({ version: 1, savedAt: 5, theme: 'verdant', state: legacy }))).toThrow(/结构不完整/)
+  })
+
+  it('keeps a corrupt active save untouched and exposes diagnostics', async () => {
+    const storage = memoryStorage()
+    storage.value[GAME_SAVE_KEY] = '{broken'
+    const result = await new BrowserSaveStore(storage).loadDetailed()
+    expect(result.save).toBeNull()
+    expect(result.problem).toMatchObject({ code: 'json', raw: '{broken', source: 'localStorage' })
+    expect(storage.value[GAME_SAVE_KEY]).toBe('{broken')
+  })
+
+  it('uses atomic local fallback and retains only the three latest backups', async () => {
+    const storage = memoryStorage()
+    const store = new BrowserSaveStore(storage)
+    const now = vi.spyOn(Date, 'now')
+    let state = createGame('backup-chain', 'small')
+    for (let index = 0; index < 4; index += 1) {
+      now.mockReturnValue(100 + index)
+      const current = createSaveEnvelope(state, 'verdant', 100 + index)
+      state = { ...state, day: state.day + 1 }
+      await store.atomicReplace(createSaveEnvelope(state, 'verdant', 200 + index), current, 'import')
+    }
+    now.mockRestore()
+    const backups = await store.backups()
+    expect(backups).toHaveLength(3)
+    expect(backups.map((backup) => backup.createdAt)).toEqual([103, 102, 101])
+    expect(readSavedGame(storage)?.state.day).toBe(5)
   })
 })
