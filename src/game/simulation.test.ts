@@ -84,7 +84,8 @@ describe('game simulation', () => {
     state.monsters = [{ id: 'training-slime', species: 'slime', hp: 1, x: 21, y: 20 }]
     const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
     expect(engaged.fatigue).toBe(1.5)
-    expect(engaged.battle?.monsterId).toBe('training-slime')
+    expect(engaged.battle?.targetId).toBe('training-slime')
+    expect(engaged.battle?.targetKind).toBe('monster')
     expect(engaged.player.x).toBe(20)
 
     const victory = gameReducer(engaged, { type: 'COMBAT_ACTION', moveId: 'quick-strike' })
@@ -105,8 +106,7 @@ describe('game simulation', () => {
 
   it('keeps a persistent default combat mode and permits a temporary encounter override', () => {
     const state = flatState('combat-mode-check')
-    const unlocked = gameReducer(state, { type: 'SET_FIELD_COMBAT_ALWAYS_ON', enabled: false })
-    const preferred = gameReducer(unlocked, { type: 'SET_COMBAT_PREFERENCE', mode: 'duel' })
+    const preferred = gameReducer(state, { type: 'SET_COMBAT_PREFERENCE', mode: 'duel' })
     preferred.monsters = [{ id: 'mode-slime', species: 'slime', hp: 8, x: 21, y: 20 }]
     const engaged = gameReducer(preferred, { type: 'MOVE', direction: 'right' })
     expect(engaged.combatPreference).toBe('duel')
@@ -117,14 +117,103 @@ describe('game simulation', () => {
     expect(overridden.battle?.mode).toBe('field')
   })
 
-  it('keeps field combat locked when the persistent always-on switch is enabled', () => {
-    const state = flatState('field-lock-check')
-    state.monsters = [{ id: 'locked-slime', species: 'slime', hp: 8, x: 21, y: 20 }]
-    const engaged = gameReducer(state, { type: 'MOVE', direction: 'right' })
-    expect(engaged.fieldCombatAlwaysOn).toBe(true)
-    expect(engaged.battle?.mode).toBe('field')
-    const rejected = gameReducer(engaged, { type: 'SET_BATTLE_MODE', mode: 'duel' })
-    expect(rejected.battle?.mode).toBe('field')
+  it('uses red-name mode to select a blocking monster without opening battle', () => {
+    let state = flatState('red-name-map-check')
+    state = gameReducer(state, { type: 'SET_RED_NAME_MODE', enabled: true })
+    state.monsters = [{ id: 'map-slime', species: 'slime', hp: 20, x: 21, y: 20 }]
+    const selected = gameReducer(state, { type: 'MOVE', direction: 'right' })
+    expect(selected.redNameMode).toBe(true)
+    expect(selected.battle).toBeNull()
+    expect(selected.selected).toEqual({ x: 21, y: 20 })
+    let probe = 0
+    while (!resolveCombatRoll(selected.gameId, 'map-slime', 1, combatMove('quick-strike')).hit) {
+      selected.gameId = `red-map-hit-${probe++}`
+    }
+    const attacked = gameReducer(selected, { type: 'RED_NAME_ATTACK', position: { x: 21, y: 20 }, moveId: 'quick-strike' })
+    expect(attacked.battle).toBeNull()
+    expect(attacked.monsters[0].hp).toBeLessThan(20)
+    expect(attacked.lastMapAttack?.targetName).toBe('苔泥团')
+  })
+
+  it('enforces map-attack range and protects the player faction', () => {
+    const state = flatState('red-range-and-faction-check')
+    state.redNameMode = true
+    state.player.factionId = 'moss'
+    state.agents = [{ ...state.agents[0], id: 'allied-scout', factionId: 'moss', x: 21, y: 20, stamina: 20, maxStamina: 20 }]
+    const allied = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 21, y: 20 }, moveId: 'quick-strike' })
+    expect(allied.agents[0].stamina).toBe(20)
+    expect(allied.chronicle[0].text).toContain('同阵营')
+
+    state.player.factionId = 'free'
+    state.agents[0].x = 27
+    const distant = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 27, y: 20 }, moveId: 'arrow-shot' })
+    expect(distant.agents[0].stamina).toBe(20)
+    expect(distant.chronicle[0].text).toContain('射程 1–5 格')
+  })
+
+  it('makes NPC witnesses hostile and inclined to flee after a map attack', () => {
+    let state = flatState('red-witness-check')
+    state.redNameMode = true
+    state.monsters = [{ id: 'witness-target', species: 'slime', hp: 30, x: 21, y: 20 }]
+    state.agents = [
+      { ...state.agents[0], id: 'near-witness', x: 22, y: 20, hostility: 0, fear: 0 },
+      { ...state.agents[1], id: 'far-witness', x: 35, y: 35, hostility: 0, fear: 0 },
+    ]
+    let probe = 0
+    while (!resolveCombatRoll(state.gameId, 'witness-target', 1, combatMove('quick-strike')).hit) state.gameId = `witness-hit-${probe++}`
+    const beforeDistance = Math.abs(state.agents[0].x - state.player.x) + Math.abs(state.agents[0].y - state.player.y)
+    const attacked = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 21, y: 20 }, moveId: 'quick-strike' })
+    const witness = attacked.agents.find((agent) => agent.id === 'near-witness')!
+    expect(witness.hostility).toBeGreaterThan(0)
+    expect(witness.fear).toBeGreaterThan(0)
+    expect(Math.abs(witness.x - attacked.player.x) + Math.abs(witness.y - attacked.player.y)).toBeGreaterThanOrEqual(beforeDistance)
+    expect(attacked.agents.find((agent) => agent.id === 'far-witness')?.hostility).toBe(0)
+  })
+
+  it('turns witnessed dialogue hostile instead of increasing affection', () => {
+    const state = flatState('hostile-talk-check')
+    state.agents = [{ ...state.agents[0], id: 'hostile-neighbor', x: 21, y: 20, affection: 2, hostility: 3, fear: 0, skillLevel: 1 }]
+    const next = gameReducer(state, { type: 'TALK', agentId: 'hostile-neighbor' })
+    expect(next.agents[0].affection).toBe(1)
+    expect(next.chronicle[0].text).toContain('红名者')
+  })
+
+  it('can hurt but not kill an NPC sharing the player tile without opening battle', () => {
+    const state = flatState('red-overlap-agent-check')
+    state.redNameMode = true
+    state.agents = [{ ...state.agents[0], id: 'overlap-agent', x: 20, y: 20, stamina: 2, maxStamina: 7, skillLevel: 1 }]
+    let probe = 0
+    while (!resolveCombatRoll(state.gameId, 'overlap-agent', 1, combatMove('quick-strike')).hit) state.gameId = `overlap-hit-${probe++}`
+    const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 20, y: 20 }, moveId: 'quick-strike' })
+    expect(next.battle).toBeNull()
+    expect(next.agents[0].stamina).toBe(1)
+    expect(next.agents[0].hostility).toBe(3)
+  })
+
+  it('allows an attacked elite NPC to start a real battle at a low deterministic chance', () => {
+    const state = flatState('elite-retaliation-check')
+    state.redNameMode = true
+    state.monsters = []
+    state.agents = [{ ...state.agents[0], id: 'elite-guard', x: 21, y: 20, stamina: 50, maxStamina: 50, skill: 'duelist', skillLevel: 3, fear: 0 }]
+    let probe = 0
+    while (hashString(`${state.gameId}:red-retaliation:1:elite-guard`) % 100 >= 24) state.gameId = `elite-retaliation-${probe++}`
+    const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 21, y: 20 }, moveId: 'quick-strike' })
+    expect(next.battle).toMatchObject({ targetId: 'elite-guard', targetKind: 'agent' })
+    expect(next.agents[0].hostility).toBe(5)
+  })
+
+  it('damages and can destroy a neutral structure directly on the map', () => {
+    const state = flatState('red-structure-check')
+    state.redNameMode = true
+    const position = { x: 21, y: 20 }
+    const index = position.y * state.world.size + position.x
+    state.world.tiles[index] = { terrain: 'meadow', coin: 0, food: 0, structure: 'village', structureHp: 2, structureMaxHp: 18 }
+    let probe = 0
+    while (!resolveCombatRoll(state.gameId, 'structure-21-20', 1, combatMove('heavy-cleave')).hit) state.gameId = `structure-hit-${probe++}`
+    const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position, moveId: 'heavy-cleave' })
+    expect(next.battle).toBeNull()
+    expect(next.world.tiles[index].structure).toBeUndefined()
+    expect(next.chronicle[0].text).toContain('摧毁 1 座设施')
   })
 
   it('enforces melee and ranged attack bands from the target distance', () => {
@@ -201,7 +290,7 @@ describe('game simulation', () => {
       state = gameReducer(state, { type: 'REST' })
       if ((state.monsters[0]?.alert ?? 0) > 0 || state.battle) break
     }
-    expect((state.monsters[0]?.alert ?? 0) > 0 || state.battle?.monsterId === 'watcher').toBe(true)
+    expect((state.monsters[0]?.alert ?? 0) > 0 || state.battle?.targetId === 'watcher').toBe(true)
   })
 
   it('toggles equipment bonuses without changing the character sprite contract', () => {

@@ -87,9 +87,13 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
         { label: '野果', value: agent.berries },
         { label: '专长', value: `${skill.title} Lv.${agent.skillLevel}` },
         { label: '挑战', value: agent.challengeWon ? '已通过' : '未通过' },
+        { label: '态度', value: (agent.hostility ?? 0) > 0 ? `敌意 ${agent.hostility}/5` : '中立' },
+        { label: '反应', value: (agent.fear ?? 0) > 0 ? '警觉逃离' : '正常' },
       ],
-      hint: nearby ? '位于交谈距离内，可点击气泡对话或交易。' : '靠近到周围 1 格后可以交谈。',
-      tone: nearby ? 'good' : 'neutral',
+      hint: (agent.hostility ?? 0) > 0
+        ? '对方目击过红名攻击；交涉带有敌意，精英可能直接发起对战。'
+        : nearby ? '位于交谈距离内，可点击气泡对话或交易。' : '靠近到周围 1 格后可以交谈。',
+      tone: (agent.hostility ?? 0) > 0 ? 'danger' : nearby ? 'good' : 'neutral',
     }
   }
 
@@ -127,6 +131,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
           { label: '效果', value: definition.summary },
           { label: '成本', value: `${definition.cost} 金 / 1 格` },
           { label: '坐标', value: `${position.x}, ${position.y}` },
+          { label: '耐久', value: `${tile.structureHp ?? tile.structureMaxHp ?? 14}/${tile.structureMaxHp ?? 14}` },
         ],
         hint:
           kind === 'farm' ? '每 20 个行动日首次踏入可收获 1 枚野果。'
@@ -180,6 +185,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
           ? [{ label: '探索状态', value: ruinResolved ? '事件已结算' : '尚未踏入' }]
           : []),
         { label: '坐标', value: `${position.x}, ${position.y}` },
+        { label: '耐久', value: `${tile.structureHp ?? tile.structureMaxHp ?? (structure === 'village' ? 18 : structure === 'waystone' ? 20 : 12)}/${tile.structureMaxHp ?? (structure === 'village' ? 18 : structure === 'waystone' ? 20 : 12)}` },
       ],
       hint:
         structure === 'waystone' ? '使用右侧古道控制前往相邻场景。'

@@ -123,7 +123,8 @@ Future art packs may replace the procedural primitives, but must preserve the
 | Traveler skills | six seeded specialties, level/difficulty, one-time deterministic challenge, permanent mastery marks | challenge stories and training |
 | Followers | hidden roster; specialty aggregation into vision, forage, guard, recovery, trade, and damage | selectable jobs and field actions |
 | Camps | housing, population, food, defense, economy, morale, six functional buildings, daily output, radius, roads, auto-path | production queues and sieges |
-| Combat | field/duel presentation, six categorized moves, numeric equipment | status effects and tactical positioning |
+| Red-name combat | player-centered 1–6 cell reach, direct people/structure/monster damage, witness fear and hostility | crimes, warrants, faction guards |
+| Encounters | tactical-bar/duel presentation for monsters and rare elite retaliation | status effects and tactical positioning |
 | Factions | reputation, fealty, oath breaking, vassalage | diplomacy, war, borders |
 | Monsters | three seeded species, simple HP, victory raises max stamina to a cap of 30 | behaviors, drops, bosses |
 | Fog | visible / explored / unseen per scene | line of sight and watchtowers |

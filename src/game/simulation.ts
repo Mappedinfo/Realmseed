@@ -1,4 +1,4 @@
-import type { Agent, Camp, ChronicleEntry, Direction, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
+import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, equipmentDefense, equipmentPower, relicEquipment, resolveCombatRoll } from './combat'
 import {
@@ -15,6 +15,7 @@ import { isWithinInteractionRange } from './geometry'
 import { agentSkillIds, agentSkills, challengeChance, partyBonuses } from './skills'
 import { advanceCalendarDays, createFoundingResidents } from './settlements'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
+import { redNameDistance, redNameTargetAt, structureMaxHp } from './redName'
 
 export const STEPS_PER_STAMINA = 100
 export const COMBAT_STEP_MULTIPLIER = 1.5
@@ -114,7 +115,7 @@ function monsterName(species: GameState['monsters'][number]['species']): string 
   return species === 'slime' ? '苔泥团' : species === 'boar' ? '棘背兽' : '迷雾精'
 }
 
-function beginBattle(
+function beginMonsterBattle(
   state: GameState,
   monster: GameState['monsters'][number],
   message: string,
@@ -122,15 +123,34 @@ function beginBattle(
   return {
     ...state,
     battle: {
-      monsterId: monster.id,
-      mode: state.fieldCombatAlwaysOn ? 'field' : state.combatPreference,
+      targetId: monster.id,
+      targetKind: 'monster',
+      mode: state.combatPreference,
       round: 1,
-      monsterMaxHp: monster.hp,
+      targetMaxHp: monster.hp,
     },
     player: { ...state.player, facing: facingToward(state.player, monster) },
     monsters: state.monsters.map((item) =>
       item.id === monster.id ? { ...item, alert: 3, facing: facingToward(item, state.player) } : item,
     ),
+    chronicle: log(state, message, 'danger'),
+  }
+}
+
+function beginAgentBattle(state: GameState, agent: Agent, message: string): GameState {
+  return {
+    ...state,
+    battle: {
+      targetId: agent.id,
+      targetKind: 'agent',
+      mode: state.combatPreference,
+      round: 1,
+      targetMaxHp: agent.maxStamina,
+    },
+    player: { ...state.player, facing: facingToward(state.player, agent) },
+    agents: state.agents.map((item) => item.id === agent.id
+      ? { ...item, hostility: Math.max(3, item.hostility ?? 0), fear: 0, facing: facingToward(item, state.player) }
+      : item),
     chronicle: log(state, message, 'danger'),
   }
 }
@@ -172,7 +192,7 @@ function resolveRuinEvent(state: GameState, position: Position): GameState {
       monsters: [...state.monsters, monster],
       facilityEvent: facilityNotice(state, kind, `${definition.description} ${monsterName(species)}挡住了出口。`),
     }
-    return beginBattle(prepared, monster, `探索遗迹时惊醒了${monsterName(species)}！`)
+    return beginMonsterBattle(prepared, monster, `探索遗迹时惊醒了${monsterName(species)}！`)
   }
 
   if (kind === 'coins') {
@@ -332,6 +352,22 @@ function followerStep(state: GameState, agent: Agent): Agent {
   return step ? { ...agent, ...step, facing: facingToward(agent, step) } : agent
 }
 
+function frightenedAgentStep(state: GameState, agent: Agent): Agent {
+  const occupied = new Set([
+    ...state.agents.filter((item) => item.id !== agent.id).map((item) => `${item.x},${item.y}`),
+    ...state.monsters.map((monster) => `${monster.x},${monster.y}`),
+    `${state.player.x},${state.player.y}`,
+  ])
+  const candidates = (Object.entries(directionDelta) as [Direction, Position][])
+    .map(([direction, delta]) => ({ direction, x: agent.x + delta.x, y: agent.y + delta.y }))
+    .filter((position) => isPassable(state.world, position.x, position.y) && !occupied.has(`${position.x},${position.y}`))
+    .sort((a, b) => distance(b, state.player) - distance(a, state.player) || a.direction.localeCompare(b.direction))
+  const step = candidates[0]
+  return step
+    ? { ...agent, x: step.x, y: step.y, facing: step.direction, fear: Math.max(0, (agent.fear ?? 0) - 1) }
+    : { ...agent, fear: Math.max(0, (agent.fear ?? 0) - 1), facing: facingToward(agent, state.player) }
+}
+
 function monsterChaseStep(state: GameState, monster: GameState['monsters'][number]): Position | undefined {
   const dx = state.player.x - monster.x
   const dy = state.player.y - monster.y
@@ -386,6 +422,7 @@ function advanceMonsters(state: GameState): GameState['monsters'] {
 function advanceAi(state: GameState): Pick<GameState, 'agents' | 'monsters' | 'turn'> {
   const agents = state.agents.map((agent, index) => {
     if (agent.role === 'follower') return followerStep(state, agent)
+    if ((agent.fear ?? 0) > 0) return frightenedAgentStep(state, agent)
     if (agent.role !== 'wanderer') return agent
     const cycle = (state.turn + index * 3) % 4
     const direction = (['up', 'right', 'down', 'left'] as const)[cycle]
@@ -411,9 +448,21 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
     const ambushChance = Math.max(8, MONSTER_AMBUSH_PERCENT - localDefense * 4)
     return hashString(`${revealed.gameId}:ambush:${revealed.turn}:${monster.id}`) % 100 < ambushChance
   })
-  return attacker
-    ? beginBattle(revealed, attacker, `${monsterName(attacker.species)}逼近并发起攻击！`)
-    : revealed
+  if (!attacker) return revealed
+  if (revealed.redNameMode) {
+    const hit = hashString(`${revealed.gameId}:red-map-ambush:${revealed.turn}:${attacker.id}`) % 2
+    return {
+      ...revealed,
+      player: { ...revealed.player, stamina: Math.max(0, revealed.player.stamina - hit), facing: facingToward(revealed.player, attacker) },
+      monsters: revealed.monsters.map((monster) => monster.id === attacker.id
+        ? { ...monster, alert: 3, facing: facingToward(monster, revealed.player) }
+        : monster),
+      chronicle: log(revealed, hit
+        ? `${monsterName(attacker.species)}从地图上扑来，造成 1 点体力损失。`
+        : `${monsterName(attacker.species)}从地图上扑来，但攻击落空。`, hit ? 'danger' : 'plain'),
+    }
+  }
+  return beginMonsterBattle(revealed, attacker, `${monsterName(attacker.species)}逼近并发起攻击！`)
 }
 
 function advanceMovementClock(state: GameState): GameState {
@@ -467,8 +516,17 @@ function move(state: GameState, direction: Direction): GameState {
 
   const monster = state.monsters.find((item) => item.x === x && item.y === y)
   if (monster) {
+    if (state.redNameMode) {
+      return {
+        ...state,
+        player: { ...state.player, facing: direction },
+        selected: { x, y },
+        monsters: state.monsters.map((item) => item.id === monster.id ? { ...item, alert: 3, facing: facingToward(item, state.player) } : item),
+        chronicle: log(state, `${monsterName(monster.species)}挡住了格子；在红名准星中选择招式即可直接攻击。`, 'danger'),
+      }
+    }
     const exertion = addFatigue(state, state.player.stamina, COMBAT_STEP_MULTIPLIER)
-    return beginBattle(
+    return beginMonsterBattle(
       {
         ...state,
         player: { ...state.player, stamina: exertion.stamina, facing: direction },
@@ -536,6 +594,146 @@ function move(state: GameState, direction: Direction): GameState {
   return earnedCredits > 0
     ? { ...next, chronicle: log(next, '队伍完成 100 步建设勘察，获得 1 格营地建筑额度。', 'good') }
     : next
+}
+
+function redNameAttack(state: GameState, position: Position, moveId: CombatMoveId): GameState {
+  if (!state.redNameMode) return { ...state, chronicle: log(state, '先开启右上角的红名模式。', 'danger') }
+  if (state.battle) return { ...state, chronicle: log(state, '对战中无法使用地图红名攻击。', 'danger') }
+  const target = redNameTargetAt(state, position)
+  if (!target) return { ...state, chronicle: log(state, '准星位置没有可以攻击的目标。') }
+  if (!target.attackable) return { ...state, chronicle: log(state, target.reason ?? '这个目标不能攻击。') }
+  const move = combatMove(moveId)
+  const targetDistance = redNameDistance(state, position)
+  if (targetDistance < move.minRange || targetDistance > move.maxRange) {
+    return { ...state, chronicle: log(state, `${move.name}射程 ${move.minRange}–${move.maxRange} 格，目标距离 ${targetDistance} 格。`, 'danger') }
+  }
+  if (state.player.stamina < move.staminaCost) {
+    return { ...state, chronicle: log(state, `${move.name}需要 ${move.staminaCost} 点体力。`, 'danger') }
+  }
+
+  const sequence = state.attackSequence + 1
+  const roll = resolveCombatRoll(state.gameId, target.id, sequence, move)
+  const bonuses = partyBonuses(state.agents)
+  const localCamp = campAt(state, state.player)
+  const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
+  const baseDamage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
+  const damage = Math.floor(baseDamage * roll.multiplier)
+  const splashDamage = roll.hit && move.target === 'area' ? Math.max(1, Math.floor(damage * move.splashRatio)) : 0
+  const damageFor = (kind: 'agent' | 'monster' | 'structure', id: string, targetPosition: Position) => {
+    if (kind === target.kind && id === target.id) return damage
+    return splashDamage > 0 && distance(targetPosition, position) <= move.blastRadius ? splashDamage : 0
+  }
+
+  const affectedAgentIds = new Set<string>()
+  let agents = state.agents.map((agent) => {
+    if (agent.role === 'follower') return agent
+    const dealt = damageFor('agent', agent.id, agent)
+    const witnessed = distance(agent, position) <= 4 || distance(agent, state.player) <= 4
+    if (dealt <= 0 && !witnessed) return agent
+    if (dealt > 0) affectedAgentIds.add(agent.id)
+    return {
+      ...agent,
+      stamina: dealt > 0 ? Math.max(1, agent.stamina - dealt) : agent.stamina,
+      hostility: Math.min(5, Math.max(agent.hostility ?? 0, dealt > 0 ? 3 : 1)),
+      fear: Math.max(agent.fear ?? 0, dealt > 0 ? 3 : 2),
+      facing: facingToward(agent, state.player),
+    }
+  })
+
+  const affectedMonsterIds = new Set<string>()
+  let monsters = state.monsters.map((monster) => {
+    const dealt = damageFor('monster', monster.id, monster)
+    if (dealt <= 0) return monster
+    affectedMonsterIds.add(monster.id)
+    return { ...monster, hp: Math.max(0, monster.hp - dealt), alert: 3, facing: facingToward(monster, state.player) }
+  })
+  const defeatedMonsters = monsters.filter((monster) => monster.hp <= 0).length
+  monsters = monsters.filter((monster) => monster.hp > 0)
+
+  let destroyedStructures = 0
+  const tiles = state.world.tiles.map((tile, index) => {
+    if (!tile.structure) return tile
+    const tilePosition = { x: index % state.world.size, y: Math.floor(index / state.world.size) }
+    const tileTarget = redNameTargetAt(state, tilePosition)
+    if (!tileTarget || !tileTarget.attackable) return tile
+    const dealt = damageFor('structure', tileTarget.id, tilePosition)
+    if (dealt <= 0) return tile
+    const maxHp = tile.structureMaxHp ?? structureMaxHp(tile)
+    const structureHp = Math.max(0, (tile.structureHp ?? maxHp) - dealt)
+    if (structureHp > 0) return { ...tile, structureHp, structureMaxHp: maxHp }
+    destroyedStructures += 1
+    const cleared = { ...tile }
+    delete cleared.structure
+    delete cleared.structureHp
+    delete cleared.structureMaxHp
+    delete cleared.buildingKind
+    delete cleared.eventResolved
+    delete cleared.campId
+    return cleared
+  })
+
+  const exertion = addFatigue(
+    state,
+    state.player.stamina - move.staminaCost,
+    COMBAT_STEP_MULTIPLIER * (move.size === 'large' ? 2 : 1),
+  )
+  const targetAgent = target.kind === 'agent' ? agents.find((agent) => agent.id === target.id) : undefined
+  const relationPenaltyIds = new Set(
+    agents.filter((agent) => affectedAgentIds.has(agent.id) || ((agent.hostility ?? 0) > (state.agents.find((old) => old.id === agent.id)?.hostility ?? 0)))
+      .map((agent) => agent.factionId),
+  )
+  const factions = state.factions.map((faction) => relationPenaltyIds.has(faction.id)
+    ? { ...faction, relation: Math.max(-100, faction.relation - (targetAgent?.factionId === faction.id ? 12 : 3)) }
+    : faction)
+  const hitSummary = roll.hit
+    ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害`
+    : '没有命中'
+  const collateral = Math.max(0, affectedAgentIds.size + affectedMonsterIds.size - 1) + destroyedStructures
+  let patched: GameState = {
+    ...state,
+    world: { ...state.world, tiles },
+    agents,
+    monsters,
+    factions,
+    player: {
+      ...state.player,
+      stamina: exertion.stamina,
+      facing: facingToward(state.player, position),
+      gold: state.player.gold + defeatedMonsters * 2,
+      maxStamina: Math.min(MAX_STAMINA_CAP, state.player.maxStamina + defeatedMonsters),
+    },
+    fatigue: exertion.fatigue,
+    combatWins: state.combatWins + defeatedMonsters,
+    attackSequence: sequence,
+    lastMapAttack: { sequence, targetName: target.name, moveId, hit: roll.hit, critical: roll.critical, damage },
+    selected: position,
+    chronicle: log(
+      state,
+      `红名攻击：${move.name}对${target.name}${hitSummary}${collateral ? `，并波及 ${collateral} 个目标` : ''}${destroyedStructures ? `，摧毁 ${destroyedStructures} 座设施` : ''}。附近 NPC 已经警觉。`,
+      roll.hit ? 'danger' : 'plain',
+    ),
+  }
+
+  const retaliationCandidates = agents.filter((agent) =>
+    agent.stamina > 0 && agent.skillLevel >= 2 &&
+    (agent.id === target.id || (agent.hostility ?? 0) >= 1 && distance(agent, position) <= 2),
+  )
+  const retaliator = retaliationCandidates.find((agent) => {
+    const chance = agent.id === target.id
+      ? 4 + agent.skillLevel * 4 + (agent.skill === 'duelist' || agent.skill === 'guard' ? 8 : 0)
+      : 4 + (agent.skillLevel === 3 ? 4 : 0)
+    return hashString(`${state.gameId}:red-retaliation:${sequence}:${agent.id}`) % 100 < chance
+  })
+  if (retaliator) {
+    agents = agents.map((agent) => agent.id === retaliator.id ? { ...agent, fear: 0, hostility: 5 } : agent)
+    patched = { ...patched, agents }
+    return beginAgentBattle(
+      { ...patched, turn: patched.turn + 1, fog: revealFog(patched) },
+      agents.find((agent) => agent.id === retaliator.id)!,
+      `${retaliator.name}压住恐惧，直接向红名者发起对战！`,
+    )
+  }
+  return finishTurn(patched, {})
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -615,21 +813,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     case 'SET_COMBAT_PREFERENCE':
-      return state.fieldCombatAlwaysOn && action.mode === 'duel'
-        ? state
-        : { ...state, combatPreference: action.mode }
-    case 'SET_FIELD_COMBAT_ALWAYS_ON':
+      return { ...state, combatPreference: action.mode }
+    case 'SET_RED_NAME_MODE':
       return {
         ...state,
-        fieldCombatAlwaysOn: action.enabled,
-        combatPreference: action.enabled ? 'field' : state.combatPreference,
-        battle: state.battle && action.enabled ? { ...state.battle, mode: 'field' } : state.battle,
-        chronicle: log(state, action.enabled ? '地图直战已设为常开，后续遭遇将锁定地图战斗界面。' : '地图直战常开已关闭，可重新选择默认与本次战斗模式。'),
+        redNameMode: action.enabled,
+        selected: action.enabled ? state.selected : null,
+        chronicle: log(state, action.enabled
+          ? '红名模式已开启：地图准星可以直接攻击中立与敌对目标，附近 NPC 会目击并逃离。'
+          : '红名模式已关闭，地图重新以探索与交谈为主。', action.enabled ? 'danger' : 'plain'),
       }
+    case 'RED_NAME_ATTACK':
+      return redNameAttack(state, action.position, action.moveId)
     case 'SET_BATTLE_MODE':
-      if (state.fieldCombatAlwaysOn && action.mode === 'duel') {
-        return { ...state, chronicle: log(state, '请先关闭右上角的地图直战常开开关。') }
-      }
       return state.battle
         ? {
             ...state,
@@ -646,46 +842,68 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     case 'COMBAT_ACTION': {
       if (!state.battle) return state
-      const monster = state.monsters.find((item) => item.id === state.battle?.monsterId)
-      if (!monster) return { ...state, battle: null }
+      const monster = state.battle.targetKind === 'monster'
+        ? state.monsters.find((item) => item.id === state.battle?.targetId)
+        : undefined
+      const agent = state.battle.targetKind === 'agent'
+        ? state.agents.find((item) => item.id === state.battle?.targetId)
+        : undefined
+      const target = monster ?? agent
+      if (!target) return { ...state, battle: null }
+      const targetName = monster ? monsterName(monster.species) : agent!.name
+      const targetHp = monster ? monster.hp : agent!.stamina
       const move = combatMove(action.moveId)
       if (state.player.stamina < move.staminaCost) {
         return { ...state, chronicle: log(state, `${move.name}需要 ${move.staminaCost} 点体力。`, 'danger') }
       }
       // A monster occupying the player's destination is represented on the same
       // logical tile during the encounter, but still fights from the adjacent band.
-      const targetDistance = Math.max(1, distance(state.player, monster))
+      const targetDistance = Math.max(1, distance(state.player, target))
       if (targetDistance < move.minRange || targetDistance > move.maxRange) {
         return { ...state, chronicle: log(state, `${move.name}射程 ${move.minRange}–${move.maxRange} 格，当前目标距离 ${targetDistance} 格。`, 'danger') }
       }
       const bonuses = partyBonuses(state.agents)
       const localCamp = campAt(state, state.player)
       const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
-      const roll = resolveCombatRoll(state.gameId, monster.id, state.battle.round, move)
+      const roll = resolveCombatRoll(state.gameId, target.id, state.battle.round, move)
       const baseDamage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
       const damage = Math.floor(baseDamage * roll.multiplier)
-      const remainingHp = Math.max(0, monster.hp - damage)
+      const remainingHp = Math.max(0, targetHp - damage)
       const splashDamage = roll.hit && move.target === 'area' ? Math.max(1, Math.floor(damage * move.splashRatio)) : 0
       const splashTargets = splashDamage > 0
-        ? state.monsters.filter((item) => item.id !== monster.id && distance(item, monster) <= move.blastRadius)
+        ? state.monsters.filter((item) => item.id !== monster?.id && distance(item, target) <= move.blastRadius)
         : []
       const splashIds = new Set(splashTargets.map((item) => item.id))
       const damagedMonsters = state.monsters.map((item) =>
-        item.id === monster.id ? { ...item, hp: remainingHp, alert: 3, facing: facingToward(item, state.player) }
+        item.id === monster?.id ? { ...item, hp: remainingHp, alert: 3, facing: facingToward(item, state.player) }
           : splashIds.has(item.id) ? { ...item, hp: Math.max(0, item.hp - splashDamage), alert: 3 }
             : item,
       )
+      const damagedAgents = state.agents.map((item) => item.id === agent?.id
+        ? { ...item, stamina: remainingHp, hostility: 5, fear: 0, facing: facingToward(item, state.player) }
+        : item)
       const exertion = addFatigue(
         state,
         state.player.stamina - move.staminaCost,
         COMBAT_STEP_MULTIPLIER * (move.size === 'large' ? 2 : 1),
       )
       if (remainingHp <= 0) {
+        if (agent) {
+          return {
+            ...state,
+            battle: null,
+            agents: damagedAgents,
+            monsters: damagedMonsters.filter((item) => item.hp > 0),
+            player: { ...state.player, stamina: exertion.stamina },
+            fatigue: exertion.fatigue,
+            chronicle: log(state, `${move.name}${roll.critical ? '触发暴击，' : ''}造成 ${damage} 点伤害，${agent.name}失去战斗能力。`, 'danger'),
+          }
+        }
         const maxStamina = Math.min(MAX_STAMINA_CAP, state.player.maxStamina + 1)
         return {
           ...state,
           battle: null,
-          monsters: damagedMonsters.filter((item) => item.hp > 0 && item.id !== monster.id),
+          monsters: damagedMonsters.filter((item) => item.hp > 0 && item.id !== monster!.id),
           player: {
             ...state.player,
             stamina: exertion.stamina,
@@ -696,13 +914,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           combatWins: state.combatWins + 1,
           chronicle: log(
             state,
-            `${move.name}${roll.critical ? '触发暴击，' : ''}造成 ${damage} 点伤害，击退${monsterName(monster.species)}${splashTargets.length ? `，并波及 ${splashTargets.length} 个邻近目标` : ''}。获得 2 金，体力上限提升到 ${maxStamina}。`,
+            `${move.name}${roll.critical ? '触发暴击，' : ''}造成 ${damage} 点伤害，击退${targetName}${splashTargets.length ? `，并波及 ${splashTargets.length} 个邻近目标` : ''}。获得 2 金，体力上限提升到 ${maxStamina}。`,
             'good',
           ),
         }
       }
-      const rawHit = hashString(`${state.gameId}:counter:${state.day}:${monster.id}:${state.battle.round}`) % 2
-      const blockRoll = hashString(`${state.gameId}:block:${state.day}:${monster.id}:${state.battle.round}`) % 100
+      const rawHit = hashString(`${state.gameId}:counter:${state.day}:${target.id}:${state.battle.round}`) % 2
+      const blockRoll = hashString(`${state.gameId}:block:${state.day}:${target.id}:${state.battle.round}`) % 100
       const blocked = rawHit > 0 && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
       const hit = blocked ? 0 : rawHit
       const stamina = Math.max(0, exertion.stamina - hit)
@@ -719,11 +937,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               lastCritical: roll.critical,
             },
         monsters: damagedMonsters.filter((item) => item.hp > 0),
+        agents: damagedAgents,
         player: { ...state.player, stamina },
         fatigue: exertion.fatigue,
         chronicle: log(
           state,
-          `${move.name}${roll.hit ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害${splashTargets.length ? `并波及 ${splashTargets.length} 个目标` : ''}` : '未命中'}；${blocked ? '旅衣挡下反击' : hit ? '怪物反击造成 1 点体力损失' : '怪物反击落空'}。`,
+          `${move.name}${roll.hit ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害${splashTargets.length ? `并波及 ${splashTargets.length} 个目标` : ''}` : '未命中'}；${blocked ? '旅衣挡下反击' : hit ? `${targetName}反击造成 1 点体力损失` : `${targetName}反击落空`}。`,
           hit || !roll.hit ? 'danger' : 'plain',
         ),
       }
@@ -742,6 +961,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '附近没有可以交谈的旅人。') }
       const exertion = addFatigue(state, state.player.stamina, TALK_STEP_COST)
+      if ((target.hostility ?? 0) > 0) {
+        const hostileAgents = state.agents.map((agent) => agent.id === target.id
+          ? { ...agent, affection: Math.max(0, agent.affection - 1), fear: 0, facing: facingToward(agent, state.player) }
+          : agent)
+        const hostileState: GameState = {
+          ...state,
+          agents: hostileAgents,
+          factions: state.factions.map((faction) => faction.id === target.factionId
+            ? { ...faction, relation: Math.max(-100, faction.relation - 2) }
+            : faction),
+          player: { ...state.player, stamina: exertion.stamina, facing: facingToward(state.player, target) },
+          fatigue: exertion.fatigue,
+          chronicle: log(state, `${target.name}戒备地说：“收起武器。这里没人相信一个红名者。”`, 'danger'),
+        }
+        const counterChance = target.stamina > 0 && target.skillLevel >= 2
+          ? 3 + target.skillLevel * 3 + (target.skill === 'duelist' || target.skill === 'guard' ? 5 : 0)
+          : 0
+        if (hashString(`${state.gameId}:hostile-talk:${state.turn}:${target.id}`) % 100 < counterChance) {
+          return beginAgentBattle(hostileState, hostileAgents.find((agent) => agent.id === target.id)!, `${target.name}拒绝交谈，并直接拔出武器！`)
+        }
+        return hostileState
+      }
       const agents = state.agents.map((agent) =>
         agent.id === target.id
           ? { ...agent, affection: Math.min(5, agent.affection + 1), facing: facingToward(agent, state.player) }

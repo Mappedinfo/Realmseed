@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { combatMove, combatMoves } from '../game/combat'
 import {
+  directionalCharacterIndex,
   directionalCharactersUrl,
   directionalMonsterIndex,
   directionalMonstersUrl,
@@ -63,15 +64,27 @@ export function BattlePanel({
     setActiveMoveId(null)
     if (actionTimer.current !== null) window.clearTimeout(actionTimer.current)
     actionTimer.current = null
-  }, [state.battle?.monsterId])
+  }, [state.battle?.targetId])
 
   if (!state.battle) return null
-  const monster = state.monsters.find((item) => item.id === state.battle?.monsterId)
-  if (!monster) return null
-  const monsterName = monster.species === 'slime' ? '苔泥团' : monster.species === 'boar' ? '棘背兽' : '迷雾精'
-  const monsterColumn = directionalMonsterIndex[monster.species]
-  const hpPercent = Math.max(0, (monster.hp / state.battle.monsterMaxHp) * 100)
-  const targetDistance = Math.max(1, Math.abs(monster.x - state.player.x) + Math.abs(monster.y - state.player.y))
+  const monster = state.battle.targetKind === 'monster'
+    ? state.monsters.find((item) => item.id === state.battle?.targetId)
+    : undefined
+  const agent = state.battle.targetKind === 'agent'
+    ? state.agents.find((item) => item.id === state.battle?.targetId)
+    : undefined
+  const target = monster ?? agent
+  if (!target) return null
+  const targetName = monster
+    ? monster.species === 'slime' ? '苔泥团' : monster.species === 'boar' ? '棘背兽' : '迷雾精'
+    : agent!.name
+  const targetColumn = monster
+    ? directionalMonsterIndex[monster.species]
+    : directionalCharacterIndex[agent!.role === 'villager' ? 'villager' : 'wanderer']
+  const targetType = monster ? 'monster' : 'character'
+  const targetHp = monster ? monster.hp : agent!.stamina
+  const hpPercent = Math.max(0, (targetHp / state.battle.targetMaxHp) * 100)
+  const targetDistance = Math.max(1, Math.abs(target.x - state.player.x) + Math.abs(target.y - state.player.y))
 
   const performMove = (moveId: CombatMoveId) => {
     if (activeMoveId) return
@@ -110,27 +123,21 @@ export function BattlePanel({
   const lastResult = state.battle.lastMoveId ? combatMove(state.battle.lastMoveId) : null
 
   return (
-    <section className={`battle-panel ${state.battle.mode}`} aria-label={`${monsterName}战斗`} aria-live="polite">
+    <section className={`battle-panel ${state.battle.mode}`} aria-label={`${targetName}战斗`} aria-live="polite">
       <div className="battle-mode-switch">
         <span>本次战斗</span>
-        {state.fieldCombatAlwaysOn ? (
-          <strong className="field-lock-badge">◆ 右上角已锁定地图直战</strong>
-        ) : (
-          <>
-            <button
-              className={state.battle.mode === 'duel' ? 'is-selected' : ''}
-              onClick={() => dispatch({ type: 'SET_BATTLE_MODE', mode: 'duel' })}
-            >
-              左右回合
-            </button>
-            <button
-              className={state.battle.mode === 'field' ? 'is-selected' : ''}
-              onClick={() => dispatch({ type: 'SET_BATTLE_MODE', mode: 'field' })}
-            >
-              地图直战
-            </button>
-          </>
-        )}
+        <button
+          className={state.battle.mode === 'duel' ? 'is-selected' : ''}
+          onClick={() => dispatch({ type: 'SET_BATTLE_MODE', mode: 'duel' })}
+        >
+          左右回合
+        </button>
+        <button
+          className={state.battle.mode === 'field' ? 'is-selected' : ''}
+          onClick={() => dispatch({ type: 'SET_BATTLE_MODE', mode: 'field' })}
+        >
+          战术条
+        </button>
         {lastResult ? (
           <span className={`battle-result ${state.battle.lastHit ? 'hit' : 'miss'}`}>
             {lastResult.name} · {state.battle.lastHit ? `${state.battle.lastCritical ? '暴击 ' : '命中 '}${state.battle.lastDamage}` : '未命中'}
@@ -151,9 +158,9 @@ export function BattlePanel({
             </div>
             <div className="round-mark"><small>ROUND</small><b>{state.battle.round}</b><i>VS</i></div>
             <div className="duelist monster">
-              <span>{monsterName}</span>
-              <SpritePortrait type="monster" column={monsterColumn} facing="west" />
-              <strong>生命 {monster.hp}/{state.battle.monsterMaxHp}</strong>
+              <span>{targetName}</span>
+              <SpritePortrait type={targetType} column={targetColumn} facing="west" />
+              <strong>生命 {targetHp}/{state.battle.targetMaxHp}</strong>
               <em><i style={{ width: `${hpPercent}%` }} /></em>
             </div>
           </div>
@@ -162,8 +169,8 @@ export function BattlePanel({
       ) : (
         <div className="field-combat-bar">
           <div className="field-target">
-            <SpritePortrait type="monster" column={monsterColumn} facing="west" />
-            <span><small>地图目标 · 距离 {targetDistance} · 回合 {state.battle.round}</small><strong>{monsterName}</strong><em><i style={{ width: `${hpPercent}%` }} /></em></span>
+            <SpritePortrait type={targetType} column={targetColumn} facing="west" />
+            <span><small>对战目标 · 距离 {targetDistance} · 回合 {state.battle.round}</small><strong>{targetName}</strong><em><i style={{ width: `${hpPercent}%` }} /></em></span>
           </div>
           {controls}
         </div>

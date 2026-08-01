@@ -109,13 +109,13 @@ export interface CombatRoll {
 
 export function resolveCombatRoll(
   gameId: string,
-  monsterId: string,
+  targetId: string,
   round: number,
   move: CombatMove,
 ): CombatRoll {
-  const hit = hashString(`${gameId}:attack-hit:${monsterId}:${round}:${move.id}`) % 100 < move.accuracy
+  const hit = hashString(`${gameId}:attack-hit:${targetId}:${round}:${move.id}`) % 100 < move.accuracy
   const critical = hit && move.criticalChance > 0 &&
-    hashString(`${gameId}:attack-critical:${monsterId}:${round}:${move.id}`) % 100 < move.criticalChance
+    hashString(`${gameId}:attack-critical:${targetId}:${round}:${move.id}`) % 100 < move.criticalChance
   return { hit, critical, multiplier: critical ? 1.5 : hit ? 1 : 0 }
 }
 

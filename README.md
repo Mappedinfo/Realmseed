@@ -38,7 +38,10 @@ directly to GitHub Pages.
 - three AI factions, wandering agents with six seeded specialties, followers,
   skill challenges, and monsters
 - four-direction characters, probabilistic monster alerts and pursuit
-- a persistent top-right map-direct lock plus optional field/duel encounter modes
+- a persistent top-right red-name mode with player-centered attack-range cells,
+  direct map damage against neutral/enemy people, structures, and monsters
+- deterministic witnesses who show warning marks, flee, refuse friendly trade,
+  and occasionally initiate a real encounter when an elite decides to retaliate
 - six distinct no-character-motion combat effects for slash, cleave, arrow,
   seed magic, rifle smoke, and bomb explosion
 - melee/ranged physical, magic, firearm, and explosive moves with explicit
@@ -62,6 +65,7 @@ src/
 │   ├── world.ts         terrain, society, monster, and fog generation
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
 │   ├── combat.ts        moves, damage categories, and equipment values
+│   ├── redName.ts       direct-map target classification and structure durability
 │   ├── camps.ts         building definitions, yields, and recovery
 │   ├── facilities.ts    seeded facility events and outcome definitions
 │   ├── settlements.ts   residents, families, migration, growth, and calendar ticks
@@ -165,13 +169,17 @@ python3 scripts/ingest_facility_assets.py
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world
-- Combat: the top-right `地图直战` switch stays enabled across new worlds and
-  locks every encounter to the map-direct interface. Turn it off to restore the
-  persistent default and per-encounter duel controls. Six moves expose range,
-  hit rate, critical rate, power, stamina cost, and bomb radius directly in the
-  battle panel; their independent effect animations finish before deterministic
-  damage is applied. Enabling game music automatically switches from the
-  exploration loop to the CC0 chiptune battle loop for the encounter.
+- Red-name mode: the persistent top-right `红名模式` switch draws melee and
+  ranged reach around the controlled character. Select any non-party person,
+  neutral/enemy structure, or monster and use the six-map attack strip; damage
+  lands after the effect animation without opening an encounter. Witnesses gain
+  hostility, display an exclamation mark, and move away. Hostile conversations
+  disable friendly recruitment, challenges, and trade; skilled NPCs retain a
+  small deterministic chance to retaliate through the normal encounter system.
+- Combat: normal encounters and elite retaliation retain tactical-bar and
+  left/right presentation. Six moves expose range, hit rate, critical rate,
+  power, stamina cost, and bomb radius. Enabling game music automatically
+  switches to the CC0 chiptune battle loop for an encounter.
 - Equipment: equip numerical bonuses in the left panel without drawing gear on
   the character sprite
 - Scene travel: accumulate 25 steps of fatigue to take a waystone route to the adjacent

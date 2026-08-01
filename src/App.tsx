@@ -44,10 +44,9 @@ function GameView({
     window.localStorage.setItem('realmseed-combat-mode', mode)
     dispatch({ type: 'SET_COMBAT_PREFERENCE', mode })
   }
-  const setFieldCombatAlwaysOn = (enabled: boolean) => {
-    window.localStorage.setItem('realmseed-field-combat-always-on', String(enabled))
-    if (enabled) window.localStorage.setItem('realmseed-combat-mode', 'field')
-    dispatch({ type: 'SET_FIELD_COMBAT_ALWAYS_ON', enabled })
+  const setRedNameMode = (enabled: boolean) => {
+    window.localStorage.setItem('realmseed-red-name-mode', String(enabled))
+    dispatch({ type: 'SET_RED_NAME_MODE', enabled })
   }
   const selectAgent = (agentId: string) => {
     const agent = state.agents.find((item) => item.id === agentId)
@@ -114,15 +113,15 @@ function GameView({
           <span>{state.world.sceneName} [{state.world.sceneX}, {state.world.sceneY}] · {state.world.size} × {state.world.size}</span>
         </div>
         <div className="header-actions">
-          <label className={`field-combat-toggle ${state.fieldCombatAlwaysOn ? 'is-on' : ''}`}>
+          <label className={`field-combat-toggle red-name-toggle ${state.redNameMode ? 'is-on' : ''}`}>
             <input
               type="checkbox"
-              checked={state.fieldCombatAlwaysOn}
-              onChange={(event) => setFieldCombatAlwaysOn(event.target.checked)}
-              aria-label="地图直战常开"
+              checked={state.redNameMode}
+              onChange={(event) => setRedNameMode(event.target.checked)}
+              aria-label="红名模式"
             />
             <span className="toggle-track"><i /></span>
-            <span className="toggle-copy"><b>地图直战</b><small>{state.fieldCombatAlwaysOn ? '常开' : '可切换'}</small></span>
+            <span className="toggle-copy"><b>红名模式</b><small>{state.redNameMode ? '可攻击中立' : '和平探索'}</small></span>
           </label>
           <label className="art-theme-control">
             <span>美术</span>
@@ -133,14 +132,13 @@ function GameView({
             </select>
           </label>
           <label className="art-theme-control combat-mode-control">
-            <span>默认战斗</span>
+            <span>默认对战</span>
             <select
               value={state.combatPreference}
               onChange={(event) => setCombatPreference(event.target.value as BattleMode)}
-              aria-label="默认战斗模式"
-              disabled={state.fieldCombatAlwaysOn}
+              aria-label="默认对战模式"
             >
-              <option value="field">地图直战</option>
+              <option value="field">战术条</option>
               <option value="duel">左右回合</option>
             </select>
           </label>
@@ -187,6 +185,7 @@ function GameView({
           <WorldCanvas
             state={state}
             theme={theme}
+            dispatch={dispatch}
             activeAgentId={activeAgentId}
             onAgentClick={selectAgent}
             onSelect={selectPosition}
@@ -288,9 +287,7 @@ export function App() {
     const next = createGame(seed, size)
     const savedMode = window.localStorage.getItem('realmseed-combat-mode')
     if (savedMode === 'duel' || savedMode === 'field') next.combatPreference = savedMode
-    const savedFieldCombatAlwaysOn = window.localStorage.getItem('realmseed-field-combat-always-on')
-    next.fieldCombatAlwaysOn = savedFieldCombatAlwaysOn !== 'false'
-    if (next.fieldCombatAlwaysOn) next.combatPreference = 'field'
+    next.redNameMode = window.localStorage.getItem('realmseed-red-name-mode') === 'true'
     setInitialState(next)
   }
   return initialState

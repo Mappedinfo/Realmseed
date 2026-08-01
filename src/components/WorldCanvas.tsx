@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CampBuildingKind, Direction, GameState, Position, Structure, Terrain } from '../game/types'
+import type { CampBuildingKind, CombatMoveId, Direction, GameAction, GameState, Position, Structure, Terrain } from '../game/types'
 import {
   ART_CELL,
   GENERATED_CELL,
@@ -24,6 +24,8 @@ import { inspectPosition } from '../game/inspection'
 import { effectiveCampStats } from '../game/camps'
 import { isWithinInteractionRange } from '../game/geometry'
 import { tileIndex } from '../game/world'
+import { combatMoves } from '../game/combat'
+import { redNameDistance, redNameTargetAt } from '../game/redName'
 
 const TILE = 32
 const VIEW_COLS = 25
@@ -329,9 +331,10 @@ interface WorldCanvasProps {
   activeAgentId: string | null
   onAgentClick: (agentId: string) => void
   onSelect: (position: Position) => void
+  dispatch: React.Dispatch<GameAction>
 }
 
-export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect }: WorldCanvasProps) {
+export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect, dispatch }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const atlasRef = useRef<HTMLImageElement | null>(null)
   const generatedTerrainRef = useRef<HTMLImageElement | null>(null)
@@ -516,6 +519,21 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
 
     const playerX = (state.player.x - origin.x) * TILE
     const playerY = (state.player.y - origin.y) * TILE
+    if (state.redNameMode) {
+      for (let viewY = 0; viewY < VIEW_ROWS; viewY += 1) {
+        for (let viewX = 0; viewX < VIEW_COLS; viewX += 1) {
+          const worldX = origin.x + viewX
+          const worldY = origin.y + viewY
+          const attackDistance = Math.abs(worldX - state.player.x) + Math.abs(worldY - state.player.y)
+          if (attackDistance < 1 || attackDistance > 6) continue
+          const screenX = viewX * TILE
+          const screenY = viewY * TILE
+          pixelRect(context, attackDistance === 1 ? 'rgba(255, 68, 47, .16)' : 'rgba(172, 35, 34, .075)', screenX, screenY, TILE, TILE)
+          context.strokeStyle = attackDistance === 1 ? 'rgba(255, 128, 78, .48)' : 'rgba(220, 74, 56, .18)'
+          context.strokeRect(screenX + 1.5, screenY + 1.5, TILE - 3, TILE - 3)
+        }
+      }
+    }
     drawPerson(
       context,
       atlasRef.current,
@@ -528,11 +546,18 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       'wanderer',
       state.player.facing ?? 'down',
     )
+    if (state.redNameMode) {
+      context.strokeStyle = '#ff4b36'
+      context.lineWidth = 2
+      context.strokeRect(playerX + 1, playerY + 1, TILE - 2, TILE - 2)
+      pixelRect(context, '#ffdf77', playerX + 14, playerY - 2, 5, 5)
+    }
 
     if (state.selected) {
       const sx = (state.selected.x - origin.x) * TILE
       const sy = (state.selected.y - origin.y) * TILE
-      context.strokeStyle = '#f4d35e'
+      const selectedTarget = state.redNameMode ? redNameTargetAt(state, state.selected) : null
+      context.strokeStyle = selectedTarget?.attackable ? '#ff4b36' : '#f4d35e'
       context.lineWidth = 2
       context.strokeRect(sx + 2, sy + 2, TILE - 4, TILE - 4)
     }
@@ -655,6 +680,73 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
           </span>
         )
       })}
+      {state.agents.filter((agent) =>
+        agent.role !== 'follower' && ((agent.fear ?? 0) > 0 || (agent.hostility ?? 0) > 0) &&
+        agent.x >= origin.x && agent.x < origin.x + VIEW_COLS &&
+        agent.y >= origin.y && agent.y < origin.y + VIEW_ROWS
+      ).map((agent) => {
+        const left = (((agent.x - origin.x) * TILE + TILE / 2) / (VIEW_COLS * TILE)) * 100
+        const top = (((agent.y - origin.y) * TILE + 4) / (VIEW_ROWS * TILE)) * 100
+        return <span key={`witness-${agent.id}`} className="npc-alert" style={{ left: `${left}%`, top: `${top}%` }} aria-label={`${agent.name}对红名者保持警惕`}>!</span>
+      })}
+      {state.redNameMode ? <RedNameOverlay state={state} origin={origin} dispatch={dispatch} /> : null}
+    </div>
+  )
+}
+
+function RedNameOverlay({ state, origin, dispatch }: { state: GameState; origin: Position; dispatch: React.Dispatch<GameAction> }) {
+  const [activeMoveId, setActiveMoveId] = useState<CombatMoveId | null>(null)
+  const timer = useRef<number | null>(null)
+  const target = state.selected ? redNameTargetAt(state, state.selected) : null
+  const targetDistance = state.selected ? redNameDistance(state, state.selected) : null
+
+  useEffect(() => () => {
+    if (timer.current !== null) window.clearTimeout(timer.current)
+  }, [])
+
+  useEffect(() => {
+    setActiveMoveId(null)
+    if (timer.current !== null) window.clearTimeout(timer.current)
+    timer.current = null
+  }, [target?.id])
+
+  const attack = (moveId: CombatMoveId) => {
+    if (!state.selected || activeMoveId) return
+    setActiveMoveId(moveId)
+    timer.current = window.setTimeout(() => {
+      dispatch({ type: 'RED_NAME_ATTACK', position: state.selected!, moveId })
+      setActiveMoveId(null)
+      timer.current = null
+    }, 640)
+  }
+
+  const targetLeft = state.selected ? (((state.selected.x - origin.x) * TILE + TILE / 2) / (VIEW_COLS * TILE)) * 100 : 50
+  const targetTop = state.selected ? (((state.selected.y - origin.y) * TILE + TILE / 2) / (VIEW_ROWS * TILE)) * 100 : 50
+  return (
+    <div className="red-name-layer" aria-label="红名地图攻击">
+      <div className="red-name-state"><i>◆</i><span><b>RED NAME</b><small>以角色为中心 · 近战 1 / 远程至 6 格</small></span></div>
+      {activeMoveId ? (
+        <div className={`red-map-effect effect-${activeMoveId}`} style={{ left: `${targetLeft}%`, top: `${targetTop}%` }} aria-hidden="true">
+          <i className="effect-core" /><i className="effect-trail" /><i className="effect-impact" /><i className="effect-smoke" />
+        </div>
+      ) : null}
+      <div className={`red-target-dossier ${target?.attackable ? 'is-armed' : ''}`}>
+        <div className="red-target-copy">
+          <span>{target ? `${target.kind.toUpperCase()} · 距离 ${targetDistance}` : state.lastMapAttack ? 'LAST MAP ATTACK' : '等待目标'}</span>
+          <strong>{target?.name ?? state.lastMapAttack?.targetName ?? '点击地图上的人物、建筑或怪物'}</strong>
+          <small>{target
+            ? target.attackable ? `耐久 ${target.hp}/${target.maxHp}` : target.reason
+            : state.lastMapAttack
+              ? `${state.lastMapAttack.hit ? state.lastMapAttack.critical ? '暴击' : '命中' : '未命中'} · 伤害 ${state.lastMapAttack.damage} · 目标已移动或消失`
+              : '攻击不会进入对战面板；目击者可能逃离或反击。'}</small>
+        </div>
+        <div className="red-move-strip">
+          {combatMoves.map((move) => {
+            const outOfRange = targetDistance === null || targetDistance < move.minRange || targetDistance > move.maxRange
+            return <button key={move.id} className={activeMoveId === move.id ? 'is-casting' : ''} disabled={!target?.attackable || outOfRange || Boolean(activeMoveId) || state.player.stamina < move.staminaCost} onClick={() => attack(move.id)} title={`${move.name} · 射程 ${move.minRange}–${move.maxRange} · 命中 ${move.accuracy}% · 威力 ${move.power}`} aria-label={`使用${move.name}攻击`}><i>{move.glyph}</i><span>{move.name}</span><small>{move.minRange}–{move.maxRange}格</small></button>
+          })}
+        </div>
+      </div>
     </div>
   )
 }

@@ -31,6 +31,8 @@ export interface Tile {
   buildingKind?: CampBuildingKind
   eventResolved?: boolean
   lastUsedDay?: number
+  structureHp?: number
+  structureMaxHp?: number
 }
 
 export interface Position {
@@ -63,6 +65,8 @@ export interface Agent extends Position {
   skillLevel: 1 | 2 | 3
   lastChallengeDay?: number
   challengeWon?: boolean
+  hostility?: number
+  fear?: number
 }
 
 export interface Resident {
@@ -115,10 +119,11 @@ export interface EquipmentItem {
 }
 
 export interface BattleEncounter {
-  monsterId: string
+  targetId: string
+  targetKind: 'monster' | 'agent'
   mode: BattleMode
   round: number
-  monsterMaxHp: number
+  targetMaxHp: number
   lastMoveId?: CombatMoveId
   lastDamage?: number
   lastHit?: boolean
@@ -181,7 +186,16 @@ export interface GameState {
   fatigue: number
   combatWins: number
   combatPreference: BattleMode
-  fieldCombatAlwaysOn: boolean
+  redNameMode: boolean
+  attackSequence: number
+  lastMapAttack?: {
+    sequence: number
+    targetName: string
+    moveId: CombatMoveId
+    hit: boolean
+    critical: boolean
+    damage: number
+  }
   battle: BattleEncounter | null
   equipment: EquipmentItem[]
   camps: Camp[]
@@ -208,7 +222,8 @@ export type GameAction =
   | { type: 'EAT_BERRY' }
   | { type: 'TRADE_BERRIES'; agentId: string; direction: 'buy' | 'sell' }
   | { type: 'SET_COMBAT_PREFERENCE'; mode: BattleMode }
-  | { type: 'SET_FIELD_COMBAT_ALWAYS_ON'; enabled: boolean }
+  | { type: 'SET_RED_NAME_MODE'; enabled: boolean }
+  | { type: 'RED_NAME_ATTACK'; position: Position; moveId: CombatMoveId }
   | { type: 'SET_BATTLE_MODE'; mode: BattleMode }
   | { type: 'COMBAT_ACTION'; moveId: CombatMoveId }
   | { type: 'FLEE_BATTLE' }
