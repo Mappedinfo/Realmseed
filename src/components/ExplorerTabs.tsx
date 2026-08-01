@@ -34,7 +34,7 @@ export function ExplorerTabs({
   const vassals = state.factions.filter((faction) => faction.isVassal)
   const bonuses = partyBonuses(state.agents)
   const counts: Record<ExplorerTab, number> = {
-    inventory: state.player.berries,
+    inventory: state.player.berries + state.resources.wood + state.resources.stone + Object.values(state.resources.fish).reduce((total, count) => total + count, 0),
     equipment: state.equipment.filter((item) => item.equipped).length,
     party: followers.length + 1,
     camps: state.camps.length,
@@ -83,7 +83,23 @@ export function ExplorerTabs({
                 食用
               </button>
             </div>
-            <p className="tab-note">点击物品查看详情；各地行情围绕 10 果 = 1 金波动。</p>
+            <div className="pack-material-grid">
+              <button onClick={() => onFocus({ kind: 'inventory', item: 'wood' })}><i>▥</i><span>木材</span><b>×{state.resources.wood}</b></button>
+              <button onClick={() => onFocus({ kind: 'inventory', item: 'stone' })}><i>◆</i><span>石材</span><b>×{state.resources.stone}</b></button>
+            </div>
+            <div className="fish-pouch">
+              {([
+                ['minnow', '小鱼', 1], ['carp', '鲤鱼', 2], ['loach', '泥鳅', 2], ['golden-koi', '金鲤', 3],
+              ] as const).map(([fishId, label, recovery]) => (
+                <div className="compact-item-row" key={fishId}>
+                  <button className="compact-item-main" onClick={() => onFocus({ kind: 'inventory', item: fishId })}>
+                    <span className="fish-glyph">≈</span><span><strong>{label}</strong><small>恢复 {recovery} 体力</small></span><b>×{state.resources.fish[fishId]}</b>
+                  </button>
+                  <button className="compact-row-action" onClick={() => dispatch({ type: 'EAT_FISH', fishId })} disabled={!state.resources.fish[fishId] || state.player.stamina >= state.player.maxStamina}>食用</button>
+                </div>
+              ))}
+            </div>
+            <p className="tab-note">木石用于建设；水岸抛竿可补充鱼获。</p>
           </div>
         ) : null}
 

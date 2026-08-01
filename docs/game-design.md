@@ -69,7 +69,8 @@ Future art packs may replace the procedural primitives, but must preserve the
 2. Reveal land by walking; every 10 successful tiles advance one calendar day,
    while every 100 ordinary steps spend one stamina. Rest and scene travel each
    advance a day without discarding partial movement progress.
-3. Find coins, berry patches, and ruins, meet travelers, and fight monsters.
+3. Find coins, berry patches, renewable timber and stone, ruins, caves, and
+   nests; meet travelers and fight monsters.
    Terrain and regional patches make berry abundance uneven; combat steps
    accumulate fatigue 1.5× faster.
 4. Click the bubble over a traveler in any of the eight surrounding tiles,
@@ -88,7 +89,12 @@ Future art packs may replace the procedural primitives, but must preserve the
    matching mastery mark. Recruit a trusted traveler; the follower moves into the left party roster
    instead of occupying a world tile, while still contributing combat strength
    plus their specialty bonus. Click roster entries to switch the top-left portrait.
-6. Build a camp to create a highlighted control radius and inspect population
+6. Challenge a deterministic three-floor cave or nest. Floors one and two hold
+   normal packs, chests, and a stair-locking elite; floor three holds a two-phase
+   Boss and its reward chest. Retreat preserves opened loot and the entrance
+   resets on the following game day. Water banks support a short timing-based
+   fishing action whose four fish restore 1–3 stamina.
+7. Spend 8 timber and 5 stone to build a camp, creating a highlighted control radius and inspect population
    versus housing, food, defense, economy, morale, buildings, daily output, and
    range from the left camp list. The entire
    control radius remains permanently visible after the party leaves, and a
@@ -97,7 +103,7 @@ Future art packs may replace the procedural primitives, but must preserve the
    checkpoints, children mature after 60 days, and housing, food, morale, and
    seeded migration rolls govern further growth. Trusted nearby travelers may
    also choose to settle.
-7. Walk 100 successful steps after founding a camp to earn one building tile.
+8. Walk 100 successful steps after founding a camp to earn one building tile.
    Select a controlled empty tile for one of six functional facilities: lodge,
    farm, watchtower, market, workshop, or shrine. Lodges gate resident capacity;
    farms create food surplus; defense suppresses local ambush; economy settles
@@ -108,16 +114,16 @@ Future art packs may replace the procedural primitives, but must preserve the
    Same-scene
    camps automatically connect by passable roads; roads use 0.35 movement fatigue,
    and the camp list can run shortest-path return navigation.
-8. Swear fealty to a trusted faction for expedition support, or remain
+9. Swear fealty to a trusted faction for expedition support, or remain
    independent and establish tribute-paying vassals.
-9. Take a waystone route into another deterministic scene and continue.
+10. Take a waystone route into another deterministic scene and continue.
 
 ## System boundaries
 
 | System | Prototype rule | Planned depth |
 |---|---|---|
 | Coins | sparse pickups, berry trading, recruitment/building costs, taxes, tribute | markets and production chains |
-| Inventory | manual berry consumption; person-to-person 8–12:1 exchange | item types, weight, crafting |
+| Inventory | berries, timber, stone, four edible fish; person-to-person berry exchange | weight, tools, bait, crafting |
 | Stamina | 100-step cost, 1.5× combat fatigue, 0/1 hit loss, berry recovery, exhausted rest to 3 | equipment and biome modifiers |
 | Affection | 0–5 per traveler; 3 enables recruitment | memories, preferences, conflicts |
 | Traveler skills | six seeded specialties, level/difficulty, one-time deterministic challenge, permanent mastery marks | challenge stories and training |
@@ -126,7 +132,8 @@ Future art packs may replace the procedural primitives, but must preserve the
 | Red-name combat | player-centered 1–6 cell reach, direct people/structure/monster damage, witness fear and hostility | crimes, warrants, faction guards |
 | Encounters | tactical-bar/duel presentation for monsters and rare elite retaliation | status effects and tactical positioning |
 | Factions | reputation, fealty, oath breaking, vassalage | diplomacy, war, borders |
-| Monsters | three seeded species, simple HP, victory raises max stamina to a cap of 30 | behaviors, drops, bosses |
+| Monsters | normal/elite/Boss ranks, phase change, chests, victory growth | more species, status effects, Boss families |
+| Dungeons | repeatable deterministic three-floor cave/nest runs | procedural layouts, quests, biome-specific Bosses |
 | Fog | visible / explored / unseen per scene | line of sight and watchtowers |
 | Scenes | deterministic four-way unbounded graph | portals, boats, biomes, cache eviction |
 

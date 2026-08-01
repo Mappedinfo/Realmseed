@@ -88,6 +88,7 @@ export function BattlePanel({
   const enemyWeapon = agent?.loadout.find((item) => item.equipped && item.moveId)
   const enemyArmor = agent?.loadout.find((item) => item.equipped && item.slot === 'armor')
   const enemyMove = enemyWeapon?.moveId ? combatMove(enemyWeapon.moveId) : null
+  const monsterRank = monster?.rank === 'boss' ? `BOSS · 阶段 ${monster.phase ?? 1}` : monster?.rank === 'elite' ? '守层精英' : null
 
   const performMove = (moveId: CombatMoveId) => {
     if (activeMoveId) return
@@ -126,7 +127,7 @@ export function BattlePanel({
   const lastResult = state.battle.lastMoveId ? combatMove(state.battle.lastMoveId) : null
 
   return (
-    <section className={`battle-panel ${state.battle.mode}`} aria-label={`${targetName}战斗`} aria-live="polite">
+    <section className={`battle-panel ${state.battle.mode} ${monster?.rank === 'boss' ? 'boss-battle' : ''}`} aria-label={`${targetName}战斗`} aria-live="polite">
       <div className="battle-mode-switch">
         <span>本次战斗</span>
         <button
@@ -166,7 +167,7 @@ export function BattlePanel({
             </div>
             <div className="round-mark"><small>ROUND</small><b>{state.battle.round}</b><i>VS</i></div>
             <div className="duelist monster">
-              <span>{targetName}</span>
+              <span>{monsterRank ?? targetName}</span>
               <SpritePortrait type={targetType} column={targetColumn} facing="west" />
               <strong>生命 {targetHp}/{state.battle.targetMaxHp}</strong>
               {agent ? <small className="enemy-kit">⚔ {enemyWeapon?.name ?? '徒手'} · ⬟ {enemyArmor?.defense ?? 0}</small> : null}
@@ -179,7 +180,7 @@ export function BattlePanel({
         <div className="field-combat-bar">
           <div className="field-target">
             <SpritePortrait type={targetType} column={targetColumn} facing="west" />
-            <span><small>对战目标 · 距离 {targetDistance} · 回合 {state.battle.round}</small><strong>{targetName}</strong>{agent ? <small className="enemy-kit">⚔ {enemyWeapon?.name ?? '徒手'} · {enemyMove?.name ?? '攻击'} {enemyMove?.minRange ?? 1}–{enemyMove?.maxRange ?? 1}格 · ⬟ {enemyArmor?.defense ?? 0}</small> : null}<em><i style={{ width: `${hpPercent}%` }} /></em></span>
+            <span><small>{monsterRank ?? '对战目标'} · 距离 {targetDistance} · 回合 {state.battle.round}</small><strong>{targetName}</strong>{agent ? <small className="enemy-kit">⚔ {enemyWeapon?.name ?? '徒手'} · {enemyMove?.name ?? '攻击'} {enemyMove?.minRange ?? 1}–{enemyMove?.maxRange ?? 1}格 · ⬟ {enemyArmor?.defense ?? 0}</small> : null}<em><i style={{ width: `${hpPercent}%` }} /></em></span>
           </div>
           {controls}
         </div>

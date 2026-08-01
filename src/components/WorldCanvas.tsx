@@ -271,6 +271,19 @@ function drawFood(context: CanvasRenderingContext2D, generatedObjects: HTMLImage
   pixelRect(context, '#a84f45', x + 24, y + 19, 3, 4)
 }
 
+function drawResourceNode(context: CanvasRenderingContext2D, kind: 'wood' | 'stone', x: number, y: number) {
+  pixelRect(context, 'rgba(6, 12, 8, .45)', x + 5, y + 26, 23, 3)
+  if (kind === 'wood') {
+    pixelRect(context, '#5b3b28', x + 7, y + 18, 19, 7)
+    pixelRect(context, '#8c5b35', x + 9, y + 15, 16, 6)
+    pixelRect(context, '#d0a15b', x + 21, y + 17, 4, 4)
+  } else {
+    pixelRect(context, '#5f6762', x + 5, y + 20, 22, 7)
+    pixelRect(context, '#92998e', x + 10, y + 13, 13, 10)
+    pixelRect(context, '#c3c5ae', x + 12, y + 14, 6, 3)
+  }
+}
+
 function drawStructure(
   context: CanvasRenderingContext2D,
   atlas: HTMLImageElement | null,
@@ -281,6 +294,24 @@ function drawStructure(
   structure: Structure,
   buildingKind?: CampBuildingKind,
 ) {
+  if (structure === 'cave' || structure === 'nest') {
+    pixelRect(context, structure === 'cave' ? '#242723' : '#263b2c', x + 3, y + 7, 26, 22)
+    pixelRect(context, structure === 'cave' ? '#737066' : '#4f734d', x + 5, y + 4, 22, 8)
+    pixelRect(context, '#0a0e0c', x + 10, y + 14, 13, 15)
+    pixelRect(context, structure === 'cave' ? '#d29b50' : '#b9ce67', x + 14, y + 18, 5, 3)
+    return
+  }
+  if (structure === 'stairs-down' || structure === 'stairs-up' || structure === 'dungeon-exit') {
+    pixelRect(context, '#342b24', x + 4, y + 5, 24, 24)
+    for (let step = 0; step < 4; step += 1) pixelRect(context, structure === 'dungeon-exit' ? '#6ba997' : '#9b8061', x + 7 + step * 3, y + 9 + step * 4, 16 - step * 3, 3)
+    return
+  }
+  if (structure === 'chest') {
+    pixelRect(context, '#2b1c14', x + 5, y + 15, 23, 13)
+    pixelRect(context, '#9c5b2d', x + 7, y + 11, 19, 15)
+    pixelRect(context, '#e0b44f', x + 15, y + 15, 4, 7)
+    return
+  }
   if (facilities && structure === 'camp') {
     drawGeneratedCell(context, facilities, facilityIndex['camp-core'], x, y)
     return
@@ -300,7 +331,7 @@ function drawStructure(
     return
   }
   if (atlas) {
-    drawSprite(context, atlas, structure, x, y)
+    drawSprite(context, atlas, structure as SpriteId, x, y)
     return
   }
   if (structure === 'waystone') {
@@ -346,7 +377,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const [assetRevision, setAssetRevision] = useState(0)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
-    y: Math.max(0, Math.min(state.world.size - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
+    y: Math.max(0, Math.min((state.world.height ?? state.world.size) - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
   }
 
   useEffect(() => {
@@ -404,7 +435,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         const worldY = origin.y + viewY
         const screenX = viewX * TILE
         const screenY = viewY * TILE
-        if (worldX >= state.world.size || worldY >= state.world.size) {
+        if (worldX >= state.world.size || worldY >= (state.world.height ?? state.world.size)) {
           pixelRect(context, '#101613', screenX, screenY, TILE, TILE)
           continue
         }
@@ -473,10 +504,22 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
           }
         }
         if ((tile.food ?? 0) > 0 && fog === 2) drawFood(context, generatedObjectsRef.current, screenX, screenY)
+        if (tile.resourceNode && (tile.resourceReadyDay === undefined || tile.resourceReadyDay <= state.day) && fog === 2) {
+          drawResourceNode(context, tile.resourceNode, screenX, screenY)
+        }
 
         if (fog === 2) {
           const monster = state.monsters.find((item) => item.x === worldX && item.y === worldY)
           if (monster) {
+            context.save()
+            if (monster.rank === 'boss') {
+              context.filter = 'drop-shadow(2px 0 #ff7b45) drop-shadow(-2px 0 #ff7b45) drop-shadow(0 2px #ffcc66)'
+              context.translate(screenX + TILE / 2, screenY + TILE / 2)
+              context.scale(1.3, 1.3)
+              context.translate(-(screenX + TILE / 2), -(screenY + TILE / 2))
+            } else if (monster.rank === 'elite') {
+              context.filter = 'drop-shadow(1px 0 #f4d35e) drop-shadow(-1px 0 #f4d35e)'
+            }
             drawMonster(
               context,
               atlasRef.current,
@@ -487,6 +530,11 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
               monster.species,
               monster.facing ?? 'down',
             )
+            context.restore()
+            if (monster.rank === 'boss') {
+              pixelRect(context, '#25110e', screenX + 2, screenY + 1, 28, 4)
+              pixelRect(context, monster.phase === 2 ? '#ff7043' : '#c44737', screenX + 3, screenY + 2, Math.round(26 * monster.hp / (monster.maxHp ?? monster.hp)), 2)
+            }
           }
           const agent = state.agents.find((item) => item.role !== 'follower' && item.x === worldX && item.y === worldY)
           if (agent) {
@@ -570,7 +618,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       const scaleY = event.currentTarget.height / rect.height
       const x = origin.x + Math.floor(((event.clientX - rect.left) * scaleX) / TILE)
       const y = origin.y + Math.floor(((event.clientY - rect.top) * scaleY) / TILE)
-      if (x >= 0 && y >= 0 && x < state.world.size && y < state.world.size) {
+      if (x >= 0 && y >= 0 && x < state.world.size && y < (state.world.height ?? state.world.size)) {
         const agent = state.agents.find((item) => item.role !== 'follower' && item.x === x && item.y === y)
         const canInteract = agent && isWithinInteractionRange(agent, state.player)
         if (agent && canInteract) onAgentClick(agent.id)
@@ -600,8 +648,11 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   )
   const inspectablePositions = new Map<string, Position>()
   state.world.tiles.forEach((tile, index) => {
-    if (!tile.structure && !tile.road && tile.coin <= 0 && (tile.food ?? 0) <= 0) return
-    const position = { x: index % state.world.size, y: Math.floor(index / state.world.size) }
+    const x = index % state.world.size
+    const y = Math.floor(index / state.world.size)
+    const adjacentWater = tile.terrain === 'water' && Math.abs(x - state.player.x) + Math.abs(y - state.player.y) === 1
+    if (!tile.structure && !tile.resourceNode && !adjacentWater && !tile.road && tile.coin <= 0 && (tile.food ?? 0) <= 0) return
+    const position = { x, y }
     inspectablePositions.set(`${position.x},${position.y}`, position)
   })
   state.monsters.forEach((monster) => inspectablePositions.set(`${monster.x},${monster.y}`, monster))

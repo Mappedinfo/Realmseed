@@ -1,4 +1,4 @@
-import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, EquipmentItem, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
+import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, EquipmentItem, FacilityEventKind, FishId, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, createNpcLoadout, equipmentDefense, equipmentPower, mitigateNpcDamage, npcArmorDefense, npcAttackEquipment, npcAttackMove, relicEquipment, resolveCombatRoll } from './combat'
 import {
@@ -16,6 +16,7 @@ import { agentSkillIds, agentSkills, challengeChance, partyBonuses } from './ski
 import { advanceCalendarDays, createFoundingResidents } from './settlements'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 import { redNameDistance, redNameTargetAt, structureMaxHp } from './redName'
+import { bossAlive, createDungeonRun, dungeonEntryPosition, eliteAlive } from './dungeons'
 
 export const STEPS_PER_STAMINA = 100
 export const COMBAT_STEP_MULTIPLIER = 1.5
@@ -50,6 +51,7 @@ function distance(a: Position, b: Position): number {
 }
 
 function campAt(state: GameState, position: Position): Camp | undefined {
+  if (state.world.kind === 'dungeon') return undefined
   return state.camps.find(
     (camp) =>
       camp.sceneX === state.world.sceneX &&
@@ -116,6 +118,56 @@ function monsterName(species: GameState['monsters'][number]['species']): string 
   return species === 'slime' ? '苔泥团' : species === 'boar' ? '棘背兽' : '迷雾精'
 }
 
+const fishNames: Record<FishId, string> = {
+  minnow: '溪流小鱼', carp: '红鳞鲤', loach: '泥鳅', 'golden-koi': '金鲤',
+}
+
+function activityClock(state: GameState): GameState {
+  const progress = state.dayProgress + 1
+  return progress < 10 ? { ...state, dayProgress: progress } : advanceCalendarDays({ ...state, dayProgress: 0 }, 1)
+}
+
+function adjacent(a: Position, b: Position): boolean {
+  return distance(a, b) === 1
+}
+
+function saveCurrentDungeonFloor(state: GameState) {
+  if (!state.activeDungeon) return state.activeDungeon
+  const floors = state.activeDungeon.floors.map((floor, index) => index === state.activeDungeon!.floor - 1
+    ? { world: state.world, fog: state.fog, monsters: state.monsters }
+    : floor)
+  return { ...state.activeDungeon, floors }
+}
+
+function leaveDungeon(state: GameState, completed: boolean, exhausted = false): GameState {
+  const run = state.activeDungeon
+  if (!run) return state
+  const progress = state.dungeonProgress[run.entryId] ?? { completedRuns: 0 }
+  const followers = state.agents.filter((agent) => agent.role === 'follower')
+  const agents = [
+    ...run.overworld.agents.filter((agent) => agent.role !== 'follower'),
+    ...followers.map((agent, index) => ({ ...agent, x: run.returnPosition.x + (index % 2), y: run.returnPosition.y })),
+  ]
+  const next: GameState = {
+    ...state,
+    world: run.overworld.world,
+    fog: run.overworld.fog,
+    agents,
+    monsters: run.overworld.monsters,
+    player: { ...state.player, ...run.returnPosition, stamina: exhausted ? Math.max(3, state.player.stamina) : state.player.stamina },
+    activeDungeon: null,
+    fishing: null,
+    battle: null,
+    selected: run.entryPosition,
+    dungeonProgress: {
+      ...state.dungeonProgress,
+      [run.entryId]: { completedRuns: progress.completedRuns + (completed ? 1 : 0), lastExitDay: state.day },
+    },
+    chronicle: log(state, completed ? '远征队带着 Boss 宝藏回到地表；入口将在明日重整。' : exhausted ? '体力归零，队伍被迫撤回入口并恢复到 3 点体力。' : '队伍从地下撤退，已经取得的战利品全部保留。', completed ? 'good' : 'plain'),
+  }
+  return { ...next, fog: revealFog(next) }
+}
+
 interface AgentLoot {
   gold: number
   berries: number
@@ -161,7 +213,7 @@ function beginMonsterBattle(
       targetKind: 'monster',
       mode: state.combatPreference,
       round: 1,
-      targetMaxHp: monster.hp,
+      targetMaxHp: monster.maxHp ?? monster.hp,
     },
     player: { ...state.player, facing: facingToward(state.player, monster) },
     monsters: state.monsters.map((item) =>
@@ -241,6 +293,8 @@ function resolveRuinEvent(state: GameState, position: Position): GameState {
       id: `ruin-${state.world.sceneX}-${state.world.sceneY}-${position.x}-${position.y}`,
       species,
       hp: 7 + (roll % 5),
+      maxHp: 7 + (roll % 5),
+      rank: 'normal' as const,
       x: position.x,
       y: position.y,
       facing: 'down' as const,
@@ -528,7 +582,8 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   const ai = advanceAi(merged)
   const next = { ...merged, ...ai }
   const revealed = { ...next, fog: revealFog(next) }
-  if (revealed.battle || revealed.player.stamina <= 0) return revealed
+  if (revealed.player.stamina <= 0) return revealed.activeDungeon ? leaveDungeon(revealed, false, true) : revealed
+  if (revealed.battle) return revealed
   const pursuer = revealed.agents
     .filter((agent) => agent.role !== 'follower' && agent.hp > 0 && isAutoAggroAgent(revealed, agent) && Math.max(1, distance(agent, revealed.player)) <= npcAttackMove(agent).maxRange)
     .sort((a, b) => distance(a, revealed.player) - distance(b, revealed.player) || a.id.localeCompare(b.id))[0]
@@ -580,6 +635,7 @@ function addFatigue(
 }
 
 function automaticRest(state: GameState): GameState {
+  if (state.activeDungeon) return leaveDungeon(state, false, true)
   const localCamp = campAt(state, state.player)
   const recovery = Math.min(
     state.player.maxStamina,
@@ -870,7 +926,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SELECT': {
       const tile = state.world.tiles[tileIndex(state.world, action.position.x, action.position.y)]
       const hasMapElement =
-        Boolean(tile.structure || tile.road || tile.coin > 0 || (tile.food ?? 0) > 0) ||
+        Boolean(tile.structure || tile.resourceNode || tile.terrain === 'water' || tile.road || tile.coin > 0 || (tile.food ?? 0) > 0) ||
         state.agents.some(
           (agent) => agent.role !== 'follower' && agent.x === action.position.x && agent.y === action.position.y,
         ) ||
@@ -937,9 +993,180 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         chronicle: log(state, '吃下一枚野果，恢复 1 点体力。', 'good'),
       }
     }
+    case 'EAT_FISH': {
+      const owned = state.resources.fish[action.fishId]
+      if (owned <= 0) return { ...state, chronicle: log(state, `行囊里没有${fishNames[action.fishId]}。`, 'danger') }
+      if (state.player.stamina >= state.player.maxStamina) return { ...state, chronicle: log(state, '体力充足，先留着这条鱼。') }
+      const recovery = action.fishId === 'minnow' ? 1 : action.fishId === 'golden-koi' ? 3 : 2
+      return {
+        ...state,
+        resources: { ...state.resources, fish: { ...state.resources.fish, [action.fishId]: owned - 1 } },
+        player: { ...state.player, stamina: Math.min(state.player.maxStamina, state.player.stamina + recovery) },
+        chronicle: log(state, `食用${fishNames[action.fishId]}，恢复 ${recovery} 点体力。`, 'good'),
+      }
+    }
+    case 'GATHER_RESOURCE': {
+      if (state.battle || state.world.kind === 'dungeon') return state
+      if (!adjacent(state.player, action.position)) return { ...state, chronicle: log(state, '需要站在资源点相邻一格进行采集。', 'danger') }
+      const index = tileIndex(state.world, action.position.x, action.position.y)
+      const tile = state.world.tiles[index]
+      if (!tile?.resourceNode) return { ...state, chronicle: log(state, '这里没有可采集的资源。') }
+      if (tile.resourceReadyDay !== undefined && tile.resourceReadyDay > state.day) {
+        return { ...state, chronicle: log(state, `资源正在恢复，第 ${tile.resourceReadyDay} 日可以再次采集。`, 'danger') }
+      }
+      const amount = (tile.resourceAmount ?? 2) + partyBonuses(state.agents).forage
+      const tiles = state.world.tiles.map((item, itemIndex) => itemIndex === index ? { ...item, resourceReadyDay: state.day + 3 } : item)
+      const exertion = addFatigue(state, state.player.stamina, 20)
+      const gathered: GameState = {
+        ...state,
+        world: { ...state.world, tiles },
+        resources: { ...state.resources, [tile.resourceNode]: state.resources[tile.resourceNode] + amount },
+        player: { ...state.player, stamina: exertion.stamina, facing: facingToward(state.player, action.position) },
+        fatigue: exertion.fatigue,
+        chronicle: log(state, `${tile.resourceNode === 'wood' ? '采集木材' : '开采石料'} +${amount}；资源点将在 3 天后再生。`, 'good'),
+      }
+      return activityClock(finishTurn(gathered, {}))
+    }
+    case 'CAST_FISH': {
+      if (state.battle || state.fishing || state.world.kind === 'dungeon') return state
+      const tile = state.world.tiles[tileIndex(state.world, action.position.x, action.position.y)]
+      if (!tile || tile.terrain !== 'water' || !adjacent(state.player, action.position)) {
+        return { ...state, chronicle: log(state, '需要选择相邻的水格才能抛竿。', 'danger') }
+      }
+      const exertion = addFatigue(state, state.player.stamina, 10)
+      const center = 25 + (hashString(`${state.gameId}:fish-window:${state.day}:${state.turn}:${action.position.x}:${action.position.y}`) % 50)
+      const fishing = {
+        water: action.position,
+        cursor: 0,
+        direction: 1 as const,
+        perfectStart: center - 5,
+        perfectEnd: center + 5,
+        successStart: center - 18,
+        successEnd: center + 18,
+      }
+      const prepared = activityClock(finishTurn({
+        ...state,
+        player: { ...state.player, stamina: exertion.stamina, facing: facingToward(state.player, action.position) },
+        fatigue: exertion.fatigue,
+        chronicle: log(state, '浮标落水——在判定条进入亮区时点击或按空格收竿。'),
+      }, {}))
+      return prepared.battle ? { ...prepared, fishing: null, chronicle: log(prepared, '敌袭打断了钓鱼！', 'danger') } : { ...prepared, fishing }
+    }
+    case 'FISH_TICK': {
+      if (!state.fishing) return state
+      const next = state.fishing.cursor + state.fishing.direction * 4
+      const direction = next >= 100 ? -1 : next <= 0 ? 1 : state.fishing.direction
+      return { ...state, fishing: { ...state.fishing, cursor: Math.max(0, Math.min(100, next)), direction } }
+    }
+    case 'REEL_FISH': {
+      if (!state.fishing) return state
+      const value = state.fishing.cursor
+      const perfect = value >= state.fishing.perfectStart && value <= state.fishing.perfectEnd
+      const success = value >= state.fishing.successStart && value <= state.fishing.successEnd
+      const roll = hashString(`${state.gameId}:fish-catch:${state.day}:${state.turn}:${state.fishing.water.x}:${state.fishing.water.y}:${Math.round(value)}`)
+      if (!success) {
+        const driftwood = roll % 4 === 0 ? 1 : 0
+        return {
+          ...state,
+          fishing: null,
+          resources: { ...state.resources, wood: state.resources.wood + driftwood },
+          chronicle: log(state, driftwood ? '鱼脱钩了，只捞到 1 份漂流木。' : '收竿太早，只有空钩。', 'danger'),
+        }
+      }
+      if (perfect && roll % 100 < 18) {
+        const available = relicEquipment.filter((item) => !state.equipment.some((owned) => owned.id === item.id))
+        if (roll % 100 < 8 && available.length) {
+          const item = { ...available[roll % available.length], equipped: false }
+          return { ...state, fishing: null, equipment: [...state.equipment, item], chronicle: log(state, `完美收竿！从河底钩起遗迹装备「${item.name}」。`, 'good') }
+        }
+        return {
+          ...state,
+          fishing: null,
+          resources: { ...state.resources, fish: { ...state.resources.fish, 'golden-koi': state.resources.fish['golden-koi'] + 1 } },
+          chronicle: log(state, '完美收竿！一尾金鲤跃入行囊。', 'good'),
+        }
+      }
+      if (perfect && roll % 100 < 35) {
+        return { ...state, fishing: null, player: { ...state.player, gold: state.player.gold + 1 }, chronicle: log(state, '完美收竿！鱼钩带回一枚沉在河底的旧金币。', 'good') }
+      }
+      const fishId = (['minnow', 'carp', 'loach'] as FishId[])[roll % 3]
+      return {
+        ...state,
+        fishing: null,
+        resources: { ...state.resources, fish: { ...state.resources.fish, [fishId]: state.resources.fish[fishId] + 1 } },
+        chronicle: log(state, `${perfect ? '完美' : '成功'}收竿，获得${fishNames[fishId]}。`, 'good'),
+      }
+    }
+    case 'ENTER_DUNGEON': {
+      if (state.battle || state.activeDungeon || !adjacent(state.player, action.position)) return state
+      const run = createDungeonRun(state, action.position)
+      if (!run) return { ...state, chronicle: log(state, '入口正在重整，明日再来挑战。', 'danger') }
+      const floor = run.floors[0]
+      const player = { ...state.player, ...dungeonEntryPosition(1) }
+      const next: GameState = {
+        ...state,
+        activeDungeon: run,
+        redNameMode: false,
+        world: floor.world,
+        fog: floor.fog,
+        monsters: floor.monsters,
+        agents: state.agents.filter((agent) => agent.role === 'follower').map((agent) => ({ ...agent, ...player })),
+        player,
+        selected: null,
+        fishing: null,
+        chronicle: log(state, `进入${run.entryKind === 'cave' ? '洞穴' : '巢穴'}。击败守层精英才能使用下层阶梯。`, 'danger'),
+      }
+      return { ...next, fog: revealFog(next) }
+    }
+    case 'USE_DUNGEON_STAIRS': {
+      const run = state.activeDungeon
+      if (!run || !adjacent(state.player, action.position)) return state
+      const tile = state.world.tiles[tileIndex(state.world, action.position.x, action.position.y)]
+      if (tile?.structure !== 'stairs-down' && tile?.structure !== 'stairs-up') return state
+      if (tile.structure === 'stairs-down' && eliteAlive(state)) return { ...state, chronicle: log(state, '守层精英仍然活着，阶梯被封印。', 'danger') }
+      const targetFloor = run.floor + (tile.structure === 'stairs-down' ? 1 : -1)
+      if (targetFloor < 1 || targetFloor > 3) return state
+      const saved = saveCurrentDungeonFloor(state)!
+      const target = saved.floors[targetFloor - 1]
+      const activeDungeon = { ...saved, floor: targetFloor }
+      const player = { ...state.player, ...dungeonEntryPosition(targetFloor, tile.structure === 'stairs-down') }
+      const next: GameState = { ...state, activeDungeon, world: target.world, fog: target.fog, monsters: target.monsters, player, selected: null, battle: null, chronicle: log(state, `抵达地下第 ${targetFloor}/3 层。`, 'plain') }
+      return { ...next, fog: revealFog(next) }
+    }
+    case 'OPEN_CHEST': {
+      if (!state.activeDungeon || !adjacent(state.player, action.position)) return state
+      const index = tileIndex(state.world, action.position.x, action.position.y)
+      const tile = state.world.tiles[index]
+      if (tile?.structure !== 'chest' || tile.chestOpened) return state
+      const isBossChest = tile.chestId?.includes(':boss') ?? false
+      if (isBossChest && bossAlive(state)) return { ...state, chronicle: log(state, 'Boss 的力量仍封锁着宝箱。', 'danger') }
+      const roll = hashString(`${state.gameId}:chest:${tile.chestId}`)
+      const firstClear = isBossChest && (state.dungeonProgress[state.activeDungeon.entryId]?.completedRuns ?? 0) === 0
+      const material = 2 + (roll % 4)
+      const wood = isBossChest || roll % 2 === 0 ? material : 0
+      const stone = isBossChest || roll % 2 === 1 ? material : 0
+      const gold = isBossChest ? (firstClear ? 10 + (roll % 11) : 5 + (roll % 6)) : 1 + (roll % 4)
+      const equipmentChance = isBossChest ? (firstClear ? 100 : 35) : 12
+      const available = relicEquipment.filter((item) => !state.equipment.some((owned) => owned.id === item.id))
+      const item = available.length && roll % 100 < equipmentChance ? { ...available[roll % available.length], equipped: false } : null
+      const tiles = state.world.tiles.map((entry, entryIndex) => entryIndex === index ? { ...entry, chestOpened: true } : entry)
+      const activeDungeon = { ...state.activeDungeon, bossDefeated: state.activeDungeon.bossDefeated || isBossChest }
+      return {
+        ...state,
+        world: { ...state.world, tiles },
+        activeDungeon,
+        resources: { ...state.resources, wood: state.resources.wood + wood, stone: state.resources.stone + stone },
+        player: { ...state.player, gold: state.player.gold + gold, berries: state.player.berries + (isBossChest ? 3 : 1) },
+        equipment: item ? [...state.equipment, item] : state.equipment,
+        chronicle: log(state, `开启${isBossChest ? 'Boss ' : ''}宝箱：${wood ? `木材 +${wood}` : ''}${wood && stone ? '、' : ''}${stone ? `石材 +${stone}` : ''}、金币 +${gold}${item ? `，获得「${item.name}」` : ''}。`, 'good'),
+      }
+    }
+    case 'RETREAT_DUNGEON':
+      return leaveDungeon(state, Boolean(state.activeDungeon?.bossDefeated))
     case 'SET_COMBAT_PREFERENCE':
       return { ...state, combatPreference: action.mode }
     case 'SET_RED_NAME_MODE':
+      if (state.world.kind === 'dungeon' && action.enabled) return { ...state, chronicle: log(state, '地下副本必须通过正式遭遇战推进。', 'danger') }
       return {
         ...state,
         redNameMode: action.enabled,
@@ -1032,7 +1259,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         : []
       const splashIds = new Set(splashTargets.map((item) => item.id))
       const damagedMonsters = state.monsters.map((item) =>
-        item.id === monster?.id ? { ...item, hp: remainingHp, alert: 3, facing: facingToward(item, state.player) }
+        item.id === monster?.id ? { ...item, hp: remainingHp, phase: item.rank === 'boss' && remainingHp <= (item.maxHp ?? item.hp) / 2 ? 2 as const : item.phase, alert: 3, facing: facingToward(item, state.player) }
           : splashIds.has(item.id) ? { ...item, hp: Math.max(0, item.hp - splashDamage), alert: 3 }
             : item,
       )
@@ -1069,7 +1296,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           }
         }
         const maxStamina = Math.min(MAX_STAMINA_CAP, state.player.maxStamina + 1)
-        return {
+        let victory: GameState = {
           ...state,
           battle: null,
           monsters: damagedMonsters.filter((item) => item.hp > 0 && item.id !== monster!.id),
@@ -1087,6 +1314,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             'good',
           ),
         }
+        if (monster?.rank === 'boss' && state.activeDungeon) {
+          const tiles = victory.world.tiles.map((tile) => ({ ...tile }))
+          const chestIndex = tileIndex(victory.world, 20, 8)
+          const exitIndex = tileIndex(victory.world, 22, 8)
+          tiles[chestIndex] = { terrain: 'sand', coin: 0, structure: 'chest', chestId: `${state.activeDungeon.id}:boss`, chestOpened: false }
+          tiles[exitIndex] = { terrain: 'sand', coin: 0, structure: 'dungeon-exit' }
+          victory = {
+            ...victory,
+            world: { ...victory.world, tiles },
+            chronicle: log(victory, 'Boss 倒下，封印解除：Boss 宝箱与返程出口已经出现。', 'good'),
+          }
+        }
+        return victory.player.stamina <= 0 && victory.activeDungeon ? leaveDungeon(victory, false, true) : victory
       }
       const continued: GameState = {
         ...state,
@@ -1115,17 +1355,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return applyNpcAttack(continued, damagedAgent, `counter-${state.battle.round}`)
       }
       if (!monster || !continued.battle) return continued
-      const rawHit = hashString(`${state.gameId}:counter:${state.day}:${target.id}:${state.battle.round}`) % 2
-      const blockRoll = hashString(`${state.gameId}:block:${state.day}:${target.id}:${state.battle.round}`) % 100
-      const blocked = rawHit > 0 && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
-      const hit = blocked ? 0 : rawHit
-      const stamina = Math.max(0, exertion.stamina - hit)
-      return {
+      const hitChance = monster.rank === 'boss' ? 78 : monster.rank === 'elite' ? 68 : 50
+      const attackCount = monster.rank === 'boss' && monster.phase === 2 ? 2 : 1
+      let landed = 0
+      let blockedCount = 0
+      for (let attackIndex = 0; attackIndex < attackCount; attackIndex += 1) {
+        const rawHit = hashString(`${state.gameId}:counter:${state.day}:${target.id}:${state.battle.round}:${attackIndex}`) % 100 < hitChance
+        const blockRoll = hashString(`${state.gameId}:block:${state.day}:${target.id}:${state.battle.round}:${attackIndex}`) % 100
+        const blocked = rawHit && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
+        if (blocked) blockedCount += 1
+        else if (rawHit) landed += 1
+      }
+      const stamina = Math.max(0, exertion.stamina - landed)
+      const countered: GameState = {
         ...continued,
         battle: stamina <= 0 ? null : continued.battle,
         player: { ...continued.player, stamina },
-        chronicle: log(continued, `${blocked ? '旅衣挡下反击' : hit ? `${targetName}反击造成 1 点体力损失` : `${targetName}反击落空`}。`, hit ? 'danger' : 'plain'),
+        chronicle: log(continued, `${targetName}${attackCount > 1 ? '强化连击' : '反击'}：${landed ? `造成 ${landed} 点体力损失` : blockedCount ? '被护具挡下' : '全部落空'}。`, landed ? 'danger' : 'plain'),
       }
+      return stamina <= 0 && countered.activeDungeon ? leaveDungeon(countered, false, true) : countered
     }
     case 'FLEE_BATTLE':
       if (!state.battle) return state
@@ -1277,10 +1525,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     case 'FOUND_CAMP': {
+      if (state.world.kind === 'dungeon') return { ...state, chronicle: log(state, '地下副本内无法建立营地。', 'danger') }
       const index = tileIndex(state.world, state.player.x, state.player.y)
       const tile = state.world.tiles[index]
       if (tile.structure) return { ...state, chronicle: log(state, '这里已有建筑，无法重复建营。', 'danger') }
-      if (state.player.gold < 8) return { ...state, chronicle: log(state, '建立营地需要 8 金。', 'danger') }
+      if (state.resources.wood < 8 || state.resources.stone < 5) return { ...state, chronicle: log(state, '建立营地需要 8 木材与 5 石材。', 'danger') }
       const camp: Camp = {
         id: `camp-${state.world.sceneX}-${state.world.sceneY}-${state.camps.length + 1}`,
         name: `${state.world.sceneName}营地 ${state.camps.length + 1}`,
@@ -1306,7 +1555,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         world: connectCampRoads({ ...state.world, tiles }, camps, camp),
         camps,
         residents: [...state.residents, ...createFoundingResidents(state, camp)],
-        player: { ...state.player, gold: state.player.gold - 8 },
+        resources: { ...state.resources, wood: state.resources.wood - 8, stone: state.resources.stone - 5 },
         chronicle: log(
           state,
           camps.length > 1 ? '新营地落成，两名开拓居民入住，并与同场景营地接通道路。' : '木桩落地，旗帜升起。两名开拓居民入住，营地周围成为可建设的控制范围。',
@@ -1384,8 +1633,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...state, chronicle: log(state, '该格无法修建营地建筑。', 'danger') }
       }
       const definition = campBuildingDefinitions[action.kind]
-      if (state.player.gold < definition.cost) {
-        return { ...state, chronicle: log(state, `修建${definition.name}还需要 ${definition.cost} 金。`, 'danger') }
+      const recipe = definition.materials
+      if (state.resources.wood < recipe.wood || state.resources.stone < recipe.stone || state.player.gold < recipe.gold) {
+        return { ...state, chronicle: log(state, `修建${definition.name}需要 ${recipe.wood} 木、${recipe.stone} 石、${recipe.gold} 金。`, 'danger') }
       }
       const gain = definition.gains
       const tiles = state.world.tiles.map((item, itemIndex) =>
@@ -1410,7 +1660,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               }
             : item,
         ),
-        player: { ...state.player, gold: state.player.gold - definition.cost },
+        player: { ...state.player, gold: state.player.gold - recipe.gold },
+        resources: { ...state.resources, wood: state.resources.wood - recipe.wood, stone: state.resources.stone - recipe.stone },
         buildingCredits: state.buildingCredits - 1,
         chronicle: log(state, `${camp.name}建成${definition.name}：${definition.summary}。`, 'good'),
       }
@@ -1515,6 +1766,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
     case 'TRAVEL': {
+      if (state.activeDungeon) return { ...state, chronicle: log(state, '先从地下副本撤退，才能使用古道。', 'danger') }
       if (state.battle) return { ...state, chronicle: log(state, '战斗中无法使用交通设施。', 'danger') }
       if (state.player.stamina <= 0) return automaticRest(state)
       const delta = directionDelta[action.direction]

@@ -81,13 +81,13 @@ function GameView({
                 : null
       if (direction) {
         event.preventDefault()
-        if (state.battle) return
+        if (state.battle || state.fishing) return
         dispatch({ type: 'MOVE', direction })
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [state.battle])
+  }, [state.battle, state.fishing])
 
   useEffect(() => {
     if (state.battle) {
@@ -110,13 +110,14 @@ function GameView({
           <i />
           <span>{state.weather}</span>
           <i />
-          <span>{state.world.sceneName} [{state.world.sceneX}, {state.world.sceneY}] · {state.world.size} × {state.world.size}</span>
+          <span>{state.activeDungeon ? `地下第 ${state.activeDungeon.floor}/3 层 · ${state.world.sceneName}` : `${state.world.sceneName} [${state.world.sceneX}, ${state.world.sceneY}]`} · {state.world.size} × {state.world.height ?? state.world.size}</span>
         </div>
         <div className="header-actions">
           <label className={`field-combat-toggle red-name-toggle ${state.redNameMode ? 'is-on' : ''}`}>
             <input
               type="checkbox"
               checked={state.redNameMode}
+              disabled={Boolean(state.activeDungeon)}
               onChange={(event) => setRedNameMode(event.target.checked)}
               aria-label="红名模式"
             />
@@ -205,7 +206,15 @@ function GameView({
         </section>
 
         <aside className="side-panel intel-panel">
-          <SceneTransit state={state} dispatch={dispatch} />
+          {state.activeDungeon ? (
+            <section className="dungeon-status-card">
+              <p className="panel-kicker">UNDERGROUND RUN</p>
+              <strong>地下第 {state.activeDungeon.floor}/3 层</strong>
+              <div><span>守层精英</span><b>{state.monsters.some((monster) => monster.rank === 'elite') ? '未击败' : '已清除'}</b></div>
+              <div><span>未开宝箱</span><b>{state.world.tiles.filter((tile) => tile.structure === 'chest' && !tile.chestOpened).length}</b></div>
+              <div><span>Boss</span><b>{state.activeDungeon.floor < 3 ? '更深处' : state.monsters.some((monster) => monster.rank === 'boss') ? '战斗中' : '已击败'}</b></div>
+            </section>
+          ) : <SceneTransit state={state} dispatch={dispatch} />}
           <div className="map-panel-head">
             <div><p className="panel-kicker">WORLD MAP</p><strong>{Math.round((counts.explored / counts.total) * 100)}% 已探索</strong></div>
             <span>{counts.visible} 格明亮</span>

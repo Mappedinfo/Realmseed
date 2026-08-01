@@ -11,6 +11,8 @@ function settlementState(seed: string) {
   state.player.x = 20
   state.player.y = 20
   state.player.gold = 20
+  state.resources.wood = 40
+  state.resources.stone = 40
   state.monsters = []
   state = gameReducer(state, { type: 'FOUND_CAMP' })
   state.camps[0].housing = 12

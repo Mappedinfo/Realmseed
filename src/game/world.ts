@@ -56,7 +56,7 @@ export function tileIndex(world: World, x: number, y: number): number {
 }
 
 export function isInside(world: World, x: number, y: number): boolean {
-  return x >= 0 && y >= 0 && x < world.size && y < world.size
+  return x >= 0 && y >= 0 && x < world.size && y < (world.height ?? world.size)
 }
 
 export function isPassable(world: World, x: number, y: number): boolean {
@@ -139,9 +139,97 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
     }
     tiles[waystone.y * size + waystone.x] = { terrain: 'meadow', coin: 0, structure: 'waystone' }
   }
+  const entryCandidates: { index: number; structure: 'cave' | 'nest'; score: number }[] = []
+  const woodCandidates: { index: number; score: number }[] = []
+  const stoneCandidates: { index: number; score: number }[] = []
+  for (let y = 1; y < size - 1; y += 1) {
+    for (let x = 1; x < size - 1; x += 1) {
+      const index = y * size + x
+      const tile = tiles[index]
+      if (!tile || tile.structure || tile.terrain === 'water' || tile.terrain === 'mountain') continue
+      const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => tiles[(y + dy) * size + x + dx]?.terrain)
+      const nearMountain = neighbors.includes('mountain')
+      if (tile.terrain === 'forest') woodCandidates.push({ index, score: hashString(`${sceneSeed}:wood:${x}:${y}`) })
+      if (nearMountain) stoneCandidates.push({ index, score: hashString(`${sceneSeed}:stone:${x}:${y}`) })
+      if (nearMountain) entryCandidates.push({ index, structure: 'cave', score: hashString(`${sceneSeed}:dungeon:cave:${x}:${y}`) })
+      if (tile.terrain === 'forest' || tile.terrain === 'marsh') entryCandidates.push({ index, structure: 'nest', score: hashString(`${sceneSeed}:dungeon:nest:${x}:${y}`) })
+    }
+  }
+  const hubCandidates: { position: Position; distance: number }[] = []
+  for (let y = 1; y < size - 1; y += 1) {
+    for (let x = 1; x < size - 1; x += 1) {
+      if (!isPassable({ kind: 'overworld', seed, mapSize, size, sceneX, sceneY, sceneName: '', tiles }, x, y)) continue
+      const nearby = (candidates: { index: number }[]) => candidates.filter((candidate) => {
+        const dx = candidate.index % size - x
+        const dy = Math.floor(candidate.index / size) - y
+        return dx * dx + dy * dy <= 18
+      }).length
+      if (nearby(woodCandidates) >= 2 && nearby(stoneCandidates) >= 2) {
+        hubCandidates.push({ position: { x, y }, distance: Math.abs(x - size / 2) + Math.abs(y - size / 2) })
+      }
+    }
+  }
+  const naturalHub = hubCandidates.sort((a, b) => a.distance - b.distance)[0]?.position
+  const provisionalWorld: World = { kind: 'overworld', seed, mapSize, size, sceneX, sceneY, sceneName: '', tiles }
+  const expeditionStart = naturalHub ?? nearestPassable(provisionalWorld, { x: size / 2, y: size / 2 })
+  const placeNodes = (candidates: { index: number; score: number }[], kind: 'wood' | 'stone') => {
+    const centerX = expeditionStart?.x ?? size / 2
+    const centerY = expeditionStart?.y ?? size / 2
+    const nearest = [...candidates].sort((a, b) => {
+      const ax = a.index % size - centerX
+      const ay = Math.floor(a.index / size) - centerY
+      const bx = b.index % size - centerX
+      const by = Math.floor(b.index / size) - centerY
+      return ax * ax + ay * ay - bx * bx - by * by
+    }).slice(0, 2)
+    const chosen = new Map([...nearest, ...[...candidates].sort((a, b) => a.score - b.score).slice(0, Math.max(8, Math.floor(size / 3)))].map((candidate) => [candidate.index, candidate]))
+    chosen.forEach(({ index }) => {
+      if (!tiles[index].structure && !tiles[index].resourceNode) {
+        tiles[index] = { ...tiles[index], resourceNode: kind, resourceAmount: 2 + (hashString(`${sceneSeed}:${kind}:amount:${index}`) % 3) }
+      }
+    })
+  }
+  placeNodes(woodCandidates, 'wood')
+  placeNodes(stoneCandidates, 'stone')
+  const chosenEntries: typeof entryCandidates = []
+  const firstCave = entryCandidates.filter((candidate) => candidate.structure === 'cave').sort((a, b) => a.score - b.score)[0]
+  const firstNest = entryCandidates.filter((candidate) => candidate.structure === 'nest').sort((a, b) => a.score - b.score)[0]
+  if (firstCave) chosenEntries.push(firstCave)
+  if (firstNest && firstNest.index !== firstCave?.index) chosenEntries.push(firstNest)
+  for (const candidate of entryCandidates.sort((a, b) => a.score - b.score)) {
+    if (chosenEntries.some((entry) => entry.index === candidate.index)) continue
+    const x = candidate.index % size
+    const y = Math.floor(candidate.index / size)
+    if (chosenEntries.some((entry) => Math.abs(entry.index % size - x) + Math.abs(Math.floor(entry.index / size) - y) < 10)) continue
+    chosenEntries.push(candidate)
+    if (chosenEntries.length >= (mapSize === 'large' ? 5 : 2)) break
+  }
+  chosenEntries.forEach(({ index, structure }) => {
+    tiles[index] = { ...tiles[index], structure, resourceNode: undefined, resourceAmount: undefined, dungeonEntryId: `${sceneX},${sceneY}:${index}:${structure}` }
+  })
+  if (!naturalHub) {
+    const starterCells: number[] = []
+    for (let radius = 1; radius <= 4 && starterCells.length < 4; radius += 1) {
+      for (let dy = -radius; dy <= radius && starterCells.length < 4; dy += 1) {
+        for (let dx = -radius; dx <= radius && starterCells.length < 4; dx += 1) {
+          if (dx * dx + dy * dy > 18) continue
+          const x = expeditionStart.x + dx
+          const y = expeditionStart.y + dy
+          if (!isInside(provisionalWorld, x, y) || !isPassable(provisionalWorld, x, y)) continue
+          const index = y * size + x
+          if (tiles[index].structure || starterCells.includes(index)) continue
+          starterCells.push(index)
+        }
+      }
+    }
+    starterCells.forEach((index, order) => {
+      const resourceNode = order < 2 ? 'wood' as const : 'stone' as const
+      tiles[index] = { ...tiles[index], resourceNode, resourceAmount: 2 + (hashString(`${sceneSeed}:starter:${resourceNode}:${index}`) % 3) }
+    })
+  }
   const nameRandom = seededRandom(`${sceneSeed}:name`)
   const sceneName = `${pick(nameRandom, scenePrefixes)}${pick(nameRandom, sceneSuffixes)}`
-  return { seed, mapSize, size, sceneX, sceneY, sceneName, tiles }
+  return { kind: 'overworld', seed, mapSize, size, sceneX, sceneY, sceneName, tiles, expeditionStart }
 }
 
 export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps' | 'residents'>): FogLevel[] {
@@ -165,7 +253,7 @@ export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'a
     }
   }
 
-  for (const camp of state.camps) {
+  for (const camp of state.world.kind === 'dungeon' ? [] : state.camps) {
     if (camp.sceneX !== state.world.sceneX || camp.sceneY !== state.world.sceneY) continue
     const radius = effectiveCampStats(state, camp).controlRadius
     for (let dy = -radius; dy <= radius; dy += 1) {
@@ -193,8 +281,8 @@ export function createScene(
   const world = createWorld(seed, mapSize, sceneX, sceneY)
   const random = seededRandom(`${seed}:scene:${sceneX}:${sceneY}:society`)
   const occupied = new Set<string>()
-  const midpoint = Math.floor(world.size / 2)
-  occupied.add(`${midpoint},${midpoint}`)
+  const initialEntry = sceneEntry(world)
+  occupied.add(`${initialEntry.x},${initialEntry.y}`)
   const factionIds = ['moss', 'ember', 'tide'] as const
   const sceneId = `${sceneX}_${sceneY}`
   const agents: Agent[] = Array.from({ length: mapSize === 'large' ? 28 : 12 }, (_, index) => {
@@ -228,14 +316,21 @@ export function createScene(
       loadout: createNpcLoadout(`agent-${sceneId}-${index}`, skill, skillLevel),
     }
   })
-  const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
-    id: `monster-${sceneId}-${index}`,
-    species: pick(random, ['slime', 'boar', 'wisp'] as const),
-    hp: 6 + Math.floor(random() * 5),
-    facing: pick(random, ['up', 'down', 'left', 'right'] as const),
-    alert: 0,
-    ...randomPassable(world, random, occupied),
-  }))
+  const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => {
+    const species = pick(random, ['slime', 'boar', 'wisp'] as const)
+    const maxHp = 6 + Math.floor(random() * 5)
+    const facing = pick(random, ['up', 'down', 'left', 'right'] as const)
+    return {
+      id: `monster-${sceneId}-${index}`,
+      species,
+      hp: maxHp,
+      maxHp,
+      rank: 'normal' as const,
+      facing,
+      alert: 0,
+      ...randomPassable(world, random, occupied),
+    }
+  })
   return { world, agents, monsters, camps: [] }
 }
 
@@ -245,7 +340,7 @@ export function sceneEntry(world: World, direction?: Direction): Position {
   if (direction === 'left') return { x: world.size - 3, y: midpoint }
   if (direction === 'up') return { x: midpoint, y: world.size - 3 }
   if (direction === 'down') return { x: midpoint, y: 2 }
-  return nearestPassable(world, { x: midpoint, y: midpoint })
+  return world.expeditionStart ?? nearestPassable(world, { x: midpoint, y: midpoint })
 }
 
 export function createGame(seed: string, mapSize: MapSize): GameState {
@@ -308,6 +403,10 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     attackSequence: 0,
     battle: null,
     equipment: starterEquipment.map((item) => ({ ...item })),
+    resources: { wood: 0, stone: 0, fish: { minnow: 0, carp: 0, loach: 0, 'golden-koi': 0 } },
+    activeDungeon: null,
+    dungeonProgress: {},
+    fishing: null,
     camps: [],
     residents: [],
     constructionSteps: 0,

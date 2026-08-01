@@ -17,17 +17,18 @@ export function MiniMap({ state }: { state: GameState }) {
     const canvas = ref.current
     const context = canvas?.getContext('2d')
     if (!canvas || !context) return
-    const scale = canvas.width / state.world.size
+    const scaleX = canvas.width / state.world.size
+    const scaleY = canvas.height / (state.world.height ?? state.world.size)
     context.clearRect(0, 0, canvas.width, canvas.height)
     state.world.tiles.forEach((tile, index) => {
       const x = index % state.world.size
       const y = Math.floor(index / state.world.size)
       const fog = state.fog[index]
       context.fillStyle = fog === 0 ? '#111713' : fog === 1 ? '#29322c' : colors[tile.terrain]
-      context.fillRect(Math.floor(x * scale), Math.floor(y * scale), Math.ceil(scale), Math.ceil(scale))
+      context.fillRect(Math.floor(x * scaleX), Math.floor(y * scaleY), Math.ceil(scaleX), Math.ceil(scaleY))
     })
     context.fillStyle = '#ffe27a'
-    context.fillRect(Math.floor(state.player.x * scale) - 1, Math.floor(state.player.y * scale) - 1, 4, 4)
+    context.fillRect(Math.floor(state.player.x * scaleX) - 1, Math.floor(state.player.y * scaleY) - 1, 4, 4)
   }, [state])
 
   return <canvas ref={ref} width={144} height={144} className="mini-map" aria-label="世界缩略图" />

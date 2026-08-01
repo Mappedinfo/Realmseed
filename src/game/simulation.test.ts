@@ -634,14 +634,18 @@ describe('game simulation', () => {
     expect(next.player.stamina).toBe(3)
   })
 
-  it('can found a camp when the tile is empty and gold is sufficient', () => {
+  it('can found a camp when the tile is empty and materials are sufficient', () => {
     const state = createGame('camp-check', 'small')
     state.player.gold = 20
+    state.resources.wood = 8
+    state.resources.stone = 5
     const index = state.player.y * state.world.size + state.player.x
     state.world.tiles[index].structure = undefined
     const next = gameReducer(state, { type: 'FOUND_CAMP' })
     expect(next.world.tiles[index].structure).toBe('camp')
-    expect(next.player.gold).toBe(12)
+    expect(next.player.gold).toBe(20)
+    expect(next.resources.wood).toBe(0)
+    expect(next.resources.stone).toBe(0)
     expect(next.residents.filter((resident) => resident.campId === next.camps[0].id)).toHaveLength(2)
     expect(new Set(next.residents.map((resident) => resident.sex))).toEqual(new Set(['female', 'male']))
   })
@@ -649,6 +653,8 @@ describe('game simulation', () => {
   it('keeps the full camp control range permanently visible after the player leaves', () => {
     let state = flatState('camp-vision-check')
     state.player.gold = 20
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     const camp = state.camps[0]
     state.player = { ...state.player, x: camp.x + 10, y: camp.y + 10 }
@@ -678,6 +684,8 @@ describe('game simulation', () => {
   it('earns one camp building tile after every 100 successful steps', () => {
     let state = flatState('construction-check')
     state.player.gold = 20
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     for (let step = 0; step < 100; step += 1) {
       state = gameReducer(state, { type: 'MOVE', direction: step % 2 === 0 ? 'right' : 'left' })
@@ -689,6 +697,8 @@ describe('game simulation', () => {
   it('builds only inside camp control and applies building attributes', () => {
     let state = flatState('camp-building-check')
     state.player.gold = 20
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     state.buildingCredits = 1
     state.selected = { x: state.player.x + 1, y: state.player.y }
@@ -707,13 +717,15 @@ describe('game simulation', () => {
   it('uses farms for food surplus and houses for stationing capacity', () => {
     let state = flatState('camp-operations-check')
     state.player.gold = 30
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     state.buildingCredits = 2
     state.selected = { x: state.player.x + 1, y: state.player.y }
     state = gameReducer(state, { type: 'BUILD_CAMP_TILE', kind: 'farm' })
     expect(state.camps[0].food).toBe(5)
     expect(state.camps[0].economy).toBe(2)
-    expect(state.player.gold).toBe(20)
+    expect(state.player.gold).toBe(30)
 
     state.selected = { x: state.player.x - 1, y: state.player.y }
     state = gameReducer(state, { type: 'BUILD_CAMP_TILE', kind: 'house' })
@@ -730,6 +742,8 @@ describe('game simulation', () => {
   it('assigns and recalls a follower through a local unlocked camp office', () => {
     let state = flatState('office-check')
     state.player.gold = 20
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     state.camps[0].housing = 8
     const follower = state.agents[0]
@@ -749,6 +763,8 @@ describe('game simulation', () => {
   it('requires the corresponding facility before assigning specialist offices', () => {
     let state = flatState('office-lock-check')
     state.player.gold = 20
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     state.camps[0].housing = 8
     state.agents[0].role = 'follower'
@@ -760,6 +776,8 @@ describe('game simulation', () => {
   it('connects two camps by road and auto-paths home with lower fatigue', () => {
     let state = flatState('camp-road-check')
     state.player.gold = 20
+    state.resources.wood = 40
+    state.resources.stone = 40
     state = gameReducer(state, { type: 'FOUND_CAMP' })
     const homeId = state.camps[0].id
     state = gameReducer(state, { type: 'MOVE', direction: 'right' })

@@ -1,7 +1,11 @@
 export type Terrain = 'meadow' | 'forest' | 'water' | 'mountain' | 'marsh' | 'sand'
 export type FogLevel = 0 | 1 | 2
 export type MapSize = 'small' | 'large'
-export type Structure = 'camp' | 'village' | 'ruin' | 'waystone' | 'camp-building'
+export type Structure = 'camp' | 'village' | 'ruin' | 'waystone' | 'camp-building' | 'cave' | 'nest' | 'stairs-down' | 'stairs-up' | 'chest' | 'dungeon-exit'
+export type WorldKind = 'overworld' | 'dungeon'
+export type ResourceNodeKind = 'wood' | 'stone'
+export type FishId = 'minnow' | 'carp' | 'loach' | 'golden-koi'
+export type MonsterRank = 'normal' | 'elite' | 'boss'
 export type CampBuildingKind = 'house' | 'farm' | 'watchtower' | 'market' | 'workshop' | 'shrine'
 export type AgentSkillId = 'scout' | 'forager' | 'guard' | 'medic' | 'trader' | 'duelist'
 export type BattleMode = 'duel' | 'field'
@@ -33,6 +37,12 @@ export interface Tile {
   lastUsedDay?: number
   structureHp?: number
   structureMaxHp?: number
+  resourceNode?: ResourceNodeKind
+  resourceAmount?: number
+  resourceReadyDay?: number
+  chestId?: string
+  chestOpened?: boolean
+  dungeonEntryId?: string
 }
 
 export interface Position {
@@ -108,6 +118,9 @@ export interface Monster extends Position {
   id: string
   species: 'slime' | 'boar' | 'wisp'
   hp: number
+  maxHp?: number
+  rank?: MonsterRank
+  phase?: 1 | 2
   facing?: Direction
   alert?: number
 }
@@ -140,13 +153,58 @@ export interface BattleEncounter {
 }
 
 export interface World {
+  kind: WorldKind
   seed: string
   mapSize: MapSize
   size: number
+  height?: number
   sceneX: number
   sceneY: number
   sceneName: string
   tiles: Tile[]
+  expeditionStart?: Position
+}
+
+export interface ResourceInventory {
+  wood: number
+  stone: number
+  fish: Record<FishId, number>
+}
+
+export interface DungeonFloorSnapshot {
+  world: World
+  fog: FogLevel[]
+  monsters: Monster[]
+}
+
+export interface DungeonRun {
+  id: string
+  entryId: string
+  entryKind: 'cave' | 'nest'
+  entryPosition: Position
+  sceneX: number
+  sceneY: number
+  floor: number
+  floors: DungeonFloorSnapshot[]
+  overworld: SceneSnapshot
+  returnPosition: Position
+  enteredDay: number
+  bossDefeated: boolean
+}
+
+export interface DungeonProgress {
+  completedRuns: number
+  lastExitDay?: number
+}
+
+export interface FishingState {
+  water: Position
+  cursor: number
+  direction: 1 | -1
+  perfectStart: number
+  perfectEnd: number
+  successStart: number
+  successEnd: number
 }
 
 export interface SceneSnapshot {
@@ -207,6 +265,10 @@ export interface GameState {
   }
   battle: BattleEncounter | null
   equipment: EquipmentItem[]
+  resources: ResourceInventory
+  activeDungeon: DungeonRun | null
+  dungeonProgress: Record<string, DungeonProgress>
+  fishing: FishingState | null
   camps: Camp[]
   residents: Resident[]
   constructionSteps: number
@@ -229,6 +291,15 @@ export type GameAction =
   | { type: 'CHALLENGE_AGENT'; agentId: string }
   | { type: 'RECRUIT'; agentId?: string }
   | { type: 'EAT_BERRY' }
+  | { type: 'EAT_FISH'; fishId: FishId }
+  | { type: 'GATHER_RESOURCE'; position: Position }
+  | { type: 'ENTER_DUNGEON'; position: Position }
+  | { type: 'RETREAT_DUNGEON' }
+  | { type: 'USE_DUNGEON_STAIRS'; position: Position }
+  | { type: 'OPEN_CHEST'; position: Position }
+  | { type: 'CAST_FISH'; position: Position }
+  | { type: 'FISH_TICK' }
+  | { type: 'REEL_FISH' }
   | { type: 'TRADE_BERRIES'; agentId: string; direction: 'buy' | 'sell' }
   | { type: 'SET_COMBAT_PREFERENCE'; mode: BattleMode }
   | { type: 'SET_RED_NAME_MODE'; enabled: boolean }

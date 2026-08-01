@@ -48,7 +48,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
 
   const tile = state.world.tiles[index]
   const playerSharesMapElement =
-    Boolean(tile.structure || tile.road || tile.coin > 0 || (tile.food ?? 0) > 0)
+    Boolean(tile.structure || tile.resourceNode || tile.road || tile.coin > 0 || (tile.food ?? 0) > 0)
   if (state.player.x === position.x && state.player.y === position.y && !playerSharesMapElement) {
     return {
       ...base,
@@ -114,7 +114,8 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
       icon: '!',
       description: '会概率发现队伍并缓慢追击的野生怪物。',
       stats: [
-        { label: '生命', value: monster.hp },
+        { label: '生命', value: `${monster.hp}/${monster.maxHp ?? monster.hp}` },
+        { label: '等级', value: monster.rank === 'boss' ? `Boss · 阶段 ${monster.phase ?? 1}` : monster.rank === 'elite' ? '守层精英' : '普通' },
         { label: '警戒', value: (monster.alert ?? 0) > 0 ? '已发现队伍' : '未警戒' },
         { label: '朝向', value: monster.facing ?? 'down' },
       ],
@@ -172,12 +173,18 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
         tone: 'good',
       }
     }
-    const names = { camp: '未登记营地', village: '村庄', ruin: '古代遗迹', waystone: '古道界碑' } as const
+    const names = { camp: '未登记营地', village: '村庄', ruin: '古代遗迹', waystone: '古道界碑', cave: '深岩洞穴', nest: '腐根巢穴', 'stairs-down': '下层阶梯', 'stairs-up': '上层阶梯', chest: tile.chestOpened ? '已开启宝箱' : '地下宝箱', 'dungeon-exit': '返程出口' } as const
     const descriptions = {
       camp: '尚未登记属性的营地。',
       village: '有人驻守的常亮聚落。',
       ruin: '可能藏有旧时代线索的残垣。',
       waystone: '连接相邻大场景的古代交通设施。',
+      cave: '山地边缘的可重复三层副本，深处盘踞着 Boss。',
+      nest: '森林与湿地中的可重复三层巢穴，藏有材料与遗迹装备。',
+      'stairs-down': '通向更危险楼层的阶梯；守层精英会封锁它。',
+      'stairs-up': '返回已经探索的上一层。',
+      chest: '只在主动开启后结算的地下战利品。',
+      'dungeon-exit': '返回地表入口并保留已经取得的奖励。',
     } as const
     const structure = tile.structure as keyof typeof names
     const ruinResolved = structure === 'ruin' && Boolean(tile.eventResolved)
@@ -185,7 +192,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
       ...base,
       category: '建筑',
       name: ruinResolved ? '已搜寻的古代遗迹' : names[structure],
-      icon: structure === 'waystone' ? '◇' : structure === 'ruin' ? '▥' : '⌂',
+      icon: structure === 'waystone' ? '◇' : structure === 'ruin' ? '▥' : structure === 'cave' || structure === 'nest' ? '▼' : structure === 'chest' ? '▣' : structure.includes('stairs') ? '↕' : structure === 'dungeon-exit' ? '↥' : '⌂',
       description: descriptions[structure],
       stats: [
         { label: '地形', value: terrainNames[tile.terrain] },
@@ -201,8 +208,29 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
             ? ruinResolved
               ? '这处遗迹已经搜寻完毕，不会重复产出。'
               : '踏入后只结算一次：可能出现怪物、金币、食物、回满体力、新装备或新队友。'
-            : undefined,
+            : structure === 'cave' || structure === 'nest' ? '站在入口相邻一格，使用下方行动栏进入。'
+              : structure === 'chest' ? tile.chestOpened ? '宝箱已经开启。' : '站在相邻一格主动开启。'
+                : structure === 'dungeon-exit' ? '使用下方“携宝返程”或“撤退”。'
+                  : structure.includes('stairs') ? '站在相邻一格使用阶梯。' : undefined,
       tone: structure === 'ruin' ? 'neutral' : 'good',
+    }
+  }
+
+  if (tile.resourceNode) {
+    const ready = tile.resourceReadyDay === undefined || tile.resourceReadyDay <= state.day
+    return {
+      ...base,
+      category: '物品',
+      name: tile.resourceNode === 'wood' ? '林木资源点' : '山缘石料点',
+      icon: tile.resourceNode === 'wood' ? '▥' : '◆',
+      description: tile.resourceNode === 'wood' ? '可再生木材，用于营地与建筑施工。' : '可再生石材，用于地基、防御与工坊。',
+      stats: [
+        { label: '状态', value: ready ? '可以采集' : `第 ${tile.resourceReadyDay} 日再生` },
+        { label: '基础产量', value: tile.resourceAmount ?? 2 },
+        { label: '坐标', value: `${position.x}, ${position.y}` },
+      ],
+      hint: ready ? '站在相邻一格，使用下方行动栏主动采集。' : '离开场景后仍会按日期恢复。',
+      tone: ready ? 'good' : 'neutral',
     }
   }
 

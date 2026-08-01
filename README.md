@@ -33,6 +33,12 @@ directly to GitHub Pages.
   and road gate, plus settlement key art for later scene transitions
 - one-shot seeded ruin events: monsters, coins, food, full recovery, relic
   equipment, or a rescued follower
+- repeatable cave and nest expeditions with two guarded exploration floors,
+  a third-floor Boss, locked stairs, deterministic chests, retreat, and next-day resets
+- renewable forest timber and mountain-edge stone nodes, material-based camp
+  recipes, and guaranteed starter gathering opportunities
+- shore fishing with a pixel timing bar, four edible fish, driftwood, old coins,
+  and rare relic catches
 - automatic passable roads between same-scene camps with reduced movement fatigue
 - faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
 - three AI factions, wandering agents with six seeded specialties, followers,
@@ -62,7 +68,8 @@ src/
 ├── components/          React interface and Canvas views
 ├── game/
 │   ├── rng.ts           deterministic seeded random utilities
-│   ├── world.ts         terrain, society, monster, and fog generation
+│   ├── world.ts         terrain, society, resources, entrances, and fog generation
+│   ├── dungeons.ts      three-floor dungeon generation and run snapshots
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
 │   ├── combat.ts        moves, damage categories, and equipment values
 │   ├── redName.ts       direct-map target classification and structure durability
@@ -136,12 +143,19 @@ python3 scripts/ingest_facility_assets.py
   Displayed odds derive from stamina capacity, combat wins, matching mastery
   marks, and NPC skill level. Victory costs 1 stamina and grants 2 affection,
   8 faction reputation, one permanent mastery mark, and skill-level gold.
-- Build camp: requires 8 gold and creates a highlighted, permanently visible
+- Gather: select an adjacent timber or stone node. Harvesting costs 20 fatigue
+  and one travel-progress point; the node regenerates after three days.
+- Fish: select adjacent water and cast. Click the timing meter or press Space to
+  reel; fish restore 1–3 stamina, while perfect catches can reveal rare rewards.
+- Dungeons: select an adjacent cave or nest. Defeat each floor elite to unlock
+  the stairs, defeat the third-floor Boss, open its reward chest, or retreat at
+  any time while retaining opened loot.
+- Build camp: requires 8 wood and 5 stone and creates a highlighted, permanently visible
   control radius; watchtowers expand both control and permanent vision in real time
 - Construction: after founding a camp, each 100 successful movement steps grant
   one building tile; select a highlighted empty tile, then build a traveler
   lodge, forest farm, watchtower, market, workshop, or ember shrine. Each also
-  has a 1–4 gold cost and a documented operational effect.
+  consumes its displayed wood/stone/gold recipe and has a documented operational effect.
 - Building touch: farms yield a berry, lodges restore 1 stamina, and shrines
   fully restore stamina on a 20-turn cooldown; the remaining buildings retain
   their passive settlement, defense, economy, sight, and combat effects.
@@ -211,7 +225,7 @@ path is automatically set to `/Realmseed/` in GitHub Actions.
 1. Persist the infinite scene cache and several seed worlds with IndexedDB.
 2. Add faction wars, settlement ownership, and negotiated tribute rates.
 3. Expand follower specialties into selectable jobs and individual field actions.
-4. Add production queues, quests, and boss monsters.
+4. Add production queues, quests, crafting tools, bait, and additional Boss families.
 5. Split world simulation into a Web Worker for maps larger than 256×256.
 6. Add mod-friendly JSON content packs and localization.
 

@@ -21,6 +21,12 @@ const structureNames: Record<Structure, string> = {
   ruin: '古代遗迹',
   waystone: '古道界碑',
   'camp-building': '营地建筑',
+  cave: '深岩洞穴',
+  nest: '腐根巢穴',
+  'stairs-down': '下层阶梯',
+  'stairs-up': '上层阶梯',
+  chest: '地下宝箱',
+  'dungeon-exit': '返程出口',
 }
 
 export function structureMaxHp(tile: Tile): number {

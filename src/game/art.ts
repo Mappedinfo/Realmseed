@@ -12,7 +12,7 @@ export const artThemes: Record<ArtTheme, { name: string; caption: string; accent
 
 export type SpriteId =
   | `${Terrain}-${0 | 1}`
-  | Structure
+  | Exclude<Structure, 'cave' | 'nest' | 'stairs-down' | 'stairs-up' | 'chest' | 'dungeon-exit'>
   | 'player'
   | 'wanderer'
   | 'villager'
@@ -107,6 +107,12 @@ export const generatedObjectIndex = {
   wisp: 22,
   coin: 23,
   food: 24,
+  cave: 14,
+  nest: 14,
+  'stairs-down': 15,
+  'stairs-up': 15,
+  chest: 23,
+  'dungeon-exit': 15,
 } as const
 
 export const directionalCharacterIndex = {

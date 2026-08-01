@@ -45,7 +45,7 @@ export function CampPanel({
   const atCore = Boolean(local && selectedCamp && state.player.x === selectedCamp.x && state.player.y === selectedCamp.y)
 
   if (state.camps.length === 0) {
-    return <div className="camp-panel tab-panel-content"><p className="empty-copy">花费 8 金建立营地；建营时会有两名开拓居民入住。</p></div>
+    return <div className="camp-panel tab-panel-content"><p className="empty-copy">收集 8 木材与 5 石材建立营地；建营时会有两名开拓居民入住。</p></div>
   }
   if (!selectedCamp) return null
 
@@ -180,8 +180,10 @@ export function CampPanel({
           <div className="camp-buildings">
             {campBuildingKinds.map((kind) => {
               const option = campBuildingDefinitions[kind]
-              return <button key={option.kind} disabled={!local || state.buildingCredits <= 0 || !state.selected || Boolean(state.battle) || state.player.gold < option.cost} onClick={() => dispatch({ type: 'BUILD_CAMP_TILE', kind: option.kind })} title={`${option.detail}；先点击地图中营地高亮范围内的空格`}>
-                <i>{option.glyph}</i><b>{option.name}</b><small>{option.summary}</small><em>{option.cost} 金 · 1 格</em>
+              const missing = state.resources.wood < option.materials.wood || state.resources.stone < option.materials.stone || state.player.gold < option.materials.gold
+              return <button key={option.kind} className={missing ? 'is-missing-materials' : ''} disabled={!local || state.buildingCredits <= 0 || !state.selected || Boolean(state.battle) || missing} onClick={() => dispatch({ type: 'BUILD_CAMP_TILE', kind: option.kind })} title={`${option.detail}；先点击地图中营地高亮范围内的空格`}>
+                <i>{option.glyph}</i><b>{option.name}</b><small>{option.summary}</small>
+                <em className="recipe-line">▥ {option.materials.wood} · ◆ {option.materials.stone}{option.materials.gold ? ` · ● ${option.materials.gold}` : ''} · 额度 1</em>
               </button>
             })}
           </div>

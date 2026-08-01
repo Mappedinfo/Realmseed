@@ -83,6 +83,30 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
   if (focus.kind === 'map') return mapDetail(inspectPosition(state, focus.position), state)
   if (focus.kind === 'player') return personDetail(state, state.player, true)
   if (focus.kind === 'inventory') {
+    if (focus.item !== 'berries') {
+      const resource = focus.item === 'wood' || focus.item === 'stone'
+      const fishRecovery = focus.item === 'minnow' ? 1 : focus.item === 'golden-koi' ? 3 : 2
+      const names = { wood: '木材', stone: '石材', minnow: '溪流小鱼', carp: '红鳞鲤', loach: '泥鳅', 'golden-koi': '金鲤' } as const
+      const count = focus.item === 'wood' || focus.item === 'stone'
+        ? state.resources[focus.item]
+        : state.resources.fish[focus.item]
+      return {
+        category: resource ? '建造材料' : '鱼获',
+        meta: '像素行囊',
+        name: names[focus.item],
+        icon: focus.item === 'wood' ? '▥' : focus.item === 'stone' ? '◆' : '≈',
+        description: resource
+          ? focus.item === 'wood' ? '从森林资源点采集，用于营地核心与木制设施。' : '从山地边缘开采，用于地基、防御与工坊。'
+          : '在相邻水岸完成浮标判定后获得，可直接食用恢复体力。',
+        stats: [
+          { label: '持有', value: count },
+          { label: resource ? '用途' : '食用', value: resource ? '营地与建筑' : `恢复 ${fishRecovery} 体力` },
+          { label: '来源', value: resource ? (focus.item === 'wood' ? '森林资源点' : '山地边缘') : '水岸钓鱼' },
+        ],
+        hint: resource ? '资源点采集后需要 3 天再生。' : '在物品标签页点击“食用”。',
+        tone: 'good' as const,
+      }
+    }
     return {
       category: '物品',
       meta: '背包资源',

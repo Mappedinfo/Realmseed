@@ -46,6 +46,15 @@ describe('procedural world', () => {
     expect(foodTiles.every((tile) => tile.terrain !== 'water' && tile.terrain !== 'mountain')).toBe(true)
   })
 
+  it('guarantees visible wood and stone opportunities near the initial expedition', () => {
+    for (const seed of ['resource-a', 'resource-b', 'browser-smoke-seed']) {
+      const state = createGame(seed, 'small')
+      const visibleNodes = state.world.tiles.filter((tile, index) => state.fog[index] === 2 && tile.resourceNode)
+      expect(visibleNodes.filter((tile) => tile.resourceNode === 'wood').length).toBeGreaterThanOrEqual(2)
+      expect(visibleNodes.filter((tile) => tile.resourceNode === 'stone').length).toBeGreaterThanOrEqual(2)
+    }
+  })
+
   it('keeps regional berry abundance near the ten-berries-per-coin economy', () => {
     const worlds = ['market-a', 'market-b', 'market-c'].map((seed) => createWorld(seed, 'large'))
     const berries = worlds.flatMap((world) => world.tiles).reduce((sum, tile) => sum + (tile.food ?? 0), 0)
