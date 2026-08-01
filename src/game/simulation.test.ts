@@ -461,9 +461,9 @@ describe('game simulation', () => {
   it('toggles equipment bonuses without changing the character sprite contract', () => {
     const state = flatState('equipment-check')
     const knife = state.equipment.find((item) => item.id === 'field-knife')!
-    expect(knife.equipped).toBe(true)
+    expect(knife.equippedBy).toBe('player')
     const next = gameReducer(state, { type: 'TOGGLE_EQUIPMENT', itemId: knife.id })
-    expect(next.equipment.find((item) => item.id === knife.id)?.equipped).toBe(false)
+    expect(next.equipment.find((item) => item.id === knife.id)?.equippedBy).toBeUndefined()
     expect(next.player.facing).toBe(state.player.facing)
   })
 

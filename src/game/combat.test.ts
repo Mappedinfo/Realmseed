@@ -31,9 +31,7 @@ describe('combat and equipment contract', () => {
       explosive: 2,
     })
     expect(equipmentDefense(state.equipment)).toBe(1)
-    state.equipment.forEach((item) => {
-      item.equipped = false
-    })
+    state.equipment.forEach((item) => { item.equippedBy = undefined; item.position = undefined })
     expect(combatPowerSummary(state)).toEqual({
       physical: 0,
       magic: 0,

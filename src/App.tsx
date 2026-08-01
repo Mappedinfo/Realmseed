@@ -10,11 +10,12 @@ import { MiniMap } from './components/MiniMap'
 import { SceneTransit } from './components/SceneTransit'
 import { SelectionDetails } from './components/SelectionDetails'
 import { StartScreen } from './components/StartScreen'
+import { SaveManager } from './components/SaveManager'
 import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
 import { isWithinInteractionRange } from './game/geometry'
 import { findNavigationPath, navigationGoals, navigationStopsAdjacent } from './game/navigation'
-import { clearSavedGame, readSavedGame, writeSavedGame } from './game/persistence'
+import { BrowserSaveStore, clearSavedGame, createSaveEnvelope, LEGACY_SAVE_KEY, readSavedGame, writeSavedGame, type SavedGame } from './game/persistence'
 import { gameReducer, visibleCounts } from './game/simulation'
 import type { BattleMode, GameAction, GameState, MapSize, Position } from './game/types'
 import { createGame } from './game/world'
@@ -24,11 +25,13 @@ function GameView({
   theme,
   onThemeChange,
   onNewWorld,
+  onImport,
 }: {
   initialState: GameState
   theme: ArtTheme
   onThemeChange: (theme: ArtTheme) => void
   onNewWorld: () => void
+  onImport: (save: SavedGame) => void
 }) {
   const [state, dispatch] = useReducer(gameReducer, initialState)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -37,6 +40,7 @@ function GameView({
   const [activeExplorerTab, setActiveExplorerTab] = useState<ExplorerTab>('inventory')
   const [navigationPath, setNavigationPath] = useState<Position[]>([])
   const [navigationTarget, setNavigationTarget] = useState<Position | null>(null)
+  const saveStore = useMemo(() => new BrowserSaveStore(window.localStorage), [])
   const counts = useMemo(() => visibleCounts(state), [state])
   const nearWater = useMemo(() => {
     if (state.activeDungeon) return false
@@ -116,7 +120,7 @@ function GameView({
   const changeExplorerTab = (tab: ExplorerTab) => {
     setActiveExplorerTab(tab)
     if (tab === 'inventory') setExplorerFocus({ kind: 'inventory', item: 'berries' })
-    if (tab === 'equipment' && state.equipment[0]) setExplorerFocus({ kind: 'equipment', itemId: state.equipment[0].id })
+    if (tab === 'equipment') setExplorerFocus({ kind: 'loadout', characterId: state.player.id })
     if (tab === 'party') setExplorerFocus({ kind: 'player' })
     if (tab === 'camps' && state.camps[0]) setExplorerFocus({ kind: 'camp', campId: state.camps[0].id })
     if (tab === 'territory') setExplorerFocus({ kind: 'territory' })
@@ -170,11 +174,15 @@ function GameView({
   useEffect(() => {
     if (state.activeDungeon) {
       writeSavedGame(window.localStorage, state, theme)
+      void saveStore.save(createSaveEnvelope(state, theme))
       return
     }
-    const timer = window.setTimeout(() => writeSavedGame(window.localStorage, state, theme), 200)
+    const timer = window.setTimeout(() => {
+      writeSavedGame(window.localStorage, state, theme)
+      void saveStore.save(createSaveEnvelope(state, theme))
+    }, 200)
     return () => window.clearTimeout(timer)
-  }, [state, theme])
+  }, [saveStore, state, theme])
 
   useEffect(() => {
     const persist = () => writeSavedGame(window.localStorage, state, theme)
@@ -236,6 +244,7 @@ function GameView({
               <option value="duel">左右回合</option>
             </select>
           </label>
+          <SaveManager state={state} theme={theme} onImport={onImport} />
           <AudioControl
             battleActive={Boolean(state.battle)}
             shoreActive={Boolean(state.fishing) || nearWater}
@@ -250,7 +259,7 @@ function GameView({
         <aside className="side-panel explorer-panel">
           <p className="panel-kicker explorer-heading">FIELD DOSSIER · 详情窗口</p>
 
-          <SelectionDetails state={state} focus={explorerFocus} />
+          <SelectionDetails state={state} focus={explorerFocus} dispatch={userDispatch} onFocus={setExplorerFocus} />
 
           <div className="resource-row">
             <div><span className="coin-dot">●</span><strong>{state.player.gold}</strong><small>金币</small></div>
@@ -266,6 +275,7 @@ function GameView({
             state={state}
             dispatch={userDispatch}
             activeTab={activeExplorerTab}
+            focus={explorerFocus}
             selectedCampId={selectedCampId}
             onTabChange={changeExplorerTab}
             onFocus={setExplorerFocus}
@@ -396,8 +406,20 @@ export function App() {
   const [restored] = useState(() => readSavedGame(window.localStorage))
   const [initialState, setInitialState] = useState<GameState | null>(restored?.state ?? null)
   const [theme, setTheme] = useState<ArtTheme>(restored?.theme ?? 'verdant')
+  const [session, setSession] = useState(0)
+  const importSave = (save: SavedGame) => { setTheme(save.theme); setInitialState(save.state); setSession((value) => value + 1) }
+  useEffect(() => {
+    if (restored) return
+    void new BrowserSaveStore(window.localStorage).load().then((saved) => { if (saved) importSave(saved) })
+  }, [restored])
+  useEffect(() => {
+    if (!restored) return
+    const store = new BrowserSaveStore(window.localStorage)
+    if (window.localStorage.getItem(LEGACY_SAVE_KEY)) void store.backup(restored, 'migration').then(() => store.save(restored))
+  }, [restored])
   const start = (seed: string, size: MapSize, selectedTheme: ArtTheme) => {
     clearSavedGame(window.localStorage)
+    void new BrowserSaveStore(window.localStorage).clearActive()
     setTheme(selectedTheme)
     const next = createGame(seed, size)
     const savedMode = window.localStorage.getItem('realmseed-combat-mode')
@@ -408,15 +430,17 @@ export function App() {
   return initialState
     ? (
         <GameView
-          key={initialState.gameId}
+          key={`${initialState.gameId}-${session}`}
           initialState={initialState}
           theme={theme}
           onThemeChange={setTheme}
           onNewWorld={() => {
             clearSavedGame(window.localStorage)
+            void new BrowserSaveStore(window.localStorage).clearActive()
             setInitialState(null)
           }}
+          onImport={importSave}
         />
       )
-    : <StartScreen onStart={start} />
+    : <StartScreen onStart={start} onImport={importSave} />
 }

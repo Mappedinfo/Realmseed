@@ -2,8 +2,9 @@ import { directionalCharacterIndex, directionalCharactersUrl, directionalRow } f
 import { inspectPosition, type InspectionDetail } from '../game/inspection'
 import { campDailyYield, campPopulation, effectiveCampStats } from '../game/camps'
 import { agentSkills } from '../game/skills'
-import type { Agent, EquipmentSlot, GameState } from '../game/types'
+import type { Agent, EquipmentSlot, GameAction, GameState } from '../game/types'
 import type { ExplorerFocus } from './explorerFocus'
+import { LoadoutBoard } from './LoadoutBoard'
 
 interface DetailView {
   category: string
@@ -209,7 +210,8 @@ function focusDetail(state: GameState, focus: ExplorerFocus): DetailView {
   }
 }
 
-export function SelectionDetails({ state, focus }: { state: GameState; focus: ExplorerFocus }) {
+export function SelectionDetails({ state, focus, dispatch, onFocus }: { state: GameState; focus: ExplorerFocus; dispatch: React.Dispatch<GameAction>; onFocus: (focus: ExplorerFocus) => void }) {
+  if (focus.kind === 'loadout') return <LoadoutBoard state={state} characterId={focus.characterId} selectedPosition={focus.position} selectedItemId={focus.itemId} dispatch={dispatch} onFocus={(position, itemId) => onFocus({ kind: 'loadout', characterId: focus.characterId, position, itemId })} />
   const detail = focusDetail(state, focus)
   const portraitIndex = detail.portrait ? directionalCharacterIndex[detail.portrait.role] : null
   const portraitRow = detail.portrait ? directionalRow[detail.portrait.facing ?? 'down'] : 0

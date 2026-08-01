@@ -1,5 +1,6 @@
 import type { Agent, AgentSkillId, CombatMoveId, DamageKind, EquipmentItem, GameState } from './types'
 import { hashString } from './rng'
+import { legacyPosition, wornBy } from './equipment'
 
 export interface CombatMove {
   id: CombatMoveId
@@ -221,17 +222,36 @@ export const relicEquipment: EquipmentItem[] = [
     equipped: false,
     description: '格挡率 +40%',
   },
+  { id: 'relic-crown', name: '雾冠兜帽', slot: 'armor', power: 0, defense: 0, equipped: false, allowedPositions: ['hat'], vision: 1, accuracy: 4, description: '视野 +1 · 命中 +4%' },
+  { id: 'relic-pendant', name: '潮声挂坠', slot: 'focus', kind: 'magic', power: 1, defense: 0, equipped: false, allowedPositions: ['pendant'], description: '魔法威力 +1' },
+  { id: 'relic-lining', name: '恒温内衬', slot: 'armor', power: 0, defense: 0, equipped: false, allowedPositions: ['inner'], stamina: 2, description: '体力上限 +2' },
+  { id: 'relic-belt', name: '拓荒腰封', slot: 'armor', power: 0, defense: 0, equipped: false, allowedPositions: ['belt'], stamina: 1, description: '体力上限 +1' },
+  { id: 'relic-bracers', name: '石纹护臂', slot: 'armor', power: 0, defense: 1, equipped: false, allowedPositions: ['bracers'], block: 4, description: '防御 +1 · 格挡 +4%' },
+  { id: 'relic-gloves', name: '鹰眼手套', slot: 'weapon', power: 0, defense: 0, equipped: false, allowedPositions: ['gloves'], accuracy: 5, critical: 3, description: '命中 +5% · 暴击 +3%' },
+  { id: 'relic-pants', name: '长路护腿', slot: 'armor', power: 0, defense: 1, equipped: false, allowedPositions: ['pants'], stamina: 1, description: '防御 +1 · 体力上限 +1' },
+  { id: 'relic-boots', name: '苔行长靴', slot: 'armor', power: 0, defense: 0, equipped: false, allowedPositions: ['boots'], fatigueReduction: 8, description: '步行疲劳 -8%' },
+  { id: 'relic-mount', name: '星鬃林鹿', slot: 'armor', power: 0, defense: 0, equipped: false, allowedPositions: ['mount'], fatigueReduction: 12, vision: 1, description: '步行疲劳 -12% · 视野 +1' },
+  ...(['赤芽戒', '月泉戒', '守林戒', '逐风戒'] as const).map((name, index): EquipmentItem => ({
+    id: `relic-ring-${index + 1}`, name, slot: index === 1 ? 'focus' : 'armor', kind: index === 1 ? 'magic' : undefined,
+    power: index === 1 ? 1 : 0, defense: index === 2 ? 1 : 0, equipped: false,
+    allowedPositions: ['ring-1', 'ring-2', 'ring-3', 'ring-4'], accuracy: index === 0 ? 3 : 0,
+    critical: index === 3 ? 3 : 0, description: ['命中 +3%', '魔法威力 +1', '防御 +1', '暴击 +3%'][index],
+  })),
 ]
 
-export function equipmentPower(equipment: EquipmentItem[], kind: DamageKind): number {
+function active(item: EquipmentItem, characterId: string) {
+  return item.equippedBy !== undefined ? wornBy(item, characterId) : item.equipped
+}
+
+export function equipmentPower(equipment: EquipmentItem[], kind: DamageKind, characterId = 'player'): number {
   return equipment
-    .filter((item) => item.equipped && item.kind === kind)
+    .filter((item) => active(item, characterId) && item.kind === kind)
     .reduce((total, item) => total + item.power, 0)
 }
 
-export function equipmentDefense(equipment: EquipmentItem[]): number {
+export function equipmentDefense(equipment: EquipmentItem[], characterId = 'player'): number {
   return equipment
-    .filter((item) => item.equipped)
+    .filter((item) => active(item, characterId))
     .reduce((total, item) => total + item.defense, 0)
 }
 
@@ -292,6 +312,7 @@ export function createNpcLoadout(agentId: string, skill: AgentSkillId, skillLeve
     power: skillLevel,
     defense: 0,
     equipped: true,
+    position: legacyPosition({ slot: npcWeaponSlots[moveId] } as EquipmentItem),
     moveId,
     description: `${move.name} · 射程 ${move.minRange}–${move.maxRange} · 威力 +${skillLevel}`,
   }
@@ -307,6 +328,7 @@ export function createNpcLoadout(agentId: string, skill: AgentSkillId, skillLeve
       power: 0,
       defense,
       equipped: true,
+      position: 'coat',
       description: `受到的伤害 -${defense}`,
     },
   ]

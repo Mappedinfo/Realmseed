@@ -41,7 +41,7 @@ Each scene is either 40×40 or 96×96 tiles. Four waystones identify its routes.
 Travel accumulates 25 steps of fatigue and changes one coordinate. Scene
 generation has no authored outer boundary; practical limits are browser memory
 and JavaScript's safe integer range. The prototype keeps visited scenes in
-memory. A versioned localStorage snapshot now restores active games and dungeon
+memory. A versioned browser snapshot now restores active games and dungeon
 runs after refresh; IndexedDB serialization and cache eviction are the next
 persistence milestone.
 

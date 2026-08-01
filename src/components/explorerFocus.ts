@@ -1,10 +1,11 @@
-import type { FishId, Position, ResourceNodeKind } from '../game/types'
+import type { EquipmentPosition, FishId, Position, ResourceNodeKind } from '../game/types'
 
 export type ExplorerFocus =
   | { kind: 'map'; position: Position }
   | { kind: 'player' }
   | { kind: 'inventory'; item: 'berries' | ResourceNodeKind | FishId }
   | { kind: 'equipment'; itemId: string }
+  | { kind: 'loadout'; characterId: string; position?: EquipmentPosition; itemId?: string }
   | { kind: 'party'; agentId: string }
   | { kind: 'camp'; campId: string }
   | { kind: 'territory'; factionId?: string }

@@ -1,4 +1,4 @@
-import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, EquipmentItem, FacilityEventKind, FishId, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
+import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, EquipmentItem, EquipmentPosition, FacilityEventKind, FishId, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, createNpcLoadout, equipmentDefense, equipmentPower, mitigateNpcDamage, npcArmorDefense, npcAttackEquipment, npcAttackMove, relicEquipment, resolveCombatRoll } from './combat'
 import {
@@ -16,6 +16,7 @@ import { agentSkillIds, agentSkills, challengeChance, partyBonuses } from './ski
 import { advanceCalendarDays, createFoundingResidents } from './settlements'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 import { redNameDistance, redNameTargetAt, structureMaxHp } from './redName'
+import { allowedPositions, canManageEquipment, equipmentTotals } from './equipment'
 import { bossAlive, createDungeonRun, dungeonEntryPosition, eliteAlive } from './dungeons'
 import {
   FISHING_RECOVERY_DAYS,
@@ -278,7 +279,7 @@ function applyNpcAttack(state: GameState, agent: Agent, nonce: string): GameStat
   const move = npcAttackMove(agent)
   const hitChance = Math.min(96, move.accuracy + equipment.power * 2 + agent.skillLevel)
   const hit = hashString(`${state.gameId}:npc-hit:${nonce}:${agent.id}:${move.id}`) % 100 < hitChance
-  const blockChance = Math.min(90, equipmentDefense(state.equipment) * 20 + partyBonuses(state.agents).guardChance)
+  const blockChance = Math.min(90, equipmentDefense(state.equipment) * 20 + equipmentTotals(state.equipment).block + partyBonuses(state.agents).guardChance)
   const blocked = hit && hashString(`${state.gameId}:npc-block:${nonce}:${agent.id}:${move.id}`) % 100 < blockChance
   const staminaLoss = hit && !blocked ? 1 : 0
   const stamina = Math.max(0, state.player.stamina - staminaLoss)
@@ -747,7 +748,8 @@ function move(state: GameState, direction: Direction): GameState {
   let stamina = state.player.stamina
   let fatigue = state.fatigue
   let chronicle = state.chronicle
-  const exertion = addFatigue(state, stamina, tile.road ? ROAD_STEP_COST : 1)
+  const reduction = Math.min(50, equipmentTotals(state.equipment).fatigueReduction)
+  const exertion = addFatigue(state, stamina, (tile.road ? ROAD_STEP_COST : 1) * (1 - reduction / 100))
   stamina = exertion.stamina
   fatigue = exertion.fatigue
   const constructionTotal = state.constructionSteps + (state.camps.length > 0 ? 1 : 0)
@@ -813,7 +815,8 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
   }
 
   const sequence = state.attackSequence + 1
-  const roll = resolveCombatRoll(state.gameId, target.id, sequence, move)
+  const gear = equipmentTotals(state.equipment)
+  const roll = resolveCombatRoll(state.gameId, target.id, sequence, { ...move, accuracy: Math.min(99, move.accuracy + gear.accuracy), criticalChance: Math.min(75, move.criticalChance + gear.critical) })
   const bonuses = partyBonuses(state.agents)
   const localCamp = campAt(state, state.player)
   const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
@@ -965,6 +968,36 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     )
   }
   return finishTurn(patched, {})
+}
+
+function applyEquipmentChange(state: GameState, characterId: string, equipment: EquipmentItem[]): GameState {
+  const before = equipmentTotals(state.equipment, characterId).stamina
+  const after = equipmentTotals(equipment, characterId).stamina
+  const delta = after - before
+  const adjust = (agent: Agent): Agent => agent.id !== characterId || delta === 0 ? agent : {
+    ...agent,
+    maxStamina: Math.max(1, agent.maxStamina + delta),
+    stamina: Math.max(0, Math.min(agent.maxStamina + delta, agent.stamina + Math.max(0, delta))),
+  }
+  return {
+    ...state,
+    equipment,
+    player: adjust(state.player),
+    agents: state.agents.map(adjust),
+    camps: state.camps.map((camp) => ({ ...camp, offices: Object.fromEntries(Object.entries(camp.offices).map(([office, agent]) => [office, agent ? adjust(agent) : agent])) })),
+  }
+}
+
+function equipAt(state: GameState, characterId: string, itemId: string, position: EquipmentPosition): GameState {
+  if (!canManageEquipment(state, characterId)) return { ...state, chronicle: log(state, '当前无法为这名角色调整装备。', 'danger') }
+  const item = state.equipment.find((candidate) => candidate.id === itemId)
+  if (!item || !allowedPositions(item).includes(position)) return { ...state, chronicle: log(state, '这件装备不能放入所选位置。', 'danger') }
+  const equipment = state.equipment.map((candidate) => {
+    if (candidate.id === itemId) return { ...candidate, equipped: false, equippedBy: characterId, position }
+    if (candidate.equippedBy === characterId && candidate.position === position) return { ...candidate, equippedBy: undefined, position: undefined }
+    return candidate
+  })
+  return applyEquipmentChange(state, characterId, equipment)
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -1266,12 +1299,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           }
         : state
     case 'TOGGLE_EQUIPMENT':
-      return {
-        ...state,
-        equipment: state.equipment.map((item) =>
-          item.id === action.itemId ? { ...item, equipped: !item.equipped } : item,
-        ),
+      {
+        const item = state.equipment.find((candidate) => candidate.id === action.itemId)
+        if (!item) return state
+        if (item.equippedBy && item.position) {
+          return applyEquipmentChange(state, item.equippedBy, state.equipment.map((candidate) => candidate.id === item.id ? { ...candidate, equippedBy: undefined, position: undefined } : candidate))
+        }
+        const positions = allowedPositions(item)
+        const position = positions.find((candidate) => !state.equipment.some((equipped) => equipped.equippedBy === 'player' && equipped.position === candidate)) ?? positions[0]
+        return equipAt(state, 'player', item.id, position)
       }
+    case 'EQUIP_ITEM':
+      return equipAt(state, action.characterId, action.itemId, action.position)
+    case 'UNEQUIP_POSITION':
+      if (!canManageEquipment(state, action.characterId)) return state
+      return applyEquipmentChange(state, action.characterId, state.equipment.map((item) => item.equippedBy === action.characterId && item.position === action.position ? { ...item, equippedBy: undefined, position: undefined } : item))
+    case 'MOVE_EQUIPMENT': {
+      const item = state.equipment.find((candidate) => candidate.equippedBy === action.characterId && candidate.position === action.from)
+      return item ? equipAt(state, action.characterId, item.id, action.to) : state
+    }
     case 'COMBAT_ACTION': {
       if (!state.battle) return state
       const monster = state.battle.targetKind === 'monster'
@@ -1297,7 +1343,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const bonuses = partyBonuses(state.agents)
       const localCamp = campAt(state, state.player)
       const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
-      const roll = resolveCombatRoll(state.gameId, target.id, state.battle.round, move)
+      const gear = equipmentTotals(state.equipment)
+      const roll = resolveCombatRoll(state.gameId, target.id, state.battle.round, { ...move, accuracy: Math.min(99, move.accuracy + gear.accuracy), criticalChance: Math.min(75, move.criticalChance + gear.critical) })
       const baseDamage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
       const rawDamage = Math.floor(baseDamage * roll.multiplier)
       const damage = agent ? mitigateNpcDamage(agent, rawDamage) : rawDamage
@@ -1411,7 +1458,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       for (let attackIndex = 0; attackIndex < attackCount; attackIndex += 1) {
         const rawHit = hashString(`${state.gameId}:counter:${state.day}:${target.id}:${state.battle.round}:${attackIndex}`) % 100 < hitChance
         const blockRoll = hashString(`${state.gameId}:block:${state.day}:${target.id}:${state.battle.round}:${attackIndex}`) % 100
-        const blocked = rawHit && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
+        const blocked = rawHit && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + equipmentTotals(state.equipment).block + bonuses.guardChance)
         if (blocked) blockedCount += 1
         else if (rawHit) landed += 1
       }
@@ -1537,10 +1584,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (target.role !== 'wanderer') return { ...state, chronicle: log(state, `${target.name} 已经有自己的职责。`) }
       if (target.affection < 3) return { ...state, chronicle: log(state, `${target.name} 还不够信任你（需要 3 点好感）。`, 'danger') }
       if (state.player.gold < 5) return { ...state, chronicle: log(state, '准备行装至少需要 5 金。', 'danger') }
+      const followerEquipment = target.loadout.map((item) => ({
+        ...item,
+        equipped: false,
+        equippedBy: target.id,
+        position: item.position ?? allowedPositions(item)[0],
+        allowedPositions: allowedPositions(item),
+      }))
       return {
         ...state,
         player: { ...state.player, gold: state.player.gold - 5 },
-        agents: state.agents.map((agent) => (agent.id === target.id ? { ...agent, role: 'follower' } : agent)),
+        equipment: [...state.equipment, ...followerEquipment.filter((item) => !state.equipment.some((owned) => owned.id === item.id))],
+        agents: state.agents.map((agent) => (agent.id === target.id ? { ...agent, role: 'follower', loadout: [] } : agent)),
         chronicle: log(state, `${target.name} 成为你的第一位随从。探索视野与战力提升。`, 'good'),
       }
     }

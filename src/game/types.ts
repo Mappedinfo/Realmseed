@@ -20,6 +20,11 @@ export type CombatMoveId =
   | 'rifle-shot'
   | 'field-bomb'
 export type EquipmentSlot = 'weapon' | 'focus' | 'firearm' | 'explosive' | 'armor'
+export type EquipmentPosition =
+  | 'main-hand' | 'off-hand' | 'ranged' | 'focus' | 'utility'
+  | 'hat' | 'pendant' | 'inner' | 'coat' | 'cloak'
+  | 'belt' | 'bracers' | 'gloves' | 'pants' | 'boots'
+  | 'mount' | 'ring-1' | 'ring-2' | 'ring-3' | 'ring-4'
 export type FacilityEventKind = 'monster' | 'coins' | 'food' | 'restoration' | 'equipment' | 'companion'
 export type ResidentSex = 'female' | 'male'
 export type ResidentStage = 'child' | 'adult'
@@ -134,6 +139,15 @@ export interface EquipmentItem {
   power: number
   defense: number
   equipped: boolean
+  allowedPositions?: EquipmentPosition[]
+  equippedBy?: string
+  position?: EquipmentPosition
+  accuracy?: number
+  critical?: number
+  block?: number
+  stamina?: number
+  vision?: number
+  fatigueReduction?: number
   description: string
   moveId?: CombatMoveId
 }
@@ -339,6 +353,9 @@ export type GameAction =
   | { type: 'COMBAT_ACTION'; moveId: CombatMoveId }
   | { type: 'FLEE_BATTLE' }
   | { type: 'TOGGLE_EQUIPMENT'; itemId: string }
+  | { type: 'EQUIP_ITEM'; characterId: string; itemId: string; position: EquipmentPosition }
+  | { type: 'UNEQUIP_POSITION'; characterId: string; position: EquipmentPosition }
+  | { type: 'MOVE_EQUIPMENT'; characterId: string; from: EquipmentPosition; to: EquipmentPosition }
   | { type: 'FOUND_CAMP' }
   | { type: 'ASSIGN_CAMP_OFFICE'; campId: string; agentId: string; office: CampOffice }
   | { type: 'RECALL_CAMP_OFFICIAL'; campId: string; office: CampOffice }

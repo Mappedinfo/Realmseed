@@ -38,6 +38,10 @@ directly to GitHub Pages.
   a third-floor Boss, locked stairs, deterministic chests, retreat, and next-day resets
 - automatic local save/restore, including the active dungeon floor, fog, monsters,
   opened chests, and the overworld return snapshot
+- portable readable JSON saves with V1→V2 migration, integrity checks, IndexedDB
+  mirroring, import previews, and three recoverable pre-change backups
+- a twenty-position 4×5 party loadout ledger covering weapons, layered clothing,
+  travel gear, a mount, and four independent ring slots
 - renewable forest timber and mountain-edge stone nodes, material-based camp
   recipes, and guaranteed starter gathering opportunities
 - shore fishing with a pixel timing bar, four edible fish, driftwood, old coins,

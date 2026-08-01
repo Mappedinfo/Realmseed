@@ -45,6 +45,40 @@ test('keeps the action interface usable on a phone viewport', async ({ page }) =
   await page.screenshot({ path: '/tmp/realmseed-mobile.png', fullPage: true })
 })
 
+test('manages a twenty-slot loadout and round-trips a readable save file', async ({ page }) => {
+  await page.goto(appUrl)
+  await page.getByLabel('世界种子').fill('loadout-save-browser')
+  await page.getByRole('button', { name: /展开这个世界/ }).click()
+  await page.getByRole('tab', { name: /装备/ }).click()
+  const board = page.getByLabel('人物全身装备盘')
+  await expect(board).toBeVisible()
+  await expect(board.locator('.loadout-grid button')).toHaveCount(20)
+  await expect(board.getByText('戒指Ⅰ')).toBeVisible()
+  await expect(board.getByText('戒指Ⅳ')).toBeVisible()
+  await expect(board.getByText('修补短刃')).toBeVisible()
+  await page.screenshot({ path: '/tmp/realmseed-loadout.png', fullPage: true })
+
+  await page.getByRole('button', { name: '存档', exact: true }).click()
+  const manager = page.getByRole('dialog', { name: '存档管理' })
+  await expect(manager).toBeVisible()
+  const downloadPromise = page.waitForEvent('download')
+  await manager.getByRole('button', { name: /导出当前世界/ }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/^realmseed-loadout-save-browser-D1-.+\.realmseed\.json$/)
+  const exported = await page.evaluate(() => localStorage.getItem('realmseed-save-v2'))
+  expect(exported).toBeTruthy()
+
+  const input = manager.locator('input[type=file]')
+  await input.setInputFiles({ name: 'portable.realmseed.json', mimeType: 'application/json', buffer: Buffer.from(exported!) })
+  await expect(manager).toContainText('loadout-save-browser')
+  await expect(manager).toContainText('V2')
+  await manager.getByRole('button', { name: /备份当前进度并导入/ }).click()
+  await expect(page.getByText('SEED: loadout-save-browser')).toBeVisible()
+  await page.getByRole('button', { name: '存档', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '存档管理' })).toContainText('导入替换前')
+  await page.screenshot({ path: '/tmp/realmseed-loadout-save.png', fullPage: true })
+})
+
 test('shows common supplies and keeps unowned collectibles as empty 4 by 5 slots', async ({ page }) => {
   await page.goto(appUrl)
   await page.getByLabel('世界种子').fill('inventory-browser-seed')
@@ -111,16 +145,21 @@ test('keeps the fishing panel open between casts and animates seeded water signa
   const canvas = page.getByLabel('Realmseed 像素世界地图')
   const box = await canvas.boundingBox()
   expect(box).not.toBeNull()
-  // Walk to a visible waypoint first; the influenced water target at (49,41) then enters sight.
-  const waypointX = box!.x + ((47 - 31 + .5) / 25) * box!.width
-  const waypointY = box!.y + ((43 - 36 + .5) / 17) * box!.height
-  await page.mouse.dblclick(waypointX, waypointY, { delay: 45 })
+  // Walk through visible tiles first; the influenced water target at (49,41) then enters sight.
+  const startOriginX = Number(await canvas.getAttribute('data-origin-x'))
+  const startOriginY = Number(await canvas.getAttribute('data-origin-y'))
+  await page.mouse.dblclick(box!.x + ((46 - startOriginX + .5) / 25) * box!.width, box!.y + ((44 - startOriginY + .5) / 17) * box!.height, { delay: 45 })
+  await expect.poll(async () => Number(await canvas.getAttribute('data-player-x'))).toBe(46)
+  const middleOriginX = Number(await canvas.getAttribute('data-origin-x'))
+  const middleOriginY = Number(await canvas.getAttribute('data-origin-y'))
+  const middleBox = await canvas.boundingBox()
+  await page.mouse.dblclick(middleBox!.x + ((47 - middleOriginX + .5) / 25) * middleBox!.width, middleBox!.y + ((43 - middleOriginY + .5) / 17) * middleBox!.height, { delay: 45 })
   await expect.poll(async () => Number(await canvas.getAttribute('data-player-x'))).toBe(47)
-  await expect.poll(async () => Number(await canvas.getAttribute('data-player-y'))).toBe(43)
-  const originX = 47 - 12
-  const originY = 43 - 8
-  const screenX = box!.x + ((49 - originX + .5) / 25) * box!.width
-  const screenY = box!.y + ((41 - originY + .5) / 17) * box!.height
+  const originX = Number(await canvas.getAttribute('data-origin-x'))
+  const originY = Number(await canvas.getAttribute('data-origin-y'))
+  const targetBox = await canvas.boundingBox()
+  const screenX = targetBox!.x + ((49 - originX + .5) / 25) * targetBox!.width
+  const screenY = targetBox!.y + ((41 - originY + .5) / 17) * targetBox!.height
   await page.mouse.dblclick(screenX, screenY, { delay: 45 })
   const cast = page.getByRole('button', { name: /抛竿/ })
   await expect(cast).toBeVisible({ timeout: 10_000 })

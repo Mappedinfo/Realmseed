@@ -18,6 +18,7 @@ export function ExplorerTabs({
   state,
   dispatch,
   activeTab,
+  focus,
   selectedCampId,
   onTabChange,
   onFocus,
@@ -26,6 +27,7 @@ export function ExplorerTabs({
   state: GameState
   dispatch: React.Dispatch<GameAction>
   activeTab: ExplorerTab
+  focus: ExplorerFocus
   selectedCampId: string | null
   onTabChange: (tab: ExplorerTab) => void
   onFocus: (focus: ExplorerFocus) => void
@@ -153,7 +155,9 @@ export function ExplorerTabs({
           <EquipmentPanel
             state={state}
             dispatch={dispatch}
-            onInspect={(itemId) => onFocus({ kind: 'equipment', itemId })}
+            characterId={focus.kind === 'loadout' ? focus.characterId : state.player.id}
+            selectedPosition={focus.kind === 'loadout' ? focus.position : undefined}
+            onFocus={(characterId, position, itemId) => onFocus({ kind: 'loadout', characterId, position, itemId })}
           />
         ) : null}
 

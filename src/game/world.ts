@@ -2,6 +2,7 @@ import { hashString, pick, seededRandom } from './rng'
 import { createNpcLoadout, starterEquipment } from './combat'
 import { agentSkillIds, partyBonuses } from './skills'
 import { effectiveCampStats } from './camps'
+import { equipmentTotals, migrateEquipment } from './equipment'
 import type { Agent, Direction, Faction, FogLevel, GameState, MapSize, Monster, Position, SceneSnapshot, Terrain, Tile, World } from './types'
 
 const firstNames = ['Ari', 'Bram', 'Cleo', 'Dara', 'Eli', 'Fenn', 'Gale', 'Hana', 'Ivo', 'Juno', 'Kiri', 'Lark', 'Mira', 'Nox', 'Orin', 'Pia', 'Quin', 'Rhea', 'Sora', 'Tavi']
@@ -232,11 +233,11 @@ export function createWorld(seed: string, mapSize: MapSize, sceneX = 0, sceneY =
   return { kind: 'overworld', seed, mapSize, size, sceneX, sceneY, sceneName, tiles, expeditionStart }
 }
 
-export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps' | 'residents'>): FogLevel[] {
+export function revealFog(state: Pick<GameState, 'world' | 'fog' | 'player' | 'agents' | 'camps' | 'residents' | 'equipment'>): FogLevel[] {
   const next = state.fog.map((level) => (level === 2 ? 1 : level)) as FogLevel[]
   const bonuses = partyBonuses(state.agents)
   const sources = [
-    { x: state.player.x, y: state.player.y, radius: 4 + bonuses.vision },
+    { x: state.player.x, y: state.player.y, radius: 4 + bonuses.vision + equipmentTotals(state.equipment).vision },
     ...state.agents
       .filter((agent) => agent.role === 'follower' || agent.role === 'villager')
       .map((agent) => ({ x: agent.x, y: agent.y, radius: agent.role === 'villager' ? 3 : 2 })),
@@ -402,7 +403,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     redNameMode: false,
     attackSequence: 0,
     battle: null,
-    equipment: starterEquipment.map((item) => ({ ...item })),
+    equipment: migrateEquipment(starterEquipment.map((item) => ({ ...item })), player.id),
     resources: { wood: 0, stone: 0, fish: { minnow: 0, carp: 0, loach: 0, 'golden-koi': 0 } },
     activeDungeon: null,
     dungeonProgress: {},

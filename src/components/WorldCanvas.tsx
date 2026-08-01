@@ -384,6 +384,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const [footprints, setFootprints] = useState<Footprint[]>([])
   const [footprintClock, setFootprintClock] = useState(0)
   const [waterClock, setWaterClock] = useState(0)
+  const clickTimerRef = useRef<number | null>(null)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
     y: Math.max(0, Math.min((state.world.height ?? state.world.size) - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
@@ -760,22 +761,32 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (event.detail > 1) {
+        if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current)
+        clickTimerRef.current = null
+        return
+      }
       const rect = event.currentTarget.getBoundingClientRect()
       const scaleX = event.currentTarget.width / rect.width
       const scaleY = event.currentTarget.height / rect.height
       const x = origin.x + Math.floor(((event.clientX - rect.left) * scaleX) / TILE)
       const y = origin.y + Math.floor(((event.clientY - rect.top) * scaleY) / TILE)
       if (x >= 0 && y >= 0 && x < state.world.size && y < (state.world.height ?? state.world.size)) {
-        const agent = state.agents.find((item) => item.role !== 'follower' && item.x === x && item.y === y)
-        const canInteract = agent && isWithinInteractionRange(agent, state.player)
-        if (agent && canInteract) onAgentClick(agent.id)
-        else onSelect({ x, y })
+        clickTimerRef.current = window.setTimeout(() => {
+          const agent = state.agents.find((item) => item.role !== 'follower' && item.x === x && item.y === y)
+          const canInteract = agent && isWithinInteractionRange(agent, state.player)
+          if (agent && canInteract) onAgentClick(agent.id)
+          else onSelect({ x, y })
+          clickTimerRef.current = null
+        }, 180)
       }
     },
     [onAgentClick, onSelect, origin.x, origin.y, state.agents, state.player.x, state.player.y, state.world.size],
   )
 
   const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = null
     const rect = event.currentTarget.getBoundingClientRect()
     const scaleX = event.currentTarget.width / rect.width
     const scaleY = event.currentTarget.height / rect.height
@@ -835,6 +846,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         onDoubleClick={handleDoubleClick}
         data-player-x={state.player.x}
         data-player-y={state.player.y}
+        data-origin-x={origin.x}
+        data-origin-y={origin.y}
         data-world-kind={state.world.kind}
         data-visible-tiles={state.fog.filter((level) => level === 2).length}
         data-player-visual-x={visualPlayer.x.toFixed(3)}

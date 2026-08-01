@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearSavedGame, GAME_SAVE_KEY, readSavedGame, writeSavedGame, type StorageLike } from './persistence'
+import { clearSavedGame, createSaveEnvelope, exportSaveText, GAME_SAVE_KEY, parseSaveText, readSavedGame, writeSavedGame, type StorageLike } from './persistence'
 import { gameReducer } from './simulation'
 import { createGame, isPassable } from './world'
 import type { GameState } from './types'
@@ -26,9 +26,22 @@ describe('local game persistence', () => {
     const storage = memoryStorage()
     expect(writeSavedGame(storage, state, 'verdant')).toBe(true)
     const restored = readSavedGame(storage)
-    expect(restored?.state).toEqual(state)
+    expect(restored?.schemaVersion).toBe(2)
+    expect(restored?.state.activeDungeon).toEqual(state.activeDungeon)
     expect(restored?.state.activeDungeon?.floors).toHaveLength(3)
     expect(restored?.state.fog.some((level) => level === 2)).toBe(true)
+  })
+
+  it('exports readable V2 JSON and rejects checksum changes and future saves', () => {
+    const state = createGame('portable-world', 'small')
+    const text = exportSaveText(state, 'moonlit')
+    expect(parseSaveText(text).state.world.seed).toBe('portable-world')
+    const changed = JSON.parse(text)
+    changed.state.day = 99
+    expect(() => parseSaveText(JSON.stringify(changed))).toThrow(/校验失败/)
+    const future = createSaveEnvelope(state, 'verdant') as unknown as { schemaVersion: number }
+    future.schemaVersion = 99
+    expect(() => parseSaveText(JSON.stringify(future))).toThrow(/高于当前游戏/)
   })
 
   it('rejects corrupt or incompatible saves and clears the canonical key', () => {
