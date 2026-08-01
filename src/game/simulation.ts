@@ -1110,7 +1110,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         world: floor.world,
         fog: floor.fog,
         monsters: floor.monsters,
-        agents: state.agents.filter((agent) => agent.role === 'follower').map((agent) => ({ ...agent, ...player })),
+        agents: state.agents.filter((agent) => agent.role === 'follower').map((agent, index) => ({
+          ...agent,
+          x: player.x + (index % 2),
+          y: player.y + Math.floor(index / 2),
+          facing: player.facing,
+        })),
         player,
         selected: null,
         fishing: null,

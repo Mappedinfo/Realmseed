@@ -35,6 +35,8 @@ directly to GitHub Pages.
   equipment, or a rescued follower
 - repeatable cave and nest expeditions with two guarded exploration floors,
   a third-floor Boss, locked stairs, deterministic chests, retreat, and next-day resets
+- automatic local save/restore, including the active dungeon floor, fog, monsters,
+  opened chests, and the overworld return snapshot
 - renewable forest timber and mountain-edge stone nodes, material-based camp
   recipes, and guaranteed starter gathering opportunities
 - shore fishing with a pixel timing bar, four edible fish, driftwood, old coins,
@@ -70,6 +72,7 @@ src/
 │   ├── rng.ts           deterministic seeded random utilities
 │   ├── world.ts         terrain, society, resources, entrances, and fog generation
 │   ├── dungeons.ts      three-floor dungeon generation and run snapshots
+│   ├── persistence.ts   versioned browser save validation and restoration
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
 │   ├── combat.ts        moves, damage categories, and equipment values
 │   ├── redName.ts       direct-map target classification and structure durability
@@ -84,7 +87,7 @@ src/
 ```
 
 The simulation layer is kept free of React and browser rendering code. This
-makes the rules deterministic, testable, and ready for future save files,
+makes the rules deterministic, testable, and ready for exported save files,
 workers, multiplayer adapters, or richer AI policies.
 
 The full product and system rationale is documented in

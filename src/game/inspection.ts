@@ -2,7 +2,7 @@ import type { GameState, Position, Terrain } from './types'
 import { campBuildingDefinitions, campDailyYield, campPopulation, effectiveCampStats } from './camps'
 import { isWithinInteractionRange } from './geometry'
 import { agentSkills } from './skills'
-import { tileIndex } from './world'
+import { isInside, tileIndex } from './world'
 
 export interface InspectionDetail {
   category: '人物' | '怪物' | '建筑' | '物品' | '道路' | '地形' | '未知'
@@ -31,6 +31,18 @@ const monsterNames = {
 } as const
 
 export function inspectPosition(state: GameState, position: Position): InspectionDetail {
+  if (!isInside(state.world, position.x, position.y)) {
+    return {
+      position: state.player,
+      category: '未知',
+      name: '已离开的区域',
+      icon: '?',
+      description: '当前查看目标属于刚才的场景，已在场景切换时失效。',
+      stats: [],
+      hint: '请在当前地图中重新选择目标。',
+      tone: 'neutral',
+    }
+  }
   const index = tileIndex(state.world, position.x, position.y)
   const fog = state.fog[index]
   const base = { position, tone: 'neutral' as const }

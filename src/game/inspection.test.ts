@@ -101,4 +101,15 @@ describe('map inspection', () => {
     expect(inspectPosition(state, { x: 23, y: 20 }).name).toBe('湿地')
     expect(inspectPosition(state, { x: 24, y: 20 }).category).toBe('未知')
   })
+
+  it('safely expires a selection that is outside a newly entered scene', () => {
+    const state = inspectionState()
+    state.world.size = 25
+    state.world.height = 17
+    state.world.tiles = state.world.tiles.slice(0, 25 * 17)
+    state.fog = state.fog.slice(0, 25 * 17)
+    const detail = inspectPosition(state, { x: 66, y: 43 })
+    expect(detail.category).toBe('未知')
+    expect(detail.name).toBe('已离开的区域')
+  })
 })

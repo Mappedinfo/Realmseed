@@ -40,6 +40,24 @@ describe('dungeons, resources and fishing', () => {
     expect(createDungeonRun(left, position)?.floors).toHaveLength(3)
   })
 
+  it('enters a cave with a visible floor and preserves follower identity', () => {
+    let state = createGame('cave-entry-regression', 'small')
+    const entryIndex = state.world.tiles.findIndex((tile) => tile.structure === 'cave')
+    const entry = { x: entryIndex % state.world.size, y: Math.floor(entryIndex / state.world.size) }
+    const follower = { ...state.agents[0], role: 'follower' as const }
+    state.agents = [follower]
+    state.monsters = []
+    state.player = { ...state.player, ...adjacentPassable(state, entry) }
+    const entered = gameReducer(state, { type: 'ENTER_DUNGEON', position: entry })
+    expect(entered.activeDungeon).not.toBeNull()
+    expect(entered.world.kind).toBe('dungeon')
+    expect(entered.world.size).toBe(25)
+    expect(entered.world.height).toBe(17)
+    expect(entered.fog.filter((level) => level === 2).length).toBeGreaterThan(20)
+    expect(entered.player).toMatchObject({ x: 3, y: 8 })
+    expect(entered.agents[0]).toMatchObject({ id: follower.id, role: 'follower' })
+  })
+
   it('gathers an adjacent renewable node with fatigue, travel progress and follower bonus', () => {
     let state = createGame('gather-contract', 'small')
     state.agents = []

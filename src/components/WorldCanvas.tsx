@@ -735,6 +735,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         onDoubleClick={handleDoubleClick}
         data-player-x={state.player.x}
         data-player-y={state.player.y}
+        data-world-kind={state.world.kind}
+        data-visible-tiles={state.fog.filter((level) => level === 2).length}
         data-player-visual-x={visualPlayer.x.toFixed(3)}
         data-player-visual-y={visualPlayer.y.toFixed(3)}
         data-navigation-steps={navigationPath.length}

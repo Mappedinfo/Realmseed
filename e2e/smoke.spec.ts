@@ -81,3 +81,40 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
   await page.keyboard.press('ArrowUp')
   await expect(page.getByText('AUTO ROUTE')).toBeHidden()
 })
+
+test('enters a deep cave visibly and restores the same dungeon after refresh', async ({ page }) => {
+  const consoleErrors: string[] = []
+  const pageErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message))
+  await page.goto(appUrl)
+  await page.getByLabel('世界种子').fill('cave-ui-15')
+  await page.getByRole('button', { name: /展开这个世界/ }).click()
+  const canvas = page.getByLabel('Realmseed 像素世界地图')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  // The seeded cave is at (66, 43); the player starts at (62, 44).
+  const screenX = box!.x + ((66 - 50 + .5) / 25) * box!.width
+  const screenY = box!.y + ((43 - 36 + .5) / 17) * box!.height
+  await page.mouse.dblclick(screenX, screenY, { delay: 45 })
+  const enter = page.getByRole('button', { name: /进入洞穴/ })
+  await expect(enter).toBeVisible({ timeout: 10_000 })
+  await enter.click()
+  await page.waitForTimeout(100)
+  expect(pageErrors, `page crashed after entering cave: ${pageErrors.join(' | ')}`).toEqual([])
+
+  await expect(page.locator('.world-status')).toContainText('地下第 1/3 层')
+  await expect(canvas).toHaveAttribute('data-world-kind', 'dungeon')
+  await expect.poll(async () => Number(await canvas.getAttribute('data-visible-tiles'))).toBeGreaterThan(20)
+  await page.screenshot({ path: '/tmp/realmseed-cave.png', fullPage: true })
+
+  await page.reload()
+  const restoredCanvas = page.getByLabel('Realmseed 像素世界地图')
+  await expect(page.locator('.world-status')).toContainText('地下第 1/3 层')
+  await expect(restoredCanvas).toHaveAttribute('data-world-kind', 'dungeon')
+  await expect.poll(async () => Number(await restoredCanvas.getAttribute('data-visible-tiles'))).toBeGreaterThan(20)
+  expect(consoleErrors).toEqual([])
+  expect(pageErrors).toEqual([])
+})

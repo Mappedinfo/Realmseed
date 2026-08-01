@@ -41,8 +41,9 @@ Each scene is either 40×40 or 96×96 tiles. Four waystones identify its routes.
 Travel accumulates 25 steps of fatigue and changes one coordinate. Scene
 generation has no authored outer boundary; practical limits are browser memory
 and JavaScript's safe integer range. The prototype keeps visited scenes in
-memory. IndexedDB serialization and cache eviction are the next persistence
-milestone.
+memory. A versioned localStorage snapshot now restores active games and dungeon
+runs after refresh; IndexedDB serialization and cache eviction are the next
+persistence milestone.
 
 This model keeps rendering and AI work bounded to one active region while
 retaining the feeling that the world can continue in every direction.

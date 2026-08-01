@@ -14,6 +14,7 @@ import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
 import { isWithinInteractionRange } from './game/geometry'
 import { findNavigationPath, navigationGoals, navigationStopsAdjacent } from './game/navigation'
+import { clearSavedGame, readSavedGame, writeSavedGame } from './game/persistence'
 import { gameReducer, visibleCounts } from './game/simulation'
 import type { BattleMode, GameAction, GameState, MapSize, Position } from './game/types'
 import { createGame } from './game/world'
@@ -152,6 +153,21 @@ function GameView({
   }, [navigationPath.length, navigationTarget, state.battle, state.fishing])
 
   useEffect(() => {
+    if (state.activeDungeon) {
+      writeSavedGame(window.localStorage, state, theme)
+      return
+    }
+    const timer = window.setTimeout(() => writeSavedGame(window.localStorage, state, theme), 200)
+    return () => window.clearTimeout(timer)
+  }, [state, theme])
+
+  useEffect(() => {
+    const persist = () => writeSavedGame(window.localStorage, state, theme)
+    window.addEventListener('pagehide', persist)
+    return () => window.removeEventListener('pagehide', persist)
+  }, [state, theme])
+
+  useEffect(() => {
     if (state.battle) {
       setActiveAgentId(null)
       return
@@ -246,6 +262,7 @@ function GameView({
 
         <section className="map-column">
           <WorldCanvas
+            key={`${state.gameId}:${state.world.kind}:${state.world.sceneX}:${state.world.sceneY}:${state.activeDungeon?.floor ?? 0}`}
             state={state}
             theme={theme}
             dispatch={userDispatch}
@@ -356,9 +373,11 @@ function GameView({
 }
 
 export function App() {
-  const [initialState, setInitialState] = useState<GameState | null>(null)
-  const [theme, setTheme] = useState<ArtTheme>('verdant')
+  const [restored] = useState(() => readSavedGame(window.localStorage))
+  const [initialState, setInitialState] = useState<GameState | null>(restored?.state ?? null)
+  const [theme, setTheme] = useState<ArtTheme>(restored?.theme ?? 'verdant')
   const start = (seed: string, size: MapSize, selectedTheme: ArtTheme) => {
+    clearSavedGame(window.localStorage)
     setTheme(selectedTheme)
     const next = createGame(seed, size)
     const savedMode = window.localStorage.getItem('realmseed-combat-mode')
@@ -373,7 +392,10 @@ export function App() {
           initialState={initialState}
           theme={theme}
           onThemeChange={setTheme}
-          onNewWorld={() => setInitialState(null)}
+          onNewWorld={() => {
+            clearSavedGame(window.localStorage)
+            setInitialState(null)
+          }}
         />
       )
     : <StartScreen onStart={start} />
