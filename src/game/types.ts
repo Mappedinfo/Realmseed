@@ -59,7 +59,7 @@ export interface Position {
 export interface GatheringActivity {
   target: Position
   kind: ResourceNodeKind
-  phase: 'routing' | 'working'
+  phase: 'routing' | 'working' | 'seeking'
   strike: number
   totalStrikes: number
 }

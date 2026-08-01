@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { findNavigationPath, navigationStopsAdjacent } from './navigation'
-import type { Tile, World } from './types'
+import { findNavigationPath, findNearestResourceRoute, navigationStopsAdjacent } from './navigation'
+import type { FogLevel, Tile, World } from './types'
 
 function flatWorld(): World {
   const tiles: Tile[] = Array.from({ length: 7 * 5 }, () => ({ terrain: 'meadow', coin: 0 }))
@@ -44,5 +44,18 @@ describe('automatic navigation', () => {
       world.tiles[position.y * world.size + position.x].terrain = 'mountain'
     }
     expect(findNavigationPath(world, { x: 1, y: 1 }, target)).toEqual([])
+  })
+
+  it('selects the nearest explored, ready and reachable resource of the active kind', () => {
+    const world = flatWorld()
+    world.tiles[1 * world.size + 2] = { ...world.tiles[1 * world.size + 2], resourceNode: 'wood', resourceReadyDay: 4 }
+    world.tiles[1 * world.size + 4] = { ...world.tiles[1 * world.size + 4], resourceNode: 'wood' }
+    world.tiles[4 * world.size + 1] = { ...world.tiles[4 * world.size + 1], resourceNode: 'wood' }
+    world.tiles[2 * world.size + 3] = { ...world.tiles[2 * world.size + 3], resourceNode: 'stone' }
+    const fog: FogLevel[] = world.tiles.map(() => 2)
+    fog[1 * world.size + 4] = 0
+    const route = findNearestResourceRoute(world, fog, { x: 1, y: 1 }, 'wood', 1)
+    expect(route?.target).toEqual({ x: 1, y: 4 })
+    expect(route?.path.length).toBeGreaterThan(0)
   })
 })

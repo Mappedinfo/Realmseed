@@ -714,8 +714,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       }
     })
 
-    const playerX = (visualPlayer.x - origin.x) * TILE
-    const playerY = (visualPlayer.y - origin.y) * TILE
+    const playerX = Math.round((visualPlayer.x - origin.x) * TILE)
+    const playerY = Math.round((visualPlayer.y - origin.y) * TILE)
     if (state.redNameMode) {
       for (let viewY = 0; viewY < VIEW_ROWS; viewY += 1) {
         for (let viewX = 0; viewX < VIEW_COLS; viewX += 1) {
@@ -853,12 +853,15 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         data-visible-tiles={state.fog.filter((level) => level === 2).length}
         data-player-visual-x={visualPlayer.x.toFixed(3)}
         data-player-visual-y={visualPlayer.y.toFixed(3)}
+        data-player-render-x={Math.round((visualPlayer.x - origin.x) * TILE)}
+        data-player-render-y={Math.round((visualPlayer.y - origin.y) * TILE)}
         data-footprint-count={footprints.length}
         data-water-animation-frame={waterClock % 8}
         data-visible-fishing-signals={state.world.tiles.reduce((total, tile, index) => total + (tile.terrain === 'water' && state.fog[index] === 2 && fishingSignalAt(state.world, { x: index % state.world.size, y: Math.floor(index / state.world.size) }) ? 1 : 0), 0)}
         data-navigation-steps={navigationPath.length}
         data-gathering-phase={gathering?.phase ?? 'idle'}
         data-gathering-strike={gathering?.strike ?? 0}
+        data-gathering-target={gathering ? `${gathering.target.x},${gathering.target.y}` : ''}
         aria-label="Realmseed 像素世界地图"
       />
       {visibleTargets.map((position) => {
@@ -929,7 +932,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         return <span key={`witness-${agent.id}`} className="npc-alert" style={{ left: `${left}%`, top: `${top}%` }} aria-label={`${agent.name}对红名者保持警惕`}>!</span>
       })}
       {state.redNameMode ? <RedNameOverlay state={state} origin={origin} dispatch={dispatch} /> : null}
-      {gathering && gathering.target.x >= origin.x && gathering.target.x < origin.x + VIEW_COLS && gathering.target.y >= origin.y && gathering.target.y < origin.y + VIEW_ROWS ? (
+      {gathering && gathering.phase !== 'seeking' && gathering.target.x >= origin.x && gathering.target.x < origin.x + VIEW_COLS && gathering.target.y >= origin.y && gathering.target.y < origin.y + VIEW_ROWS ? (
         <div
           key={`${gathering.kind}-${gathering.phase}-${gathering.strike}`}
           className={`gather-map-effect kind-${gathering.kind} phase-${gathering.phase}`}

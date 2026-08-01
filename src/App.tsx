@@ -14,7 +14,7 @@ import { SaveManager } from './components/SaveManager'
 import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
 import { isWithinInteractionRange } from './game/geometry'
-import { findNavigationPath, navigationGoals, navigationStopsAdjacent } from './game/navigation'
+import { findNavigationPath, findNearestResourceRoute, navigationGoals, navigationStopsAdjacent } from './game/navigation'
 import { BrowserSaveStore, clearSavedGame, createSaveEnvelope, writeSavedGame, type SaveProblem, type SavedGame } from './game/persistence'
 import { gameReducer, visibleCounts } from './game/simulation'
 import type { BattleMode, GameAction, GameState, GatheringActivity, MapSize, Position } from './game/types'
@@ -208,13 +208,31 @@ function GameView({
     const timer = window.setTimeout(() => {
       if (gathering.strike >= gathering.totalStrikes) {
         dispatch({ type: 'GATHER_RESOURCE', position: gathering.target })
-        setGathering(null)
+        setGathering({ ...gathering, phase: 'seeking' })
       } else {
         setGathering({ ...gathering, strike: gathering.strike + 1 })
       }
     }, gathering.strike >= gathering.totalStrikes ? 240 : 430)
     return () => window.clearTimeout(timer)
   }, [gathering, state.battle, state.day, state.fishing, state.player.stamina, state.player.x, state.player.y, state.world])
+
+  useEffect(() => {
+    if (!gathering || gathering.phase !== 'seeking') return
+    if (state.battle || state.fishing || state.player.stamina <= 0 || state.activeDungeon) {
+      cancelNavigation()
+      return
+    }
+    const next = findNearestResourceRoute(state.world, state.fog, state.player, gathering.kind, state.day, gathering.target)
+    if (!next) {
+      setGathering(null)
+      return
+    }
+    dispatch({ type: 'SELECT', position: next.target })
+    setExplorerFocus({ kind: 'map', position: next.target })
+    setGathering({ ...gathering, target: next.target, phase: next.path.length ? 'routing' : 'working', strike: 0 })
+    setNavigationTarget(next.path.length ? next.target : null)
+    setNavigationPath(next.path)
+  }, [cancelNavigation, gathering, state.activeDungeon, state.battle, state.day, state.fishing, state.fog, state.player, state.world])
 
   useEffect(() => {
     if (gathering && (state.battle || state.fishing || state.player.stamina <= 0)) cancelNavigation()

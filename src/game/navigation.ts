@@ -1,4 +1,4 @@
-import type { Position, Tile, World } from './types'
+import type { FogLevel, Position, ResourceNodeKind, Tile, World } from './types'
 import { isInside, isPassable } from './world'
 
 const steps = [
@@ -71,4 +71,31 @@ export function findNavigationPath(
     cursor = parent.get(key(cursor)) ?? null
   }
   return path
+}
+
+export interface ResourceRoute {
+  target: Position
+  path: Position[]
+}
+
+export function findNearestResourceRoute(
+  world: World,
+  fog: FogLevel[],
+  start: Position,
+  kind: ResourceNodeKind,
+  day: number,
+  exclude?: Position,
+): ResourceRoute | null {
+  const routes: (ResourceRoute & { distance: number; index: number })[] = []
+  world.tiles.forEach((tile, index) => {
+    if (tile.resourceNode !== kind || fog[index] === 0 || (tile.resourceReadyDay !== undefined && tile.resourceReadyDay > day)) return
+    const target = { x: index % world.size, y: Math.floor(index / world.size) }
+    if (exclude && target.x === exclude.x && target.y === exclude.y) return
+    const path = findNavigationPath(world, start, target, true)
+    const alreadyAdjacent = navigationGoals(world, target, true).some((goal) => goal.x === start.x && goal.y === start.y)
+    if (!path.length && !alreadyAdjacent) return
+    routes.push({ target, path, distance: Math.abs(target.x - start.x) + Math.abs(target.y - start.y), index })
+  })
+  routes.sort((a, b) => a.path.length - b.path.length || a.distance - b.distance || a.index - b.index)
+  return routes[0] ? { target: routes[0].target, path: routes[0].path } : null
 }

@@ -41,7 +41,7 @@ export function ActionDock({ state, dispatch, gathering, onGather }: { state: Ga
       key: 'gather',
       glyph: kind === 'wood' ? '▥' : '◆',
       title: gathering ? gathering.kind === 'wood' ? '正在自动伐木' : '正在自动采石' : kind === 'wood' ? '自动伐木' : '自动采石',
-      detail: state.player.stamina <= 0 ? '体力耗尽 · 休息后才能作业' : gathering ? `${gathering.phase === 'routing' ? '前往作业区' : `敲击 ${gathering.strike}/${gathering.totalStrikes}`} · 点击其他行动取消` : `${adjacent ? '原地开工' : '自动寻路'} · ${kind === 'wood' ? '3 斧' : '5 锤'} · 疲劳 +20`,
+      detail: state.player.stamina <= 0 ? '体力耗尽 · 休息后才能作业' : gathering ? `${gathering.phase === 'routing' ? '前往作业区' : gathering.phase === 'seeking' ? '搜索下一个同类资源点' : `敲击 ${gathering.strike}/${gathering.totalStrikes}`} · 点击其他行动取消` : `${adjacent ? '原地开工' : '自动寻路'} · ${kind === 'wood' ? '3 斧' : '5 锤'} · 疲劳 +20`,
       disabled: Boolean(gathering) || state.player.stamina <= 0,
       run: () => onGather(state.selected!),
     })

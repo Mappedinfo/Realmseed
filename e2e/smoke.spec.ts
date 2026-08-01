@@ -159,6 +159,17 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
   const footprintSeen = page.waitForFunction(() => Number(document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')?.dataset.footprintCount) > 0)
   await page.mouse.dblclick(screenX, screenY, { delay: 45 })
   await expect(page.getByText('AUTO ROUTE')).toBeVisible()
+  await expect.poll(async () => page.locator('.auto-route-status > i').evaluate((element) => getComputedStyle(element).animationName)).toBe('none')
+  const renderedCoordinates = await page.evaluate(async () => {
+    const samples: number[][] = []
+    for (let index = 0; index < 14; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      const element = document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')!
+      samples.push([Number(element.dataset.playerRenderX), Number(element.dataset.playerRenderY)])
+    }
+    return samples
+  })
+  expect(renderedCoordinates.every(([x, y]) => Number.isInteger(x) && Number.isInteger(y))).toBe(true)
   await page.screenshot({ path: '/tmp/realmseed-navigation.png', fullPage: true })
   await Promise.all([interpolationSeen, footprintSeen])
   await page.screenshot({ path: '/tmp/realmseed-footprints.png', fullPage: true })
@@ -182,18 +193,25 @@ test('auto-routes to resource regions and shows three axe or five hammer strikes
 
   await page.getByRole('button', { name: '查看林木资源点详情' }).first().click()
   await page.getByRole('button', { name: '自动伐木' }).click()
+  const firstWoodTarget = await canvas.getAttribute('data-gathering-target')
   await expect(page.getByLabel(/自动伐木/)).toBeVisible()
   await page.waitForFunction(() => Number(document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')?.dataset.gatheringStrike) === 3)
-  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).toBe('idle')
   await expect(page.locator('.chronicle-list')).toContainText('采集木材 +')
+  await expect.poll(async () => canvas.getAttribute('data-gathering-target')).not.toBe(firstWoodTarget)
+  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).not.toBe('idle')
+  await page.keyboard.press('ArrowUp')
+  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).toBe('idle')
 
   await page.getByRole('button', { name: '查看山缘石料点详情' }).first().click()
   await page.getByRole('button', { name: '自动采石' }).click()
+  const firstStoneTarget = await canvas.getAttribute('data-gathering-target')
   await expect(page.getByLabel(/自动采石/)).toBeVisible()
   await page.waitForFunction(() => Number(document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')?.dataset.gatheringStrike) === 5)
   await page.screenshot({ path: '/tmp/realmseed-auto-gather.png', fullPage: true })
-  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).toBe('idle')
   await expect(page.locator('.chronicle-list')).toContainText('开采石料 +')
+  await expect.poll(async () => canvas.getAttribute('data-gathering-target')).not.toBe(firstStoneTarget)
+  await page.keyboard.press('ArrowDown')
+  await expect.poll(async () => canvas.getAttribute('data-gathering-phase')).toBe('idle')
 })
 
 test('keeps the fishing panel open between casts and animates seeded water signals', async ({ page }) => {
