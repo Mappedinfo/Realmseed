@@ -28,6 +28,8 @@ describe('map inspection', () => {
       affection: 2,
       stamina: 7,
       maxStamina: 7,
+      hp: 12,
+      maxHp: 12,
       gold: 4,
       berries: 9,
       skill: 'trader',

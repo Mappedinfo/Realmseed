@@ -42,8 +42,8 @@ export function redNameTargetAt(state: GameState, position: Position): RedNameTa
       kind: 'agent',
       name: agent.name,
       position,
-      hp: agent.stamina,
-      maxHp: agent.maxStamina,
+      hp: agent.hp,
+      maxHp: agent.maxHp,
       attackable: !sameFaction,
       reason: sameFaction ? '同阵营角色不是红名目标。' : undefined,
     }

@@ -167,6 +167,10 @@ python3 scripts/ingest_facility_assets.py
   per gold, centered on the 10:1 world economy; trader followers improve buying
   and selling in opposite directions.
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
+- NPC health and loot: people use independent health instead of stamina as
+  combat HP. Defeated NPCs leave the map, drop their carried gold and a small
+  amount of food, and have a deterministic equipment chance that rises with
+  skill level; staffed camp offices are cleared if their official is defeated.
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world
 - Red-name mode: the persistent top-right `红名模式` switch draws melee and

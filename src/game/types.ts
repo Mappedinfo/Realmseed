@@ -58,6 +58,8 @@ export interface Agent extends Position {
   affection: number
   stamina: number
   maxStamina: number
+  hp: number
+  maxHp: number
   gold: number
   berries: number
   facing?: Direction

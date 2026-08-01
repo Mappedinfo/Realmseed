@@ -58,6 +58,7 @@ function personDetail(state: GameState, agent: Agent, isPlayer = false): DetailV
     stats: [
       { label: '身份', value: role },
       { label: '体力', value: `${agent.stamina}/${agent.maxStamina}` },
+      ...(!isPlayer ? [{ label: '生命', value: `${agent.hp}/${agent.maxHp}` }] : []),
       { label: '金币', value: agent.gold },
       { label: '野果', value: agent.berries },
       ...(isPlayer ? [{ label: '专精印记', value: masteryMarks }] : []),

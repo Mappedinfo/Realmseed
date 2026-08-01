@@ -82,7 +82,7 @@ export function BattlePanel({
     ? directionalMonsterIndex[monster.species]
     : directionalCharacterIndex[agent!.role === 'villager' ? 'villager' : 'wanderer']
   const targetType = monster ? 'monster' : 'character'
-  const targetHp = monster ? monster.hp : agent!.stamina
+  const targetHp = monster ? monster.hp : agent!.hp
   const hpPercent = Math.max(0, (targetHp / state.battle.targetMaxHp) * 100)
   const targetDistance = Math.max(1, Math.abs(target.x - state.player.x) + Math.abs(target.y - state.player.y))
 

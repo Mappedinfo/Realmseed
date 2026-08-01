@@ -261,6 +261,7 @@ function GameView({
               <div className="nearby-card">
                 <strong>{nearest.agent.name}</strong>
                 <span>{state.factions.find((faction) => faction.id === nearest.agent.factionId)?.name} · 距离 {nearest.distance}</span>
+                <span className="nearby-health">生命 {nearest.agent.hp}/{nearest.agent.maxHp}<i><b style={{ width: `${Math.max(0, (nearest.agent.hp / nearest.agent.maxHp) * 100)}%` }} /></i></span>
                 <div className="affection">{'♥'.repeat(nearest.agent.affection)}{'♡'.repeat(5 - nearest.agent.affection)}</div>
               </div>
             ) : <p className="empty-copy">附近无人。</p>}

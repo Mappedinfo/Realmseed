@@ -1,4 +1,4 @@
-import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
+import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, EquipmentItem, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
 import { combatMove, equipmentDefense, equipmentPower, relicEquipment, resolveCombatRoll } from './combat'
 import {
@@ -116,6 +116,34 @@ function monsterName(species: GameState['monsters'][number]['species']): string 
   return species === 'slime' ? '苔泥团' : species === 'boar' ? '棘背兽' : '迷雾精'
 }
 
+interface AgentLoot {
+  gold: number
+  berries: number
+  equipment?: EquipmentItem
+}
+
+function resolveAgentLoot(state: GameState, agent: Agent, salt: string): AgentLoot {
+  const roll = hashString(`${state.gameId}:agent-loot:${agent.id}:${salt}`)
+  const equipmentChance = 20 + agent.skillLevel * 15
+  const template = relicEquipment[roll % relicEquipment.length]
+  return {
+    gold: Math.max(1, agent.gold),
+    berries: Math.min(agent.berries, 1 + (Math.floor(roll / 7) % 4)),
+    equipment: roll % 100 < equipmentChance
+      ? { ...template, id: `${template.id}-${agent.id}-${salt}`, equipped: false }
+      : undefined,
+  }
+}
+
+function clearAgentFromCampOffices(camps: Camp[], agentId: string): Camp[] {
+  return camps.map((camp) => ({
+    ...camp,
+    offices: Object.fromEntries(
+      Object.entries(camp.offices).filter(([, official]) => official?.id !== agentId),
+    ),
+  }))
+}
+
 function beginMonsterBattle(
   state: GameState,
   monster: GameState['monsters'][number],
@@ -146,7 +174,7 @@ function beginAgentBattle(state: GameState, agent: Agent, message: string): Game
       targetKind: 'agent',
       mode: state.combatPreference,
       round: 1,
-      targetMaxHp: agent.maxStamina,
+      targetMaxHp: agent.maxHp,
     },
     player: { ...state.player, facing: facingToward(state.player, agent) },
     agents: state.agents.map((item) => item.id === agent.id
@@ -263,6 +291,8 @@ function resolveRuinEvent(state: GameState, position: Position): GameState {
     affection: 3,
     stamina: 7,
     maxStamina: 7,
+    hp: 12,
+    maxHp: 12,
     gold: 0,
     berries: 0,
     facing: state.player.facing,
@@ -467,7 +497,7 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   const revealed = { ...next, fog: revealFog(next) }
   if (revealed.battle || revealed.player.stamina <= 0) return revealed
   const pursuer = revealed.agents.find((agent) =>
-    agent.role !== 'follower' && agent.stamina > 0 && isAutoAggroAgent(revealed, agent) && distance(agent, revealed.player) <= 1,
+    agent.role !== 'follower' && agent.hp > 0 && isAutoAggroAgent(revealed, agent) && distance(agent, revealed.player) <= 1,
   )
   if (pursuer) {
     return beginAgentBattle(revealed, pursuer, `${pursuer.name}执行阵营追缉，主动向你发起攻击！`)
@@ -657,7 +687,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
 
   const affectedAgentIds = new Set<string>()
   const provokedAgentIds = new Set<string>()
-  let agents = state.agents.map((agent) => {
+  const damagedAgents = state.agents.map((agent) => {
     if (agent.role === 'follower') return agent
     const dealt = damageFor('agent', agent.id, agent)
     const directlyAttacked = target.kind === 'agent' && agent.id === target.id
@@ -668,13 +698,20 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     if (provoked) provokedAgentIds.add(agent.id)
     return {
       ...agent,
-      stamina: dealt > 0 ? Math.max(1, agent.stamina - dealt) : agent.stamina,
+      hp: dealt > 0 ? Math.max(0, agent.hp - dealt) : agent.hp,
       hostility: provoked ? 5 : Math.min(5, Math.max(agent.hostility ?? 0, 1)),
       fear: provoked ? 0 : Math.max(agent.fear ?? 0, 2),
       autoAggro: provoked ? true : agent.autoAggro,
       facing: facingToward(agent, state.player),
     }
   })
+  const defeatedAgents = damagedAgents.filter((agent) => agent.role !== 'follower' && agent.hp <= 0)
+  const defeatedAgentIds = new Set(defeatedAgents.map((agent) => agent.id))
+  const agentLoot = defeatedAgents.map((agent) => resolveAgentLoot(state, agent, `map-${sequence}`))
+  const agentLootGold = agentLoot.reduce((total, loot) => total + loot.gold, 0)
+  const agentLootBerries = agentLoot.reduce((total, loot) => total + loot.berries, 0)
+  const agentLootEquipment = agentLoot.flatMap((loot) => loot.equipment ? [loot.equipment] : [])
+  let agents = damagedAgents.filter((agent) => !defeatedAgentIds.has(agent.id))
 
   const affectedMonsterIds = new Set<string>()
   let monsters = state.monsters.map((monster) => {
@@ -713,12 +750,12 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     state.player.stamina - move.staminaCost,
     COMBAT_STEP_MULTIPLIER * (move.size === 'large' ? 2 : 1),
   )
-  const targetAgent = target.kind === 'agent' ? agents.find((agent) => agent.id === target.id) : undefined
+  const targetAgent = target.kind === 'agent' ? state.agents.find((agent) => agent.id === target.id) : undefined
   const attackedFactionIds = new Set(
-    agents.filter((agent) => provokedAgentIds.has(agent.id)).map((agent) => agent.factionId),
+    damagedAgents.filter((agent) => provokedAgentIds.has(agent.id)).map((agent) => agent.factionId),
   )
   const relationPenaltyIds = new Set(
-    agents.filter((agent) => affectedAgentIds.has(agent.id) || ((agent.hostility ?? 0) > (state.agents.find((old) => old.id === agent.id)?.hostility ?? 0)))
+    damagedAgents.filter((agent) => affectedAgentIds.has(agent.id) || ((agent.hostility ?? 0) > (state.agents.find((old) => old.id === agent.id)?.hostility ?? 0)))
       .map((agent) => agent.factionId),
   )
   const factions = state.factions.map((faction) => relationPenaltyIds.has(faction.id)
@@ -732,33 +769,42 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害`
     : '没有命中'
   const collateral = Math.max(0, affectedAgentIds.size + affectedMonsterIds.size - 1) + destroyedStructures
+  const defeatedCount = defeatedMonsters + defeatedAgents.length
+  const lootSummary = defeatedAgents.length
+    ? `，击败 ${defeatedAgents.length} 名 NPC 并获得 ${agentLootGold} 金${agentLootBerries ? `、${agentLootBerries} 果` : ''}${agentLootEquipment.length ? `、${agentLootEquipment.length} 件装备` : ''}`
+    : ''
+  let camps = state.camps
+  defeatedAgents.forEach((agent) => { camps = clearAgentFromCampOffices(camps, agent.id) })
   let patched: GameState = {
     ...state,
     world: { ...state.world, tiles },
     agents,
     monsters,
     factions,
+    camps,
+    equipment: [...state.equipment, ...agentLootEquipment],
     player: {
       ...state.player,
       stamina: exertion.stamina,
       facing: facingToward(state.player, position),
-      gold: state.player.gold + defeatedMonsters * 2,
-      maxStamina: Math.min(MAX_STAMINA_CAP, state.player.maxStamina + defeatedMonsters),
+      gold: state.player.gold + defeatedMonsters * 2 + agentLootGold,
+      berries: state.player.berries + agentLootBerries,
+      maxStamina: Math.min(MAX_STAMINA_CAP, state.player.maxStamina + defeatedCount),
     },
     fatigue: exertion.fatigue,
-    combatWins: state.combatWins + defeatedMonsters,
+    combatWins: state.combatWins + defeatedCount,
     attackSequence: sequence,
     lastMapAttack: { sequence, targetName: target.name, moveId, hit: roll.hit, critical: roll.critical, damage },
     selected: position,
     chronicle: log(
       state,
-      `红名攻击：${move.name}对${target.name}${hitSummary}${collateral ? `，并波及 ${collateral} 个目标` : ''}${destroyedStructures ? `，摧毁 ${destroyedStructures} 座设施` : ''}。${attackedFactionIds.size ? '受攻击者及其阵营已开启持续追缉。' : '附近 NPC 已经警觉。'}`,
+      `红名攻击：${move.name}对${target.name}${hitSummary}${collateral ? `，并波及 ${collateral} 个目标` : ''}${destroyedStructures ? `，摧毁 ${destroyedStructures} 座设施` : ''}${lootSummary}。${attackedFactionIds.size ? '受攻击者及其阵营已开启持续追缉。' : '附近 NPC 已经警觉。'}`,
       roll.hit ? 'danger' : 'plain',
     ),
   }
 
   const retaliationCandidates = agents.filter((agent) =>
-    agent.stamina > 0 && agent.skillLevel >= 2 &&
+    agent.hp > 0 && agent.skillLevel >= 2 &&
     (agent.id === target.id || (agent.hostility ?? 0) >= 1 && distance(agent, position) <= 2),
   )
   const retaliator = retaliationCandidates.find((agent) => {
@@ -925,7 +971,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const target = monster ?? agent
       if (!target) return { ...state, battle: null }
       const targetName = monster ? monsterName(monster.species) : agent!.name
-      const targetHp = monster ? monster.hp : agent!.stamina
+      const targetHp = monster ? monster.hp : agent!.hp
       const move = combatMove(action.moveId)
       if (state.player.stamina < move.staminaCost) {
         return { ...state, chronicle: log(state, `${move.name}需要 ${move.staminaCost} 点体力。`, 'danger') }
@@ -954,7 +1000,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             : item,
       )
       const damagedAgents = state.agents.map((item) => item.id === agent?.id
-        ? { ...item, stamina: remainingHp, hostility: 5, fear: 0, facing: facingToward(item, state.player) }
+        ? { ...item, hp: remainingHp, hostility: 5, fear: 0, autoAggro: true, facing: facingToward(item, state.player) }
         : item)
       const exertion = addFatigue(
         state,
@@ -963,14 +1009,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       )
       if (remainingHp <= 0) {
         if (agent) {
+          const loot = resolveAgentLoot(state, agent, `battle-${state.battle.round}`)
+          const maxStamina = Math.min(MAX_STAMINA_CAP, state.player.maxStamina + 1)
+          const lootText = `${loot.gold} 金${loot.berries ? `、${loot.berries} 果` : ''}${loot.equipment ? `和装备「${loot.equipment.name}」` : ''}`
           return {
             ...state,
             battle: null,
-            agents: damagedAgents,
+            agents: damagedAgents.filter((item) => item.id !== agent.id),
             monsters: damagedMonsters.filter((item) => item.hp > 0),
-            player: { ...state.player, stamina: exertion.stamina },
+            camps: clearAgentFromCampOffices(state.camps, agent.id),
+            equipment: loot.equipment ? [...state.equipment, loot.equipment] : state.equipment,
+            player: {
+              ...state.player,
+              stamina: exertion.stamina,
+              maxStamina,
+              gold: state.player.gold + loot.gold,
+              berries: state.player.berries + loot.berries,
+            },
             fatigue: exertion.fatigue,
-            chronicle: log(state, `${move.name}${roll.critical ? '触发暴击，' : ''}造成 ${damage} 点伤害，${agent.name}失去战斗能力。`, 'danger'),
+            combatWins: state.combatWins + 1,
+            chronicle: log(state, `${move.name}${roll.critical ? '触发暴击，' : ''}造成 ${damage} 点伤害，击败${agent.name}。获得 ${lootText}，体力上限提升到 ${maxStamina}。`, 'good'),
           }
         }
         const maxStamina = Math.min(MAX_STAMINA_CAP, state.player.maxStamina + 1)
@@ -1050,7 +1108,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           fatigue: exertion.fatigue,
           chronicle: log(state, `${target.name}戒备地说：“收起武器。这里没人相信一个红名者。”`, 'danger'),
         }
-        const counterChance = target.stamina > 0 && target.skillLevel >= 2
+        const counterChance = target.hp > 0 && target.skillLevel >= 2
           ? 3 + target.skillLevel * 3 + (target.skill === 'duelist' || target.skill === 'guard' ? 5 : 0)
           : 0
         if (hashString(`${state.gameId}:hostile-talk:${state.turn}:${target.id}`) % 100 < counterChance) {

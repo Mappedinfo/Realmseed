@@ -181,12 +181,12 @@ describe('game simulation', () => {
   it('can hurt but not kill an NPC on the map before its automatic counterattack opens battle', () => {
     const state = flatState('red-overlap-agent-check')
     state.redNameMode = true
-    state.agents = [{ ...state.agents[0], id: 'overlap-agent', x: 20, y: 20, stamina: 2, maxStamina: 7, skillLevel: 1 }]
+    state.agents = [{ ...state.agents[0], id: 'overlap-agent', x: 20, y: 20, hp: 20, maxHp: 20, skillLevel: 1 }]
     let probe = 0
     while (!resolveCombatRoll(state.gameId, 'overlap-agent', 1, combatMove('quick-strike')).hit) state.gameId = `overlap-hit-${probe++}`
     const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 20, y: 20 }, moveId: 'quick-strike' })
     expect(next.battle).toMatchObject({ targetId: 'overlap-agent', targetKind: 'agent' })
-    expect(next.agents[0].stamina).toBe(1)
+    expect(next.agents[0].hp).toBeLessThan(20)
     expect(next.agents[0].hostility).toBe(5)
     expect(next.agents[0].autoAggro).toBe(true)
     expect(next.factions.find((faction) => faction.id === next.agents[0].factionId)?.autoAggro).toBe(true)
@@ -202,7 +202,56 @@ describe('game simulation', () => {
     expect(next.lastMapAttack?.hit).toBe(false)
     expect(next.agents[0].autoAggro).toBe(true)
     expect(next.factions.find((faction) => faction.id === 'moss')?.autoAggro).toBe(true)
-    expect(next.chronicle[0].text).toContain('持续追缉')
+    expect(next.chronicle.some((entry) => entry.text.includes('持续追缉'))).toBe(true)
+  })
+
+  it('defeats an NPC using independent health and drops deterministic gold, food and equipment', () => {
+    const state = flatState('npc-loot-check')
+    const target = {
+      ...state.agents[0],
+      id: 'loot-elite',
+      x: 21,
+      y: 20,
+      hp: 1,
+      maxHp: 20,
+      stamina: 7,
+      maxStamina: 7,
+      gold: 7,
+      berries: 9,
+      skillLevel: 3 as const,
+    }
+    state.agents = [target]
+    state.battle = { targetId: target.id, targetKind: 'agent', mode: 'field', round: 1, targetMaxHp: target.maxHp }
+    let probe = 0
+    while (
+      !resolveCombatRoll(state.gameId, target.id, 1, combatMove('quick-strike')).hit ||
+      hashString(`${state.gameId}:agent-loot:${target.id}:battle-1`) % 100 >= 65
+    ) state.gameId = `npc-loot-${probe++}`
+    const equipmentBefore = state.equipment.length
+    const staminaBefore = state.player.maxStamina
+    const next = gameReducer(state, { type: 'COMBAT_ACTION', moveId: 'quick-strike' })
+    expect(next.agents).toHaveLength(0)
+    expect(next.player.gold).toBe(state.player.gold + 7)
+    expect(next.player.berries).toBeGreaterThan(state.player.berries)
+    expect(next.equipment).toHaveLength(equipmentBefore + 1)
+    expect(next.player.maxStamina).toBe(staminaBefore + 1)
+    expect(next.combatWins).toBe(state.combatWins + 1)
+    expect(next.chronicle[0].text).toContain('击败')
+  })
+
+  it('can defeat and loot an NPC directly from the red-name map attack', () => {
+    const state = flatState('npc-map-loot-check')
+    state.redNameMode = true
+    const target = { ...state.agents[0], id: 'map-loot-agent', x: 20, y: 20, hp: 1, maxHp: 12, gold: 6, berries: 4, skillLevel: 3 as const }
+    state.agents = [target]
+    let probe = 0
+    while (!resolveCombatRoll(state.gameId, target.id, 1, combatMove('quick-strike')).hit) state.gameId = `npc-map-loot-${probe++}`
+    const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 20, y: 20 }, moveId: 'quick-strike' })
+    expect(next.agents).toHaveLength(0)
+    expect(next.battle).toBeNull()
+    expect(next.player.gold).toBe(state.player.gold + 6)
+    expect(next.combatWins).toBe(state.combatWins + 1)
+    expect(next.chronicle[0].text).toContain('击败 1 名 NPC')
   })
 
   it('makes another member of the provoked faction chase and automatically open battle', () => {

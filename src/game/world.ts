@@ -197,21 +197,36 @@ export function createScene(
   occupied.add(`${midpoint},${midpoint}`)
   const factionIds = ['moss', 'ember', 'tide'] as const
   const sceneId = `${sceneX}_${sceneY}`
-  const agents: Agent[] = Array.from({ length: mapSize === 'large' ? 28 : 12 }, (_, index) => ({
-    id: `agent-${sceneId}-${index}`,
-    name: makeName(random),
-    factionId: pick(random, factionIds),
-    role: 'wanderer' as const,
-    ...randomPassable(world, random, occupied),
-    affection: 0,
-    stamina: 7,
-    maxStamina: 7,
-    gold: 2 + Math.floor(random() * 8),
-    berries: 8 + Math.floor(random() * 24),
-    facing: pick(random, ['up', 'down', 'left', 'right'] as const),
-    skill: pick(random, agentSkillIds),
-    skillLevel: (1 + Math.floor(random() * 3)) as 1 | 2 | 3,
-  }))
+  const agents: Agent[] = Array.from({ length: mapSize === 'large' ? 28 : 12 }, (_, index) => {
+    // Keep the original seeded draw order stable so adding HP does not move or
+    // rename existing NPCs for a previously shared world seed.
+    const name = makeName(random)
+    const factionId = pick(random, factionIds)
+    const position = randomPassable(world, random, occupied)
+    const gold = 2 + Math.floor(random() * 8)
+    const berries = 8 + Math.floor(random() * 24)
+    const facing = pick(random, ['up', 'down', 'left', 'right'] as const)
+    const skill = pick(random, agentSkillIds)
+    const skillLevel = (1 + Math.floor(random() * 3)) as 1 | 2 | 3
+    const maxHp = 8 + skillLevel * 4
+    return {
+      id: `agent-${sceneId}-${index}`,
+      name,
+      factionId,
+      role: 'wanderer' as const,
+      ...position,
+      affection: 0,
+      stamina: 7,
+      maxStamina: 7,
+      hp: maxHp,
+      maxHp,
+      gold,
+      berries,
+      facing,
+      skill,
+      skillLevel,
+    }
+  })
   const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
     id: `monster-${sceneId}-${index}`,
     species: pick(random, ['slime', 'boar', 'wisp'] as const),
@@ -260,6 +275,8 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     affection: 0,
     stamina: 12,
     maxStamina: 12,
+    hp: 12,
+    maxHp: 12,
     gold: 12,
     berries: 4,
     facing: 'down',

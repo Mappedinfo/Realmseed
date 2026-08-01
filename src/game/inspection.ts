@@ -83,6 +83,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
       description: `${faction?.name ?? '无阵营'}的${role}，专长是${skill.name}。`,
       stats: [
         { label: '身份', value: role },
+        { label: '生命', value: `${agent.hp}/${agent.maxHp}` },
         { label: '好感', value: `${agent.affection}/5` },
         { label: '金币', value: agent.gold },
         { label: '野果', value: agent.berries },
