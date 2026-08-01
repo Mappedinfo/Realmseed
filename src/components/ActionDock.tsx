@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { GameAction, GameState, Position } from '../game/types'
 import { tileIndex } from '../game/world'
+import { FISHING_SPOT_CAPACITY, fishingFatigue, fishingSignalNames, fishingSpotKey, fishingSpotProgress } from '../game/fishing'
 
 function isAdjacent(a: Position, b: Position) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1
@@ -12,21 +13,23 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
   const adjacent = Boolean(state.selected && isAdjacent(state.player, state.selected))
   const resourceReady = selectedTile?.resourceNode && (selectedTile.resourceReadyDay === undefined || selectedTile.resourceReadyDay <= state.day)
   const fishingActive = Boolean(state.fishing)
+  const castDistance = state.selected ? Math.abs(state.player.x - state.selected.x) + Math.abs(state.player.y - state.selected.y) : 0
+  const selectedSpot = state.selected ? fishingSpotProgress(state.fishingSpots[fishingSpotKey(state.world, state.selected)], state.day) : { uses: 0 }
 
   useEffect(() => {
     if (!state.fishing) return
-    const timer = window.setInterval(() => dispatch({ type: 'FISH_TICK' }), 40)
+    const timer = state.fishing.phase === 'timing' ? window.setInterval(() => dispatch({ type: 'FISH_TICK' }), 40) : undefined
     const reel = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') return
+      if (event.code !== 'Space' || event.repeat) return
       event.preventDefault()
-      dispatch({ type: 'REEL_FISH' })
+      dispatch({ type: state.fishing?.phase === 'timing' ? 'REEL_FISH' : 'RECAST_FISH' })
     }
     window.addEventListener('keydown', reel)
     return () => {
-      window.clearInterval(timer)
+      if (timer !== undefined) window.clearInterval(timer)
       window.removeEventListener('keydown', reel)
     }
-  }, [dispatch, fishingActive])
+  }, [dispatch, fishingActive, state.fishing?.phase])
 
   const contexts: { key: string; glyph: string; title: string; detail: string; disabled?: boolean; action: GameAction }[] = []
   if (state.activeDungeon) {
@@ -44,21 +47,35 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
   if (state.selected && adjacent && selectedTile?.structure === 'chest' && !selectedTile.chestOpened) {
     contexts.push({ key: 'chest', glyph: '▣', title: '开启宝箱', detail: '材料 · 金币 · 遗迹装备', action: { type: 'OPEN_CHEST', position: state.selected } })
   }
-  if (state.selected && adjacent && selectedTile?.terrain === 'water' && state.world.kind === 'overworld') {
-    contexts.push({ key: 'fish', glyph: '≈', title: '抛竿', detail: '疲劳 +10 · 行程 +1', action: { type: 'CAST_FISH', position: state.selected } })
+  if (state.selected && castDistance >= 1 && castDistance <= 2 && selectedTile?.terrain === 'water' && state.world.kind === 'overworld') {
+    contexts.push({ key: 'fish', glyph: '≈', title: selectedSpot.uses >= FISHING_SPOT_CAPACITY ? '钓位沉寂' : '抛竿', detail: selectedSpot.uses >= FISHING_SPOT_CAPACITY ? `第 ${selectedSpot.readyDay} 日恢复` : `第 ${selectedSpot.uses + 1} 杆 · 疲劳 +${fishingFatigue(selectedSpot.uses + 1)}`, disabled: selectedSpot.uses >= FISHING_SPOT_CAPACITY, action: { type: 'CAST_FISH', position: state.selected } })
   }
 
   return (
     <>
       {state.fishing ? (
-        <section className="fishing-panel" aria-label="钓鱼判定">
-          <div className="fishing-copy"><span>≈ 岸边浮标</span><b>点击或空格收竿</b></div>
-          <button className="fishing-meter" onClick={() => dispatch({ type: 'REEL_FISH' })} aria-label="收竿">
-            <i className="success-zone" style={{ left: `${state.fishing.successStart}%`, width: `${state.fishing.successEnd - state.fishing.successStart}%` }} />
-            <i className="perfect-zone" style={{ left: `${state.fishing.perfectStart}%`, width: `${state.fishing.perfectEnd - state.fishing.perfectStart}%` }} />
-            <b style={{ left: `${state.fishing.cursor}%` }} />
-          </button>
-          <small>暗绿：成功 · 金色：完美 · 其余：空钩</small>
+        <section className={`fishing-panel phase-${state.fishing.phase}`} aria-label="钓鱼判定">
+          <div className="fishing-copy"><span>≈ 钓位 {state.fishing.water.x},{state.fishing.water.y}</span><b>已钓 {fishingSpotProgress(state.fishingSpots[fishingSpotKey(state.world, state.fishing.water)], state.day).uses}/10</b></div>
+          <div className="fishing-status-strip">
+            <span>第 {state.fishing.castNumber} 杆</span><span>疲劳 +{state.fishing.fatigueCost}</span>
+            <span>{state.fishing.influence ? `${fishingSignalNames[state.fishing.influence.kind]} · ${state.fishing.influence.strength === 'strong' ? '强钓讯' : '弱钓讯'}` : '普通水域'}</span>
+          </div>
+          {state.fishing.phase === 'timing' ? (
+            <>
+              <button className="fishing-meter" onClick={() => dispatch({ type: 'REEL_FISH' })} aria-label="收竿">
+                <i className="success-zone" style={{ left: `${state.fishing.successStart}%`, width: `${state.fishing.successEnd - state.fishing.successStart}%` }} />
+                <i className="perfect-zone" style={{ left: `${state.fishing.perfectStart}%`, width: `${state.fishing.perfectEnd - state.fishing.perfectStart}%` }} />
+                <b style={{ left: `${state.fishing.cursor}%` }} />
+              </button>
+              <small>点击或空格收竿 · 暗绿成功 · 金色完美</small>
+            </>
+          ) : (
+            <div className={`fishing-result tone-${state.fishing.result?.tone ?? 'plain'}`}>
+              <span>{state.fishing.result?.quality === 'perfect' ? '完美收竿' : state.fishing.result?.quality === 'success' ? '成功收竿' : '本杆落空'}</span>
+              <b>{state.fishing.result?.label}</b>
+              <div><button onClick={() => dispatch({ type: 'RECAST_FISH' })} disabled={fishingSpotProgress(state.fishingSpots[fishingSpotKey(state.world, state.fishing.water)], state.day).uses >= FISHING_SPOT_CAPACITY}>再次抛竿 <small>SPACE</small></button><button onClick={() => dispatch({ type: 'END_FISHING' })}>结束钓鱼</button></div>
+            </div>
+          )}
         </section>
       ) : null}
       <section className="action-dock" aria-label="行动">

@@ -3,6 +3,7 @@ import { campBuildingDefinitions, campDailyYield, campPopulation, effectiveCampS
 import { isWithinInteractionRange } from './geometry'
 import { agentSkills } from './skills'
 import { isInside, tileIndex } from './world'
+import { FISHING_SPOT_CAPACITY, fishingFatigue, fishingInfluenceAt, fishingSignalNames, fishingSpotKey, fishingSpotProgress } from './fishing'
 
 export interface InspectionDetail {
   category: '人物' | '怪物' | '建筑' | '物品' | '道路' | '地形' | '未知'
@@ -279,6 +280,33 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
     }
   }
 
+  if (tile.terrain === 'water') {
+    const influence = fishingInfluenceAt(state.world, position)
+    const spot = fishingSpotProgress(state.fishingSpots[fishingSpotKey(state.world, position)], state.day)
+    const exhausted = spot.uses >= FISHING_SPOT_CAPACITY
+    const distanceToPlayer = Math.abs(position.x - state.player.x) + Math.abs(position.y - state.player.y)
+    return {
+      ...base,
+      category: '地形',
+      name: influence ? `${fishingSignalNames[influence.kind]}水域` : '普通水域',
+      icon: influence?.kind === 'glimmer' ? '✦' : influence?.kind === 'whirlpool' ? '◎' : '≈',
+      description: influence?.kind === 'current' ? '水面流纹聚拢鱼群，更容易一次带回多条普通鱼。'
+        : influence?.kind === 'glimmer' ? '水下闪光预示旧金币与金鲤，强钓讯也可能带出装备。'
+          : influence?.kind === 'whirlpool' ? '深水旋流卷着遗物，是取得遗迹装备概率最高的钓讯。'
+            : '没有明显钓讯的基础水域，完美收竿仍可能发现稀有物。',
+      stats: [
+        { label: '钓位', value: exhausted ? `沉寂至第 ${spot.readyDay} 日` : `${spot.uses}/10` },
+        { label: '钓讯', value: influence ? `${fishingSignalNames[influence.kind]} · ${influence.strength === 'strong' ? '强' : '弱'}` : '无' },
+        ...(influence ? [{ label: '讯源距离', value: influence.distance }] : []),
+        { label: '下一杆', value: exhausted ? '不可抛竿' : `疲劳 +${fishingFatigue(spot.uses + 1)}` },
+        { label: '抛竿距离', value: distanceToPlayer <= 2 ? `${distanceToPlayer} 格 · 可达` : `${distanceToPlayer} 格` },
+        { label: '坐标', value: `${position.x}, ${position.y}` },
+      ],
+      hint: exhausted ? `钓满 10 次后需要等待 3 日；第 ${spot.readyDay} 日恢复。` : '选择一到两格内的水格，在下方行动栏抛竿。',
+      tone: exhausted ? 'neutral' : influence ? 'good' : 'neutral',
+    }
+  }
+
   if (tile.road) {
     return {
       ...base,
@@ -304,7 +332,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
     description: fog === 1 ? '这里曾被探索，但当前不在队伍视野内。' : '当前视野内的基础地表。',
     stats: [
       { label: '状态', value: fog === 2 ? '当前可见' : '已探索' },
-      { label: '通行', value: tile.terrain === 'water' || tile.terrain === 'mountain' ? '不可通行' : '可通行' },
+      { label: '通行', value: tile.terrain === 'mountain' ? '不可通行' : '可通行' },
       { label: '坐标', value: `${position.x}, ${position.y}` },
     ],
     tone: 'neutral',

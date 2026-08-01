@@ -41,7 +41,9 @@ directly to GitHub Pages.
 - renewable forest timber and mountain-edge stone nodes, material-based camp
   recipes, and guaranteed starter gathering opportunities
 - shore fishing with a pixel timing bar, four edible fish, driftwood, old coins,
-  and rare relic catches
+  rare relic catches, persistent ten-cast fishing spots, and three-day recovery
+- deterministic current, glimmer, and whirlpool signals with one-to-two-tile
+  loot influence and low-frequency animated water
 - automatic passable roads between same-scene camps with reduced movement fatigue
 - faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
 - three AI factions, wandering agents with six seeded specialties, followers,
@@ -73,6 +75,7 @@ src/
 │   ├── rng.ts           deterministic seeded random utilities
 │   ├── world.ts         terrain, society, resources, entrances, and fog generation
 │   ├── dungeons.ts      three-floor dungeon generation and run snapshots
+│   ├── fishing.ts       fishing spots, water signals, fatigue, and loot tables
 │   ├── persistence.ts   versioned browser save validation and restoration
 │   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
 │   ├── combat.ts        moves, damage categories, and equipment values
@@ -156,8 +159,11 @@ python3 scripts/ingest_facility_assets.py
   8 faction reputation, one permanent mastery mark, and skill-level gold.
 - Gather: select an adjacent timber or stone node. Harvesting costs 20 fatigue
   and one travel-progress point; the node regenerates after three days.
-- Fish: select adjacent water and cast. Click the timing meter or press Space to
-  reel; fish restore 1–3 stamina, while perfect catches can reveal rare rewards.
+- Fish: select water within two tiles and cast. Click the timing meter or press
+  Space to reel; the panel preserves the result, and another Space starts the
+  next cast. Each water tile supports ten casts, uses 10/15/20 fatigue bands,
+  and recovers three days after depletion. Currents favor quantity, glimmers
+  favor coins and golden koi, and whirlpools favor relic equipment.
 - Dungeons: select an adjacent cave or nest. Defeat each floor elite to unlock
   the stairs, defeat the third-floor Boss, open its reward chest, or retreat at
   any time while retaining opened loot.

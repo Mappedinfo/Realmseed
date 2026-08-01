@@ -5,6 +5,7 @@ export type Structure = 'camp' | 'village' | 'ruin' | 'waystone' | 'camp-buildin
 export type WorldKind = 'overworld' | 'dungeon'
 export type ResourceNodeKind = 'wood' | 'stone'
 export type FishId = 'minnow' | 'carp' | 'loach' | 'golden-koi'
+export type FishingSignalKind = 'current' | 'glimmer' | 'whirlpool'
 export type MonsterRank = 'normal' | 'elite' | 'boss'
 export type CampBuildingKind = 'house' | 'farm' | 'watchtower' | 'market' | 'workshop' | 'shrine'
 export type AgentSkillId = 'scout' | 'forager' | 'guard' | 'medic' | 'trader' | 'duelist'
@@ -199,12 +200,36 @@ export interface DungeonProgress {
 
 export interface FishingState {
   water: Position
+  phase: 'timing' | 'result'
   cursor: number
   direction: 1 | -1
   perfectStart: number
   perfectEnd: number
   successStart: number
   successEnd: number
+  castNumber: number
+  fatigueCost: number
+  influence: FishingInfluence | null
+  result?: FishingResult
+}
+
+export interface FishingInfluence {
+  kind: FishingSignalKind
+  source: Position
+  distance: 0 | 1 | 2
+  strength: 'strong' | 'weak'
+}
+
+export interface FishingResult {
+  quality: 'failed' | 'success' | 'perfect'
+  kind: 'empty' | 'wood' | 'fish' | 'gold' | 'equipment'
+  label: string
+  tone: 'plain' | 'good' | 'danger'
+}
+
+export interface FishingSpotProgress {
+  uses: number
+  readyDay?: number
 }
 
 export interface SceneSnapshot {
@@ -269,6 +294,7 @@ export interface GameState {
   activeDungeon: DungeonRun | null
   dungeonProgress: Record<string, DungeonProgress>
   fishing: FishingState | null
+  fishingSpots: Record<string, FishingSpotProgress>
   camps: Camp[]
   residents: Resident[]
   constructionSteps: number
@@ -300,6 +326,8 @@ export type GameAction =
   | { type: 'CAST_FISH'; position: Position }
   | { type: 'FISH_TICK' }
   | { type: 'REEL_FISH' }
+  | { type: 'RECAST_FISH' }
+  | { type: 'END_FISHING' }
   | { type: 'TRADE_BERRIES'; agentId: string; direction: 'buy' | 'sell' }
   | { type: 'SET_COMBAT_PREFERENCE'; mode: BattleMode }
   | { type: 'SET_RED_NAME_MODE'; enabled: boolean }

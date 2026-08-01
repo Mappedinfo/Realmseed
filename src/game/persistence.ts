@@ -1,5 +1,6 @@
 import type { ArtTheme } from './art'
 import type { GameState } from './types'
+import { fishingFatigue, fishingInfluenceAt, fishingSpotKey, fishingSpotProgress } from './fishing'
 
 export const GAME_SAVE_KEY = 'realmseed-save-v1'
 
@@ -39,11 +40,26 @@ export function readSavedGame(storage: StorageLike): SavedGame | null {
     const saved = JSON.parse(raw) as Partial<SavedGame>
     if (saved.version !== 1 || !validState(saved.state)) return null
     if (!['verdant', 'ember', 'moonlit'].includes(saved.theme ?? '')) return null
-    if (saved.state.activeDungeon) {
-      const run = saved.state.activeDungeon
+    const state = saved.state
+    if (state.activeDungeon) {
+      const run = state.activeDungeon
       if (run.floors.length !== 3 || saved.state.world.kind !== 'dungeon') return null
     }
-    return saved as SavedGame
+    const fishingSpots = state.fishingSpots ?? {}
+    const fishing = state.fishing
+      ? (() => {
+          const key = fishingSpotKey(state.world, state.fishing!.water)
+          const castNumber = state.fishing!.castNumber ?? fishingSpotProgress(fishingSpots[key], state.day).uses + 1
+          return {
+            ...state.fishing!,
+            phase: state.fishing!.phase ?? 'timing' as const,
+            castNumber,
+            fatigueCost: state.fishing!.fatigueCost ?? fishingFatigue(castNumber),
+            influence: state.fishing!.influence ?? fishingInfluenceAt(state.world, state.fishing!.water),
+          }
+        })()
+      : null
+    return { ...(saved as SavedGame), state: { ...state, fishingSpots, fishing } }
   } catch {
     return null
   }

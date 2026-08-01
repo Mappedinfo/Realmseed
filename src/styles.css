@@ -1673,12 +1673,25 @@ button.inventory-slot:hover, button.inventory-slot:focus-visible, button.invento
 }
 .fishing-copy { display: flex; justify-content: space-between; margin-bottom: 8px; color: #80c7b3; font-size: 10px; }
 .fishing-copy b { color: #f0d07a; }
+.fishing-status-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 7px; }
+.fishing-status-strip span { flex: 1 1 auto; padding: 4px 6px; color: #93a99b; font-size: 8px; text-align: center; background: #15241d; border: 1px solid #385044; }
 .fishing-meter { position: relative; width: 100%; height: 28px; padding: 0; overflow: hidden; background: repeating-linear-gradient(90deg, #19251f 0 9px, #1e2e26 9px 18px); border: 3px solid #5f4932; box-shadow: inset 0 0 0 2px #0e1712; }
 .fishing-meter i, .fishing-meter b { position: absolute; top: 3px; bottom: 3px; display: block; }
 .fishing-meter .success-zone { background: #4d7653; }
 .fishing-meter .perfect-zone { background: #d2ad4f; box-shadow: 0 0 0 1px #f6df85; }
 .fishing-meter b { width: 4px; margin-left: -2px; background: #fff2b0; box-shadow: 2px 0 #182019; }
 .fishing-panel > small { display: block; margin-top: 5px; color: #728177; font-size: 8px; }
+.fishing-panel.phase-result { border-color: #9a7a3e; }
+.fishing-result { display: grid; gap: 5px; padding: 8px; background: #111c16; border: 1px solid #405143; box-shadow: inset 3px 0 #8e7340; }
+.fishing-result > span { color: #b49b5b; font-size: 8px; letter-spacing: .12em; }
+.fishing-result > b { color: #dbe2d4; font-size: 10px; line-height: 1.45; }
+.fishing-result.tone-good { box-shadow: inset 3px 0 #77a966; }
+.fishing-result.tone-danger { box-shadow: inset 3px 0 #a95d47; }
+.fishing-result > div { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.fishing-result button { padding: 7px; color: #dce7d8; background: #294438; border: 1px solid #58705d; font-size: 9px; }
+.fishing-result button:last-child { color: #aeb9ae; background: #202d25; border-color: #445348; }
+.fishing-result button:disabled { opacity: .36; cursor: not-allowed; }
+.fishing-result button small { margin-left: 4px; color: #d8ba62; font-size: 7px; }
 .boss-battle { border-color: #b85036 !important; box-shadow: inset 0 0 0 2px #3b1b16, 4px 4px 0 rgba(6, 9, 7, .8) !important; }
 .boss-battle .field-target em, .boss-battle .duelist.monster em { height: 9px; border-color: #e28a4d; }
 .boss-battle .field-target em i, .boss-battle .duelist.monster em i { background: linear-gradient(90deg, #9e2e2c, #ff8a45); }

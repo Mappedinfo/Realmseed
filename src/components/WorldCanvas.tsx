@@ -22,6 +22,7 @@ import {
 } from '../game/art'
 import { inspectPosition } from '../game/inspection'
 import { addFootprint, FOOTPRINT_LIFETIME_MS, footprintOpacity, type Footprint } from '../game/footprints'
+import { fishingInfluenceAt, fishingSignalAt, fishingSpotKey, fishingSpotProgress } from '../game/fishing'
 import { effectiveCampStats } from '../game/camps'
 import { isWithinInteractionRange } from '../game/geometry'
 import { tileIndex } from '../game/world'
@@ -382,6 +383,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const [visualPlayer, setVisualPlayer] = useState(visualPlayerRef.current)
   const [footprints, setFootprints] = useState<Footprint[]>([])
   const [footprintClock, setFootprintClock] = useState(0)
+  const [waterClock, setWaterClock] = useState(0)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
     y: Math.max(0, Math.min((state.world.height ?? state.world.size) - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
@@ -479,6 +481,22 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   }, [footprints])
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let timer: number | undefined
+    const sync = () => {
+      if (timer !== undefined) window.clearInterval(timer)
+      timer = undefined
+      if (!document.hidden) timer = window.setInterval(() => setWaterClock((clock) => clock + 1), 125)
+    }
+    sync()
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      if (timer !== undefined) window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [state.world.kind, state.world.sceneX, state.world.sceneY])
+
+  useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const context = canvas.getContext('2d')
@@ -505,6 +523,32 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         }
         const tile = state.world.tiles[index]
         drawTile(context, atlasRef.current, generatedTerrainRef.current, tile.terrain, screenX, screenY, worldX, worldY)
+        if (tile.terrain === 'water' && fog === 2) {
+          const frame = waterClock % 8
+          const drift = (frame + worldX * 3 + worldY * 5) % 8
+          pixelRect(context, 'rgba(128, 199, 205, .26)', screenX + 3 + drift, screenY + 8, 9, 1)
+          pixelRect(context, 'rgba(29, 82, 96, .32)', screenX + 15 - Math.floor(drift / 2), screenY + 23, 11, 1)
+          const signal = fishingSignalAt(state.world, { x: worldX, y: worldY })
+          const spot = fishingSpotProgress(state.fishingSpots[fishingSpotKey(state.world, { x: worldX, y: worldY })], state.day)
+          const dimmed = spot.uses >= 10
+          context.save()
+          context.globalAlpha = dimmed ? .28 : 1
+          if (signal === 'current') {
+            pixelRect(context, 'rgba(119, 218, 204, .72)', screenX + 5 + (frame % 4), screenY + 13, 16, 2)
+            pixelRect(context, 'rgba(69, 158, 161, .78)', screenX + 11 - (frame % 3), screenY + 18, 15, 2)
+          } else if (signal === 'glimmer') {
+            const pulse = frame < 4 ? 1 : 0
+            pixelRect(context, '#ffe586', screenX + 15, screenY + 8 + pulse, 2, 10)
+            pixelRect(context, '#ffe586', screenX + 11, screenY + 12 + pulse, 10, 2)
+            pixelRect(context, 'rgba(255, 244, 176, .72)', screenX + 22, screenY + 21 - pulse, 3, 3)
+          } else if (signal === 'whirlpool') {
+            const shift = frame % 4
+            context.strokeStyle = 'rgba(103, 205, 196, .78)'
+            context.strokeRect(screenX + 7 + shift, screenY + 7, 18 - shift * 2, 18)
+            pixelRect(context, 'rgba(19, 61, 74, .8)', screenX + 14, screenY + 14, 5, 5)
+          }
+          context.restore()
+        }
         const controllingCamp = state.camps.find(
           (camp) =>
             camp.sceneX === state.world.sceneX &&
@@ -618,6 +662,19 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         } else {
           context.strokeStyle = 'rgba(22, 35, 28, 0.22)'
           context.strokeRect(screenX + 0.5, screenY + 0.5, TILE - 1, TILE - 1)
+        }
+        if (state.selected) {
+          const selectedIndex = tileIndex(state.world, state.selected.x, state.selected.y)
+          if (state.world.tiles[selectedIndex]?.terrain === 'water') {
+            const influence = fishingInfluenceAt(state.world, state.selected)
+            if (influence && tile.terrain === 'water') {
+              const signalDistance = Math.abs(worldX - influence.source.x) + Math.abs(worldY - influence.source.y)
+              if (signalDistance <= 2) {
+                context.strokeStyle = signalDistance <= 1 ? 'rgba(255, 222, 105, .58)' : 'rgba(124, 205, 190, .36)'
+                context.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5)
+              }
+            }
+          }
         }
       }
     }
@@ -783,6 +840,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         data-player-visual-x={visualPlayer.x.toFixed(3)}
         data-player-visual-y={visualPlayer.y.toFixed(3)}
         data-footprint-count={footprints.length}
+        data-water-animation-frame={waterClock % 8}
+        data-visible-fishing-signals={state.world.tiles.reduce((total, tile, index) => total + (tile.terrain === 'water' && state.fog[index] === 2 && fishingSignalAt(state.world, { x: index % state.world.size, y: Math.floor(index / state.world.size) }) ? 1 : 0), 0)}
         data-navigation-steps={navigationPath.length}
         aria-label="Realmseed 像素世界地图"
       />

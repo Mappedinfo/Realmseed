@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { clearSavedGame, GAME_SAVE_KEY, readSavedGame, writeSavedGame, type StorageLike } from './persistence'
 import { gameReducer } from './simulation'
 import { createGame, isPassable } from './world'
+import type { GameState } from './types'
 
 function memoryStorage(): StorageLike & { value: Record<string, string> } {
   const value: Record<string, string> = {}
@@ -38,5 +39,18 @@ describe('local game persistence', () => {
     expect(readSavedGame(storage)).toBeNull()
     clearSavedGame(storage)
     expect(storage.getItem(GAME_SAVE_KEY)).toBeNull()
+  })
+
+  it('normalizes legacy saves without fishing spot progress or fishing phases', () => {
+    const storage = memoryStorage()
+    const legacy = createGame('legacy-fishing-save', 'small') as Omit<GameState, 'fishingSpots'> & { fishingSpots?: GameState['fishingSpots'] }
+    const waterIndex = legacy.world.tiles.findIndex((tile) => tile.terrain === 'water')
+    const water = { x: waterIndex % legacy.world.size, y: Math.floor(waterIndex / legacy.world.size) }
+    delete legacy.fishingSpots
+    legacy.fishing = { water, cursor: 12, direction: 1, perfectStart: 40, perfectEnd: 50, successStart: 25, successEnd: 65 } as GameState['fishing']
+    storage.value[GAME_SAVE_KEY] = JSON.stringify({ version: 1, savedAt: 1, theme: 'verdant', state: legacy })
+    const restored = readSavedGame(storage)?.state
+    expect(restored?.fishingSpots).toEqual({})
+    expect(restored?.fishing).toMatchObject({ phase: 'timing', castNumber: 1, fatigueCost: 10 })
   })
 })

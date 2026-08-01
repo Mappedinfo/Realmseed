@@ -104,6 +104,49 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
   await expect(page.getByText('AUTO ROUTE')).toBeHidden()
 })
 
+test('keeps the fishing panel open between casts and animates seeded water signals', async ({ page }) => {
+  await page.goto(appUrl)
+  await page.getByLabel('世界种子').fill('fish-ui-41')
+  await page.getByRole('button', { name: /展开这个世界/ }).click()
+  const canvas = page.getByLabel('Realmseed 像素世界地图')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  // Walk to a visible waypoint first; the influenced water target at (49,41) then enters sight.
+  const waypointX = box!.x + ((47 - 31 + .5) / 25) * box!.width
+  const waypointY = box!.y + ((43 - 36 + .5) / 17) * box!.height
+  await page.mouse.dblclick(waypointX, waypointY, { delay: 45 })
+  await expect.poll(async () => Number(await canvas.getAttribute('data-player-x'))).toBe(47)
+  await expect.poll(async () => Number(await canvas.getAttribute('data-player-y'))).toBe(43)
+  const originX = 47 - 12
+  const originY = 43 - 8
+  const screenX = box!.x + ((49 - originX + .5) / 25) * box!.width
+  const screenY = box!.y + ((41 - originY + .5) / 17) * box!.height
+  await page.mouse.dblclick(screenX, screenY, { delay: 45 })
+  const cast = page.getByRole('button', { name: /抛竿/ })
+  await expect(cast).toBeVisible({ timeout: 10_000 })
+  await cast.click()
+  const fishing = page.getByLabel('钓鱼判定')
+  await expect(fishing).toContainText('第 1 杆')
+  await expect(fishing).toContainText('弱钓讯')
+  const firstFrame = await canvas.getAttribute('data-water-animation-frame')
+  await expect.poll(async () => await canvas.getAttribute('data-water-animation-frame')).not.toBe(firstFrame)
+  await expect.poll(async () => Number(await canvas.getAttribute('data-visible-fishing-signals'))).toBeGreaterThan(0)
+
+  await page.keyboard.press('Space')
+  await expect(fishing).toContainText(/本杆落空|成功收竿|完美收竿/)
+  await expect(fishing).toContainText('已钓 1/10')
+  await page.reload()
+  await expect(page.getByLabel('钓鱼判定')).toContainText('已钓 1/10')
+  await page.keyboard.press('Space')
+  await expect(page.getByLabel('钓鱼判定')).toContainText('第 2 杆')
+  await expect(page.getByRole('button', { name: '收竿' })).toBeVisible()
+  await page.screenshot({ path: '/tmp/realmseed-fishing-signals.png', fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(fishing).toBeVisible()
+  await expect(page.getByRole('button', { name: '收竿' })).toBeVisible()
+  await page.screenshot({ path: '/tmp/realmseed-fishing-mobile.png', fullPage: true })
+})
+
 test('enters a deep cave visibly and restores the same dungeon after refresh', async ({ page }) => {
   const consoleErrors: string[] = []
   const pageErrors: string[] = []

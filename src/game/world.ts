@@ -407,6 +407,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     activeDungeon: null,
     dungeonProgress: {},
     fishing: null,
+    fishingSpots: {},
     camps: [],
     residents: [],
     constructionSteps: 0,

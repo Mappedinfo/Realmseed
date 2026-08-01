@@ -88,12 +88,52 @@ describe('dungeons, resources and fishing', () => {
     state.player = { ...state.player, ...shore! }
     state = gameReducer(state, { type: 'CAST_FISH', position: water! })
     expect(state.fishing).not.toBeNull()
+    expect(state.fishing?.phase).toBe('timing')
     expect(state.fatigue).toBe(10)
     state.fishing!.cursor = (state.fishing!.perfectStart + state.fishing!.perfectEnd) / 2
     const reeled = gameReducer(state, { type: 'REEL_FISH' })
-    expect(reeled.fishing).toBeNull()
+    expect(reeled.fishing?.phase).toBe('result')
+    expect(reeled.fishingSpots[`${reeled.world.sceneX},${reeled.world.sceneY}:${water!.x},${water!.y}`].uses).toBe(1)
     const fishCount = Object.values(reeled.resources.fish).reduce((total, count) => total + count, 0)
-    expect(fishCount + (reeled.player.gold - state.player.gold)).toBeGreaterThan(0)
+    expect(fishCount + (reeled.player.gold - state.player.gold) + (reeled.equipment.length - state.equipment.length)).toBeGreaterThan(0)
+    const recast = gameReducer(reeled, { type: 'RECAST_FISH' })
+    expect(recast.fishing?.phase).toBe('timing')
+    expect(recast.fishing?.castNumber).toBe(2)
+    expect(gameReducer(recast, { type: 'END_FISHING' }).fishing).toBeNull()
+  })
+
+  it('allows two-tile casts, counts misses, applies fatigue tiers, and rests a depleted spot for three days', () => {
+    let state = createGame('fishing-capacity-contract', 'small')
+    state.agents = []
+    state.monsters = []
+    const player = { x: 10, y: 10 }
+    const water = { x: 12, y: 10 }
+    const tooFarWater = { x: 13, y: 10 }
+    state.world.tiles = state.world.tiles.map(() => ({ terrain: 'meadow' as const, coin: 0 }))
+    state.world.tiles[tileIndex(state.world, water.x, water.y)] = { terrain: 'water', coin: 0 }
+    state.world.tiles[tileIndex(state.world, tooFarWater.x, tooFarWater.y)] = { terrain: 'water', coin: 0 }
+    state.player = { ...state.player, ...player }
+    expect(gameReducer(state, { type: 'CAST_FISH', position: tooFarWater }).fishing).toBeNull()
+    const key = `${state.world.sceneX},${state.world.sceneY}:${water.x},${water.y}`
+    state.fishingSpots[key] = { uses: 3 }
+    state = gameReducer(state, { type: 'CAST_FISH', position: water })
+    expect(state.fishing?.fatigueCost).toBe(15)
+    state.fishing!.cursor = 0
+    state = gameReducer(state, { type: 'REEL_FISH' })
+    expect(state.fishing?.phase).toBe('result')
+    expect(state.fishingSpots[key].uses).toBe(4)
+
+    state = { ...state, fishing: null, fishingSpots: { [key]: { uses: 9 } }, fatigue: 0, dayProgress: 0 }
+    state = gameReducer(state, { type: 'CAST_FISH', position: water })
+    expect(state.fishing?.fatigueCost).toBe(20)
+    state.fishing!.cursor = 0
+    state = gameReducer(state, { type: 'REEL_FISH' })
+    expect(state.fishingSpots[key]).toEqual({ uses: 10, readyDay: state.day + 3 })
+    expect(gameReducer(state, { type: 'RECAST_FISH' }).fishing).toBeNull()
+    state = { ...state, day: state.fishingSpots[key].readyDay!, fishing: null }
+    const restored = gameReducer(state, { type: 'CAST_FISH', position: water })
+    expect(restored.fishing?.castNumber).toBe(1)
+    expect(restored.fishing?.fatigueCost).toBe(10)
   })
 
   it('uses material recipes alongside one building credit', () => {

@@ -17,6 +17,15 @@ import { advanceCalendarDays, createFoundingResidents } from './settlements'
 import { createScene, isPassable, revealFog, sceneEntry, sceneKey, tileIndex } from './world'
 import { redNameDistance, redNameTargetAt, structureMaxHp } from './redName'
 import { bossAlive, createDungeonRun, dungeonEntryPosition, eliteAlive } from './dungeons'
+import {
+  FISHING_RECOVERY_DAYS,
+  FISHING_SPOT_CAPACITY,
+  fishingFatigue,
+  fishingInfluenceAt,
+  fishingSpotKey,
+  fishingSpotProgress,
+  rollFishingLoot,
+} from './fishing'
 
 export const STEPS_PER_STAMINA = 100
 export const COMBAT_STEP_MULTIPLIER = 1.5
@@ -125,6 +134,47 @@ const fishNames: Record<FishId, string> = {
 function activityClock(state: GameState): GameState {
   const progress = state.dayProgress + 1
   return progress < 10 ? { ...state, dayProgress: progress } : advanceCalendarDays({ ...state, dayProgress: 0 }, 1)
+}
+
+function beginFishingCast(state: GameState, water: Position): GameState {
+  if (state.battle || state.world.kind === 'dungeon' || state.player.stamina <= 0 || distance(state.player, water) < 1 || distance(state.player, water) > 2) return state
+  const tile = state.world.tiles[tileIndex(state.world, water.x, water.y)]
+  if (!tile || tile.terrain !== 'water') return { ...state, chronicle: log(state, '需要选择一到两格内的水域才能抛竿。', 'danger') }
+  const key = fishingSpotKey(state.world, water)
+  const spot = fishingSpotProgress(state.fishingSpots[key], state.day)
+  if (spot.uses >= FISHING_SPOT_CAPACITY) {
+    return { ...state, fishing: null, chronicle: log(state, `这个钓位已经沉寂，第 ${spot.readyDay} 日恢复。`, 'danger') }
+  }
+  const castNumber = spot.uses + 1
+  const fatigueCost = fishingFatigue(castNumber)
+  const exertion = addFatigue(state, state.player.stamina, fatigueCost)
+  const center = 25 + (hashString(`${state.gameId}:fish-window:${state.day}:${state.turn}:${water.x}:${water.y}:${castNumber}`) % 50)
+  const fishing = {
+    water,
+    phase: 'timing' as const,
+    cursor: 0,
+    direction: 1 as const,
+    perfectStart: center - 5,
+    perfectEnd: center + 5,
+    successStart: center - 18,
+    successEnd: center + 18,
+    castNumber,
+    fatigueCost,
+    influence: fishingInfluenceAt(state.world, water),
+  }
+  const prepared = activityClock(finishTurn({
+    ...state,
+    fishing,
+    fishingSpots: { ...state.fishingSpots, [key]: spot },
+    player: { ...state.player, stamina: exertion.stamina, facing: facingToward(state.player, water) },
+    fatigue: exertion.fatigue,
+    chronicle: log(state, `第 ${castNumber} 杆落水——在判定条进入亮区时点击或按空格收竿。`),
+  }, {}))
+  const attacked = Boolean(prepared.battle || prepared.chronicle[0]?.text.includes('从地图上扑来'))
+  if (attacked || prepared.player.stamina <= 0) {
+    return { ...prepared, fishing: null, chronicle: log(prepared, attacked ? '敌袭打断了钓鱼！' : '体力耗尽，无法继续钓鱼。', 'danger') }
+  }
+  return prepared
 }
 
 function adjacent(a: Position, b: Position): boolean {
@@ -1028,75 +1078,69 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return activityClock(finishTurn(gathered, {}))
     }
     case 'CAST_FISH': {
-      if (state.battle || state.fishing || state.world.kind === 'dungeon') return state
-      const tile = state.world.tiles[tileIndex(state.world, action.position.x, action.position.y)]
-      if (!tile || tile.terrain !== 'water' || !adjacent(state.player, action.position)) {
-        return { ...state, chronicle: log(state, '需要选择相邻的水格才能抛竿。', 'danger') }
-      }
-      const exertion = addFatigue(state, state.player.stamina, 10)
-      const center = 25 + (hashString(`${state.gameId}:fish-window:${state.day}:${state.turn}:${action.position.x}:${action.position.y}`) % 50)
-      const fishing = {
-        water: action.position,
-        cursor: 0,
-        direction: 1 as const,
-        perfectStart: center - 5,
-        perfectEnd: center + 5,
-        successStart: center - 18,
-        successEnd: center + 18,
-      }
-      const prepared = activityClock(finishTurn({
-        ...state,
-        player: { ...state.player, stamina: exertion.stamina, facing: facingToward(state.player, action.position) },
-        fatigue: exertion.fatigue,
-        chronicle: log(state, '浮标落水——在判定条进入亮区时点击或按空格收竿。'),
-      }, {}))
-      return prepared.battle ? { ...prepared, fishing: null, chronicle: log(prepared, '敌袭打断了钓鱼！', 'danger') } : { ...prepared, fishing }
+      if (state.fishing) return state
+      return beginFishingCast(state, action.position)
     }
     case 'FISH_TICK': {
-      if (!state.fishing) return state
+      if (!state.fishing || state.fishing.phase !== 'timing') return state
       const next = state.fishing.cursor + state.fishing.direction * 4
       const direction = next >= 100 ? -1 : next <= 0 ? 1 : state.fishing.direction
       return { ...state, fishing: { ...state.fishing, cursor: Math.max(0, Math.min(100, next)), direction } }
     }
     case 'REEL_FISH': {
-      if (!state.fishing) return state
+      if (!state.fishing || state.fishing.phase !== 'timing') return state
       const value = state.fishing.cursor
       const perfect = value >= state.fishing.perfectStart && value <= state.fishing.perfectEnd
       const success = value >= state.fishing.successStart && value <= state.fishing.successEnd
-      const roll = hashString(`${state.gameId}:fish-catch:${state.day}:${state.turn}:${state.fishing.water.x}:${state.fishing.water.y}:${Math.round(value)}`)
-      if (!success) {
-        const driftwood = roll % 4 === 0 ? 1 : 0
-        return {
-          ...state,
-          fishing: null,
-          resources: { ...state.resources, wood: state.resources.wood + driftwood },
-          chronicle: log(state, driftwood ? '鱼脱钩了，只捞到 1 份漂流木。' : '收竿太早，只有空钩。', 'danger'),
+      const seed = `${state.gameId}:fish-catch:${state.day}:${state.turn}:${state.fishing.water.x}:${state.fishing.water.y}:${state.fishing.castNumber}:${Math.round(value)}`
+      let loot = rollFishingLoot(seed, success, perfect, state.fishing.influence)
+      let resources = state.resources
+      let player = state.player
+      let equipment = state.equipment
+      let label = '收竿太早，只有空钩。'
+      let kind = loot.kind
+      if (loot.kind === 'wood') {
+        resources = { ...resources, wood: resources.wood + 1 }
+        label = '鱼脱钩了，只捞到 1 份漂流木。'
+      } else if (loot.kind === 'fish' && loot.fishId) {
+        resources = { ...resources, fish: { ...resources.fish, [loot.fishId]: resources.fish[loot.fishId] + loot.amount } }
+        label = `${perfect ? '完美' : '成功'}收竿，获得${fishNames[loot.fishId]} ×${loot.amount}。`
+      } else if (loot.kind === 'gold') {
+        player = { ...player, gold: player.gold + loot.amount }
+        label = `${perfect ? '完美' : '成功'}收竿，鱼钩带回 ${loot.amount} 枚旧金币。`
+      } else if (loot.kind === 'equipment') {
+        const available = relicEquipment.filter((item) => !equipment.some((owned) => owned.id === item.id))
+        if (available.length) {
+          const item = { ...available[hashString(`${seed}:equipment`) % available.length], equipped: false }
+          equipment = [...equipment, item]
+          label = `${perfect ? '完美' : '成功'}收竿！从水底钩起遗迹装备「${item.name}」。`
+        } else {
+          const gold = 3 + hashString(`${seed}:equipment-fallback`) % 4
+          player = { ...player, gold: player.gold + gold }
+          kind = 'gold'
+          label = `水底已无新装备，改为获得 ${gold} 枚旧金币。`
         }
       }
-      if (perfect && roll % 100 < 18) {
-        const available = relicEquipment.filter((item) => !state.equipment.some((owned) => owned.id === item.id))
-        if (roll % 100 < 8 && available.length) {
-          const item = { ...available[roll % available.length], equipped: false }
-          return { ...state, fishing: null, equipment: [...state.equipment, item], chronicle: log(state, `完美收竿！从河底钩起遗迹装备「${item.name}」。`, 'good') }
-        }
-        return {
-          ...state,
-          fishing: null,
-          resources: { ...state.resources, fish: { ...state.resources.fish, 'golden-koi': state.resources.fish['golden-koi'] + 1 } },
-          chronicle: log(state, '完美收竿！一尾金鲤跃入行囊。', 'good'),
-        }
-      }
-      if (perfect && roll % 100 < 35) {
-        return { ...state, fishing: null, player: { ...state.player, gold: state.player.gold + 1 }, chronicle: log(state, '完美收竿！鱼钩带回一枚沉在河底的旧金币。', 'good') }
-      }
-      const fishId = (['minnow', 'carp', 'loach'] as FishId[])[roll % 3]
+      const key = fishingSpotKey(state.world, state.fishing.water)
+      const currentSpot = fishingSpotProgress(state.fishingSpots[key], state.day)
+      const uses = Math.min(FISHING_SPOT_CAPACITY, currentSpot.uses + 1)
+      const spot = uses >= FISHING_SPOT_CAPACITY ? { uses, readyDay: state.day + FISHING_RECOVERY_DAYS } : { uses }
+      const quality = perfect ? 'perfect' as const : success ? 'success' as const : 'failed' as const
+      const tone = success ? 'good' as const : 'danger' as const
       return {
         ...state,
-        fishing: null,
-        resources: { ...state.resources, fish: { ...state.resources.fish, [fishId]: state.resources.fish[fishId] + 1 } },
-        chronicle: log(state, `${perfect ? '完美' : '成功'}收竿，获得${fishNames[fishId]}。`, 'good'),
+        resources,
+        player,
+        equipment,
+        fishingSpots: { ...state.fishingSpots, [key]: spot },
+        fishing: { ...state.fishing, phase: 'result', result: { quality, kind, label, tone } },
+        chronicle: log(state, `${label}${uses >= FISHING_SPOT_CAPACITY ? ` 钓位将在第 ${spot.readyDay} 日恢复。` : ''}`, tone),
       }
     }
+    case 'RECAST_FISH':
+      return state.fishing?.phase === 'result' ? beginFishingCast({ ...state, fishing: null }, state.fishing.water) : state
+    case 'END_FISHING':
+      return state.fishing ? { ...state, fishing: null } : state
     case 'ENTER_DUNGEON': {
       if (state.battle || state.activeDungeon || !adjacent(state.player, action.position)) return state
       const run = createDungeonRun(state, action.position)
