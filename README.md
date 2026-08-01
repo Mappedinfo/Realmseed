@@ -2,256 +2,226 @@
 
 > 一粒种子，一方世界。
 
-Realmseed is an open-source, static-first pixel exploration and settlement game
-for the browser. A text seed and unbounded scene coordinates deterministically
-generate connected regions, their terrain, travelers, factions, monsters,
-coins, and ruins. Everything runs locally in the browser and can be deployed
-directly to GitHub Pages.
+Realmseed 是一个开源、纯前端、像素风的探索经营 Web 游戏。输入文本种子后，浏览器会确定性生成地形、旅行者、阵营、怪物、资源、营地与地下副本；同一个种子始终展开同一个世界。项目不依赖服务器，可直接部署到 GitHub Pages。
 
-![Three selectable Realmseed art directions](docs/screenshots/art-direction-picker.png)
+[在线游玩](https://mappedinfo.github.io/Realmseed/) · [游戏设计](docs/game-design.md) · [美术规范](docs/art-direction.md) · [第三方资源鸣谢](THIRD_PARTY.md)
 
-## Playable prototype
+![Realmseed 三种可切换美术方向](docs/screenshots/art-direction-picker.png)
 
-- an unbounded scene grid: travel north, south, east, or west forever
-- 40×40 quick scenes and 96×96 expedition scenes
-- deterministic scene caching that preserves fog, villages, resources, and monsters
-- four pixel-art waystone transport facilities in every scene
-- deterministic procedural terrain and societies
-- three-state fog of war: visible, explored, unseen
-- villagers and the abstracted traveling party provide persistent vision
-- keyboard, button, adjacent-tile movement, and double-click shortest-path navigation
-- short-lived directional pixel footprints for movement feedback without character flashing or bounce
-- stamina, coins, affection, recruitment, camps, buildings, roads, and settlement income
-- recruited followers leave the crowded world canvas and move into a clickable
-  party roster with switchable portraits
-- six functional camp buildings with housing, food, defense, economy, morale,
-  control range, daily yields, construction progress, and automatic return paths
-- deterministic settlement households with marriage, children, 60-day growth,
-  generated migrants, and trusted travelers who may settle from the live map
-- four building-gated camp offices that move elite followers into reversible
-  mayor, guard, production, and trade appointments
-- an eight-cell generated facility pack covering the camp core, six buildings,
-  and road gate, plus settlement key art for later scene transitions
-- one-shot seeded ruin events: monsters, coins, food, full recovery, relic
-  equipment, or a rescued follower
-- repeatable cave and nest expeditions with two guarded exploration floors,
-  a third-floor Boss, locked stairs, deterministic chests, retreat, and next-day resets
-- automatic local save/restore, including the active dungeon floor, fog, monsters,
-  opened chests, and the overworld return snapshot
-- portable readable JSON saves with V1→V2 migration, integrity checks, IndexedDB
-  mirroring, import previews, and three recoverable pre-change backups
-- a twenty-position 4×5 party loadout ledger covering weapons, layered clothing,
-  travel gear, a mount, and four independent ring slots
-- renewable forest timber and mountain-edge stone nodes, material-based camp
-  recipes, and guaranteed starter gathering opportunities
-- shore fishing with a pixel timing bar, four edible fish, driftwood, old coins,
-  rare relic catches, persistent ten-cast fishing spots, and three-day recovery
-- deterministic current, glimmer, and whirlpool signals with one-to-two-tile
-  loot influence and low-frequency animated water
-- automatic passable roads between same-scene camps with reduced movement fatigue
-- faction reputation, fealty oaths, oath breaking, and tribute-paying vassals
-- three AI factions, wandering agents with six seeded specialties, followers,
-  skill challenges, and monsters
-- four-direction characters, probabilistic monster alerts and pursuit
-- a persistent top-right red-name mode with player-centered attack-range cells,
-  direct map damage against neutral/enemy people, structures, and monsters
-- deterministic witnesses who show warning marks, flee, refuse friendly trade,
-  and occasionally initiate a real encounter when an elite decides to retaliate
-- six distinct no-character-motion combat effects for slash, cleave, arrow,
-  seed magic, rifle smoke, and bomb explosion
-- melee/ranged physical, magic, firearm, and explosive moves with explicit
-  range, accuracy, critical, equipment, and area-splash values
-- responsive pixel UI with a full-world minimap
-- a hybrid Verdant art pack: detailed 32×32 terrain beneath processed pixel
-  characters, monsters, buildings, resources, and waystones
-- deterministic white/green-screen removal, grid splitting, object extraction,
-  palette reduction, and strict 32×32 atlas packing
-- original 16×16 source atlases as fallbacks for the Ember and Moonlit themes
-- three selectable art directions that can be switched without restarting the world
-- optional CC0 exploration and battle music, plus an original procedural
-  shoreline score, water ambience, and catch-tier landing effects
+> 当前阶段：可玩的 Alpha 原型。核心循环、版本化存档和自动部署已经可用，但数值、内容量与移动端体验仍会持续调整。
 
-## Architecture
+## 五分钟开始开发
 
-```text
-src/
-├── components/          React interface and Canvas views
-├── game/
-│   ├── rng.ts           deterministic seeded random utilities
-│   ├── world.ts         terrain, society, resources, entrances, and fog generation
-│   ├── dungeons.ts      three-floor dungeon generation and run snapshots
-│   ├── fishing.ts       fishing spots, water signals, fatigue, and loot tables
-│   ├── persistence.ts   versioned browser save validation and restoration
-│   ├── simulation.ts    turns, scene travel/cache, economy, and social rules
-│   ├── combat.ts        moves, damage categories, and equipment values
-│   ├── redName.ts       direct-map target classification and structure durability
-│   ├── camps.ts         building definitions, yields, and recovery
-│   ├── facilities.ts    seeded facility events and outcome definitions
-│   ├── settlements.ts   residents, families, migration, growth, and calendar ticks
-│   ├── skills.ts        traveler challenges and party bonus aggregation
-│   ├── art.ts           canonical sprite-atlas contract
-│   └── types.ts         domain contracts
-├── App.tsx              application composition
-└── styles.css           responsive pixel-art design system
-```
+### 环境要求
 
-The simulation layer is kept free of React and browser rendering code. This
-makes the rules deterministic, testable, and ready for exported save files,
-workers, multiplayer adapters, or richer AI policies.
-
-The full product and system rationale is documented in
-[`docs/game-design.md`](docs/game-design.md).
-The three visual directions, pixel contract, generation prompts, and
-normalization pipeline are documented in
-[`docs/art-direction.md`](docs/art-direction.md).
-The production prompt for the settlement heart, six facilities, road gate, and
-settlement key art is in
-[`art/prompts/camp-settlement-gpt-image-2.md`](art/prompts/camp-settlement-gpt-image-2.md).
-The green-screen 2×4 frame prompts for all combat effects, colored bombs,
-explosions, and smoke are in
-[`art/prompts/combat-effects-gpt-image-2.md`](art/prompts/combat-effects-gpt-image-2.md).
-
-## Local development
+- Node.js 22（GitHub Actions 使用的版本）
+- npm
+- Python 3（仅处理或导入像素素材时需要）
+- Chromium / Playwright（仅浏览器验收时需要）
 
 ```bash
-npm install
+git clone https://github.com/Mappedinfo/Realmseed.git
+cd Realmseed
+npm ci
 npm run dev
 ```
 
-Quality checks:
+Vite 默认启动在 `http://127.0.0.1:5173/`。常用命令：
+
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev` | 启动热更新开发服务器 |
+| `npm test` | 运行 Vitest 规则与确定性测试 |
+| `npm run test:watch` | 监听模式运行单元测试 |
+| `npm run build` | TypeScript 检查并生成 `dist/` |
+| `npm run preview` | 本地预览生产构建 |
+| `npx playwright test` | 运行浏览器交互回归测试 |
+
+浏览器测试需要一个正在运行的开发服务器：
 
 ```bash
-npm test
-npm run build
+# 终端 1
+npm run dev -- --host 127.0.0.1 --port 5173
+
+# 终端 2
+E2E_BASE_URL=http://127.0.0.1:5173/ npx playwright test
+```
+
+## 开发约定
+
+Realmseed 把规则、界面和素材处理分开维护。修改功能时建议按以下顺序工作：
+
+1. 在 `src/game/types.ts` 明确数据与动作类型。
+2. 把可确定性测试的规则放入 `src/game/`，避免写进 React 组件。
+3. 在相邻的 `*.test.ts` 增加种子、边界和状态转换测试。
+4. 在 `src/components/` 接入交互，在 `WorldCanvas.tsx` 接入地图视觉反馈。
+5. 涉及完整操作链时更新 `e2e/smoke.spec.ts`。
+6. 提交前运行 `npm test`、`npm run build` 和相关 Playwright 测试。
+
+必须保持的项目约束：
+
+- **种子确定性**：世界内容使用项目的哈希/种子工具派生，不在模拟规则中直接调用 `Math.random()`。
+- **纯静态部署**：正式版本不能依赖后端、数据库、账号或运行时密钥。
+- **存档兼容**：修改持久化结构时递增 `schemaVersion`，增加单步迁移器和旧存档测试；失败的迁移不得覆盖原数据。
+- **状态来源唯一**：规则状态由 `GameState` 和 reducer 管理；短暂的动画、自动路线与指针状态留在界面层。
+- **像素渲染**：Canvas 禁用平滑采样，人物绘制对齐整数像素。移动反馈使用位置插值和足迹，不加入透明度闪烁或上下弹跳。
+- **素材许可**：只提交原创、CC0、MIT 兼容或明确允许再分发的素材，并同步更新 `THIRD_PARTY.md`。
+
+## 当前特性
+
+| 系统 | 已实现内容 |
+| --- | --- |
+| 世界与迷雾 | 40×40 快速地图、96×96 远征地图、无限场景坐标、三态战争迷雾、场景缓存、界碑跨场景旅行 |
+| 移动与寻路 | WASD/方向键、按钮移动、双击最短路径、道路减耗、整数像素移动动画、方向足迹 |
+| 采集与建造 | 野果、木材、石材；3 斧伐木、5 锤采石；自动寻找下一个已探索同类资源；三日再生；材料建营与六类建筑 |
+| 角色与社会 | 随机玩家、旅行者、六种专长、好感、招募、随从队伍、阵营声望、效忠与附属关系 |
+| 营地人口 | 两名开拓者起步、住房与食物约束、婚姻、生子、60 日成年、移民、熟人定居、四类营地官职 |
+| 战斗 | 怪物追击、双战斗界面、六种装备招式、近战/远程射程、命中/暴击/格挡、NPC 血量、装备与实际掉落 |
+| 红名与追缉 | 地图直接攻击、目击与逃离、个人/阵营自动追击、100 金赎偿解除追缉 |
+| 地下副本 | 洞穴与巢穴、固定三层、普通怪/精英/Boss、锁定阶梯、宝箱、撤退、次日重置 |
+| 装备与物品 | 20 个互斥装备位、四个独立戒指位、玩家/随从装备管理、固定常用栏和 4×5 收藏格 |
+| 钓鱼 | 两格内抛竿、连续十杆、三档疲劳、三日恢复、流纹/闪光/深涡、四类鱼、金币与稀有装备 |
+| 存档 | IndexedDB 活动存档、`localStorage` 降级、200ms 自动保存、V1→V2 迁移、FNV-1a 校验、JSON 导入导出、最近三份备份与损坏存档救援 |
+| 美术与音频 | Verdant 生成素材包、Ember/Moonlit 备用图集、抠图与像素化工具链、CC0 探索/战斗配乐、程序化水岸音乐与分级出水音效 |
+| 部署 | Vite 静态构建、GitHub Actions 测试与构建、GitHub Pages 自动发布 |
+
+## 主要操作
+
+- **移动**：`WASD`、方向键或方向按钮；双击可见目标启动自动寻路，任何手动操作都会取消。
+- **查看**：点击人物、怪物、建筑、物品、道路、资源或地形，在左上角查看详情。
+- **交谈与交易**：人物位于周围一格（含斜角）时出现气泡；点击人物进入对话和交易栏。
+- **自动采集**：选择木材或石材资源点。角色自动走到相邻格，完成 3 斧或 5 锤后结算，并继续寻找最近、已探索、可到达的同类资源。无目标、遇敌、体力耗尽或手动操作时停止。
+- **钓鱼**：选择曼哈顿距离 1–2 格的水面；空格收竿，再按空格开始下一杆。
+- **地下探索**：站在洞穴或巢穴相邻格进入；击败守层精英后下楼，第三层击败 Boss 并开启宝箱。
+- **营地**：消耗 8 木材和 5 石材建营；每成功移动 100 步获得一个建设额度。
+- **日历与体力**：每移动 10 格推进一天；普通移动累计 100 步消耗 1 体力，战斗期间疲劳增长为 1.5 倍。
+- **存档**：顶部“存档”面板可导出、预览导入和恢复备份。导入会先备份当前世界，不会合并两个世界。
+
+更完整的数值和交互规则见 [`docs/game-design.md`](docs/game-design.md)。
+
+## 代码结构
+
+```text
+src/
+├── components/             React UI、Canvas 地图和交互面板
+├── audio/                  钓鱼与水岸程序化音频
+├── game/
+│   ├── rng.ts              确定性随机与哈希工具
+│   ├── world.ts            地形、资源、社会、入口与迷雾生成
+│   ├── navigation.ts       四方向寻路与连续资源目标选择
+│   ├── simulation.ts       reducer、回合、经济、场景旅行与交互规则
+│   ├── dungeons.ts         三层副本、怪物和快照
+│   ├── combat.ts           招式、伤害类型与战斗数值
+│   ├── equipment.ts        全身装备位、兼容规则与属性汇总
+│   ├── fishing.ts          钓位、钓讯、疲劳和掉落表
+│   ├── camps.ts            建筑、营地属性与产出
+│   ├── settlements.ts      居民、家庭、移民、成长与日历模拟
+│   ├── persistence.ts      存档信封、校验、迁移与浏览器存储
+│   └── types.ts            领域模型和动作类型
+├── App.tsx                 游戏组合、自动路线和临时活动编排
+└── styles.css              深色森林像素 UI 设计系统
+
+e2e/                        Playwright 浏览器回归
+scripts/                    素材抠图、切片、像素化与图集合成
+art/prompts/                GPT Image 素材提示词
+public/assets/art/           游戏实际读取的图集和场景素材
+```
+
+模拟层不依赖 React 或浏览器绘制代码，因此可以使用固定种子直接测试，也为未来迁移到 Web Worker 留出了边界。
+
+## 存档开发
+
+当前存档格式为 `SaveEnvelopeV2`，核心字段包括：
+
+```text
+format: "realmseed-save"
+schemaVersion: 2
+appVersion
+savedAt
+theme
+state
+integrity: fnv1a32
+```
+
+新增或修改持久化字段时：
+
+1. 为旧数据提供安全默认值。
+2. 如结构语义发生变化，增加 `Vn → Vn+1` 单步迁移。
+3. 在 `persistence.test.ts` 验证迁移顺序、幂等性、失败原子性和未来版本拒绝。
+4. 验证地图、迷雾、场景缓存、地下三层、居民、NPC 装备、钓位和当前活动恢复。
+5. 不执行导入 JSON 中的字符串、HTML 或代码。
+
+## 美术素材开发
+
+素材提示词和规范：
+
+- [`docs/art-direction.md`](docs/art-direction.md)：配色、像素格网与三种主题。
+- [`art/prompts/camp-settlement-gpt-image-2.md`](art/prompts/camp-settlement-gpt-image-2.md)：营地建筑与场景。
+- [`art/prompts/combat-effects-gpt-image-2.md`](art/prompts/combat-effects-gpt-image-2.md)：战斗特效帧。
+
+常用处理命令：
+
+```bash
+python3 scripts/process_generated_asset.py --help
+python3 scripts/pixelize_concept.py --help
 python3 scripts/build_pixel_atlas.py
 python3 scripts/ingest_generated_assets.py
 python3 scripts/ingest_directional_assets.py
 python3 scripts/ingest_facility_assets.py
 ```
 
-## Controls
+生成素材应先保留原图，再经过背景移除、网格裁切、调色板压缩和 32×32 图集对齐。不要直接在 Canvas 中拉伸未经处理的概念图。
 
-- Move: `WASD`, arrow keys, direction pad, or click an adjacent tile
-- Auto-route: double-click any visible destination to follow a shortest passable
-  route one animated tile at a time. Water, resources, people, monsters, chests,
-  stairs, caves, and nests stop on an adjacent interaction tile. Any manual
-  action, encounter, fishing cast, or exhaustion cancels the route.
-- Talk: gain affection with an adjacent traveler and reputation with their faction
-- Interaction: adjacent people gain a speech bubble; click the bubble or person
-  to open the lower-center dialogue and trade counter. Adjacency uses all eight
-  surrounding tiles, including diagonals.
-- Explorer UI: inventory, equipment, party, camps, and territory use five
-  compact tabs. Their rows feed one reusable top-left detail window instead of
-  expanding every dataset at once.
-- Inventory: berries, timber, and stone stay in a fixed common-use strip. Rare
-  items occupy a 4×5 collection grid only while owned, with hover summaries,
-  click-through details, and a selected-item action instead of pre-revealed fish lists.
-- Action UI: founding, stationing, and resting share one consistent button
-  grammar with icon, action name, and cost/state caption.
-- Scene navigation: the cross-scene `INFINITE FRONTIER` mechanism is treated as
-  an advanced control and remains collapsed by default.
-- Inspect: click any visible person, monster, building, resource, road, or terrain
-  tile to open its contextual detail card in the left column; element tiles are
-  inspected before movement, while clicking an adjacent empty tile still moves
-- Recruit: requires 3 affection and 5 gold
-- Party: recruited followers are hidden from the world canvas; click the left
-  roster to switch the top-left portrait, which defaults to the player. Scout,
-  forager, guard, medic, trader, and duelist levels respectively improve vision,
-  gathering, block chance, exhausted recovery, berry rates, and damage.
-- Challenge: every wanderer presents a specialty-matched one-time trial.
-  Displayed odds derive from stamina capacity, combat wins, matching mastery
-  marks, and NPC skill level. Victory costs 1 stamina and grants 2 affection,
-  8 faction reputation, one permanent mastery mark, and skill-level gold.
-- Gather: select an adjacent timber or stone node. Harvesting costs 20 fatigue
-  and one travel-progress point; the node regenerates after three days.
-- Fish: select water within two tiles and cast. Click the timing meter or press
-  Space to reel; the panel preserves the result, and another Space starts the
-  next cast. Each water tile supports ten casts, uses 10/15/20 fatigue bands,
-  and recovers three days after depletion. Currents favor quantity, glimmers
-  favor coins and golden koi, and whirlpools favor relic equipment.
-- Dungeons: select an adjacent cave or nest. Defeat each floor elite to unlock
-  the stairs, defeat the third-floor Boss, open its reward chest, or retreat at
-  any time while retaining opened loot.
-- Build camp: requires 8 wood and 5 stone and creates a highlighted, permanently visible
-  control radius; watchtowers expand both control and permanent vision in real time
-- Construction: after founding a camp, each 100 successful movement steps grant
-  one building tile; select a highlighted empty tile, then build a traveler
-  lodge, forest farm, watchtower, market, workshop, or ember shrine. Each also
-  consumes its displayed wood/stone/gold recipe and has a documented operational effect.
-- Building touch: farms yield a berry, lodges restore 1 stamina, and shrines
-  fully restore stamina on a 20-turn cooldown; the remaining buildings retain
-  their passive settlement, defense, economy, sight, and combat effects.
-- Ruins: entering an unexplored ruin resolves one deterministic seeded event
-  exactly once. The result is shown below the map and the searched ruin is
-  visibly dimmed and marked in its detail card.
-- Camp navigation: select a camp in the left list to inspect its attributes or
-  auto-path home; same-scene camps automatically receive passable roads
-- Roads: road tiles spend only 0.35 movement fatigue instead of 1
-- Governance: when housing is available, assign followers to four reversible offices from the
-  camp core. Specialist offices require a watchtower, farm/workshop, or market.
-- Population: camps begin with two founders. Adults can marry every 30 days,
-  families can have children when housing and food permit, children mature in
-  60 days, and suitable camps attract generated or familiar migrants.
-- Calendar: every 10 successful movement tiles advance one day. Rest and scene
-  travel each advance one day while preserving partial movement progress; AI
-  continues to act on an independent turn counter.
-- Stamina: ordinary movement spends 1 point per 100 steps; combat steps count
-  1.5×, and deterministic enemy hits cost only 0 or 1 point
-- Berries: terrain-weighted pickups enter the left inventory; click to consume
-  one berry and restore 1 stamina
-- Trade: each nearby person offers a deterministic daily rate of 8–12 berries
-  per gold, centered on the 10:1 world economy; trader followers improve buying
-  and selling in opposite directions.
-- Combat growth: every victory raises maximum stamina by 1, capped at 30
-- NPC health and loot: people use independent health instead of stamina as
-  combat HP and receive a deterministic skill-led weapon plus level-weighted
-  armor. Armor mitigates encounter and red-name map damage with a 1-damage
-  floor. Defeated NPCs leave the map, drop carried gold and food, and can only
-  drop items they actually wore (weapon 35/50/65%, armor 25/40/55% by level).
-- Rest: restore full stamina normally; at zero, manual or automatic exhausted
-  rest recovers to 3, resets step fatigue, collects income, and advances the world
-- Red-name mode: the persistent top-right `红名模式` switch draws melee and
-  ranged reach around the controlled character. Select any non-party person,
-  neutral/enemy structure, or monster and use the six-map attack strip; damage
-  lands after the effect animation. Directly attacking a person immediately
-  activates persistent pursuit for both that NPC and their faction, including
-  members restored from other scene caches; pursuers chase to their equipped
-  weapon range, open a normal encounter, and immediately use that weapon before
-  continuing equipment-driven counterattacks. Other witnesses gain hostility, display an
-  exclamation mark, and move away. The only way to revoke a faction pursuit is
-  a nearby 100-gold ransom trade with one of its members, which clears the
-  entire faction and its cached NPCs. Hostile conversations disable friendly
-  recruitment, challenges, and ordinary trade.
-- Combat: normal encounters and elite retaliation retain tactical-bar and
-  left/right presentation. Six moves expose range, hit rate, critical rate,
-  power, stamina cost, and bomb radius. Enabling game music automatically
-  switches to the CC0 chiptune battle loop for an encounter.
-- Equipment: equip numerical bonuses in the left panel without drawing gear on
-  the character sprite
-- Scene travel: accumulate 25 steps of fatigue to take a waystone route to the adjacent
-  deterministic scene; followers travel with you while staffed villages remain
-  behind and continue to preserve that scene's explored state
-- Swear fealty: requires 15 faction reputation and grants 4 expedition gold
-- Break oath: return to independent status at the cost of 3 gold and 20 reputation
-- Establish a vassal: while independent, use one staffed village, 30 reputation,
-  and 10 gold to make a faction pay 2 gold tribute each rest
+## GitHub Pages 部署
 
-## GitHub Pages
+`.github/workflows/pages.yml` 会在每次推送 `main` 后执行：
 
-The included workflow builds and deploys the static `dist/` directory. In the
-repository settings, choose **GitHub Actions** as the Pages source. The Vite base
-path is automatically set to `/Realmseed/` in GitHub Actions.
+1. `npm ci`
+2. `npm test`
+3. `npm run build`
+4. 上传 `dist/`
+5. 部署 GitHub Pages
 
-## Roadmap
+仓库设置中的 Pages Source 应选择 **GitHub Actions**。CI 会自动把 Vite base 设置为 `/Realmseed/`。
 
-1. Persist the infinite scene cache and several seed worlds with IndexedDB.
-2. Add faction wars, settlement ownership, and negotiated tribute rates.
-3. Expand follower specialties into selectable jobs and individual field actions.
-4. Add production queues, quests, crafting tools, bait, and additional Boss families.
-5. Split world simulation into a Web Worker for maps larger than 256×256.
-6. Add mod-friendly JSON content packs and localization.
+## TODO
 
-## Licenses
+### P0：稳定性与开发体验
 
-- Code: MIT, see [LICENSE](LICENSE).
-- Music and third-party credits: [THIRD_PARTY.md](THIRD_PARTY.md).
+- [ ] 把 Playwright 浏览器回归加入 GitHub Actions，而不只在本地运行。
+- [ ] 为 IndexedDB 不可用、容量不足、页面卸载和连续多版本迁移增加更多浏览器级故障注入。
+- [ ] 分析 96×96 多场景缓存和 Canvas 重绘性能，确定 Web Worker 拆分边界。
+- [ ] 完成移动端装备盘、存档面板、战斗栏和钓鱼栏的触控可用性审计。
+- [ ] 补充键盘焦点、色彩对比、减少动态效果和屏幕阅读器说明。
+
+### P1：核心玩法扩展
+
+- [ ] 增加地下环境、Boss 家族、精英词条、Boss 阶段机制和专属掉落表。
+- [ ] 增加木石加工、工具升级、制作配方、鱼竿与鱼饵，同时避免耐久度造成重复劳动。
+- [ ] 为居民增加可见职业、生产队列、营地任务和玩家可控迁居。
+- [ ] 加入阵营战争、领地争夺、营地防守、外交协定和动态贡金。
+- [ ] 增加 NPC 对怪物、敌对阵营和营地威胁的自主反应。
+- [ ] 扩充遗迹、随机事件、任务链、旅行商人与世界 Boss。
+
+### P2：内容与扩展能力
+
+- [ ] 设计可校验的 JSON 内容包，用于装备、怪物、建筑、事件和掉落表。
+- [ ] 增加中文/英文语言包，移除散落在组件和规则中的硬编码文本。
+- [ ] 为帽子、外套、披风、武器和坐骑研究可选的角色换装图层。
+- [ ] 增加多个手动存档槽；云同步和账号系统保持为可选的外部适配器。
+- [ ] 在不破坏确定性的前提下研究天气、昼夜和季节对采集、钓鱼与迁移的影响。
+
+## 当前边界
+
+- 游戏完全运行在浏览器中，没有账号、云同步或服务端防作弊。
+- 普通居民存在于营地档案，不作为每个个体都在地图上移动的 NPC。
+- 当前没有死亡、离婚、怀孕期、跨营地婚姻或居民手动迁徙。
+- 装备影响数值与招式，尚未叠加绘制到地图角色精灵。
+- 副本首版固定三层；营地建设、NPC 交易和阵营战争不会进入副本。
+
+## 贡献与许可
+
+欢迎通过 Issue 提交 Bug、平衡反馈、功能建议和可复现种子。Pull Request 请保持范围集中，并附上对应测试或浏览器验收说明。
+
+- 代码：MIT，见 [`LICENSE`](LICENSE)。
+- 音乐与第三方素材：见 [`THIRD_PARTY.md`](THIRD_PARTY.md)。
