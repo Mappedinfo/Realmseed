@@ -134,6 +134,9 @@ python3 scripts/ingest_facility_assets.py
 - Explorer UI: inventory, equipment, party, camps, and territory use five
   compact tabs. Their rows feed one reusable top-left detail window instead of
   expanding every dataset at once.
+- Inventory: berries, timber, and stone stay in a fixed common-use strip. Rare
+  items occupy a 4×5 collection grid only while owned, with hover summaries,
+  click-through details, and a selected-item action instead of pre-revealed fish lists.
 - Action UI: founding, stationing, and resting share one consistent button
   grammar with icon, action name, and cost/state caption.
 - Scene navigation: the cross-scene `INFINITE FRONTIER` mechanism is treated as

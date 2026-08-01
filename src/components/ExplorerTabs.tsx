@@ -1,4 +1,6 @@
-import type { GameAction, GameState } from '../game/types'
+import { useState } from 'react'
+import { ownedCollectibles } from '../game/inventory'
+import type { FishId, GameAction, GameState } from '../game/types'
 import { agentSkills, partyBonuses } from '../game/skills'
 import { CampPanel } from './CampPanel'
 import { EquipmentPanel } from './EquipmentPanel'
@@ -33,6 +35,9 @@ export function ExplorerTabs({
   const residentCount = state.residents.length + state.camps.reduce((total, camp) => total + Object.keys(camp.offices).length, 0)
   const vassals = state.factions.filter((faction) => faction.isVassal)
   const bonuses = partyBonuses(state.agents)
+  const [selectedCollectible, setSelectedCollectible] = useState<FishId | null>(null)
+  const collectibles = ownedCollectibles(state.resources)
+  const selectedItem = collectibles.find((item) => item.id === selectedCollectible) ?? null
   const counts: Record<ExplorerTab, number> = {
     inventory: state.player.berries + state.resources.wood + state.resources.stone + Object.values(state.resources.fish).reduce((total, count) => total + count, 0),
     equipment: state.equipment.filter((item) => item.equipped).length,
@@ -69,37 +74,78 @@ export function ExplorerTabs({
       >
         {activeTab === 'inventory' ? (
           <div className="tab-panel-content inventory-tab">
-            <div className="compact-item-row">
-              <button className="compact-item-main" onClick={() => onFocus({ kind: 'inventory', item: 'berries' })}>
-                <span className="berry-cluster" aria-hidden="true">●</span>
-                <span><strong>野果</strong><small>食物 · 交易品</small></span>
-                <b>×{state.player.berries}</b>
+            <header className="inventory-section-head">
+              <span><b>常用</b><small>固定快捷栏</small></span>
+              <em>3 格</em>
+            </header>
+            <div className="inventory-common-grid">
+              <button
+                data-tooltip={`野果 ×${state.player.berries} · 食物与交易品`}
+                onFocus={() => onFocus({ kind: 'inventory', item: 'berries' })}
+                onClick={() => onFocus({ kind: 'inventory', item: 'berries' })}
+              >
+                <i className="berry-cluster" aria-hidden="true">●</i><span>野果</span><b>×{state.player.berries}</b>
               </button>
               <button
-                className="compact-row-action"
-                onClick={() => dispatch({ type: 'EAT_BERRY' })}
-                disabled={state.player.berries <= 0 || state.player.stamina >= state.player.maxStamina}
+                data-tooltip={`木材 ×${state.resources.wood} · 营地与木制设施`}
+                onFocus={() => onFocus({ kind: 'inventory', item: 'wood' })}
+                onClick={() => onFocus({ kind: 'inventory', item: 'wood' })}
               >
-                食用
+                <i aria-hidden="true">▥</i><span>木材</span><b>×{state.resources.wood}</b>
+              </button>
+              <button
+                data-tooltip={`石材 ×${state.resources.stone} · 地基与防御设施`}
+                onFocus={() => onFocus({ kind: 'inventory', item: 'stone' })}
+                onClick={() => onFocus({ kind: 'inventory', item: 'stone' })}
+              >
+                <i aria-hidden="true">◆</i><span>石材</span><b>×{state.resources.stone}</b>
               </button>
             </div>
-            <div className="pack-material-grid">
-              <button onClick={() => onFocus({ kind: 'inventory', item: 'wood' })}><i>▥</i><span>木材</span><b>×{state.resources.wood}</b></button>
-              <button onClick={() => onFocus({ kind: 'inventory', item: 'stone' })}><i>◆</i><span>石材</span><b>×{state.resources.stone}</b></button>
-            </div>
-            <div className="fish-pouch">
-              {([
-                ['minnow', '小鱼', 1], ['carp', '鲤鱼', 2], ['loach', '泥鳅', 2], ['golden-koi', '金鲤', 3],
-              ] as const).map(([fishId, label, recovery]) => (
-                <div className="compact-item-row" key={fishId}>
-                  <button className="compact-item-main" onClick={() => onFocus({ kind: 'inventory', item: fishId })}>
-                    <span className="fish-glyph">≈</span><span><strong>{label}</strong><small>恢复 {recovery} 体力</small></span><b>×{state.resources.fish[fishId]}</b>
+            <button
+              className="inventory-use-button"
+              onClick={() => dispatch({ type: 'EAT_BERRY' })}
+              disabled={state.player.berries <= 0 || state.player.stamina >= state.player.maxStamina}
+            >
+              食用野果 <small>恢复 1 体力</small>
+            </button>
+
+            <header className="inventory-section-head collection-head">
+              <span><b>自定义收藏</b><small>仅显示当前持有物</small></span>
+              <em>{collectibles.length}/20</em>
+            </header>
+            <div className="inventory-slot-grid" aria-label="自定义收藏格，4 列 5 行">
+              {Array.from({ length: 20 }, (_, index) => {
+                const item = collectibles[index]
+                if (!item) return <span className="inventory-slot is-empty" key={`empty-${index}`} aria-hidden="true" />
+                return (
+                  <button
+                    className={`inventory-slot item-${item.id} ${selectedItem?.id === item.id ? 'is-selected' : ''}`}
+                    key={item.id}
+                    aria-label={`${item.name}，持有 ${item.count}，${item.description}`}
+                    data-tooltip={`${item.name} ×${item.count} · ${item.description}`}
+                    onFocus={() => onFocus({ kind: 'inventory', item: item.id })}
+                    onClick={() => {
+                      setSelectedCollectible(item.id)
+                      onFocus({ kind: 'inventory', item: item.id })
+                    }}
+                  >
+                    <i aria-hidden="true">{item.glyph}</i>
+                    <b>×{item.count}</b>
                   </button>
-                  <button className="compact-row-action" onClick={() => dispatch({ type: 'EAT_FISH', fishId })} disabled={!state.resources.fish[fishId] || state.player.stamina >= state.player.maxStamina}>食用</button>
-                </div>
-              ))}
+                )
+              })}
             </div>
-            <p className="tab-note">木石用于建设；水岸抛竿可补充鱼获。</p>
+            <div className="collection-action-line" aria-live="polite">
+              {selectedItem ? (
+                <>
+                  <span><b>{selectedItem.name}</b><small>{selectedItem.description}</small></span>
+                  <button
+                    onClick={() => dispatch({ type: 'EAT_FISH', fishId: selectedItem.id })}
+                    disabled={state.player.stamina >= state.player.maxStamina}
+                  >食用</button>
+                </>
+              ) : <p>悬浮查看详情，点击选择收藏物。</p>}
+            </div>
           </div>
         ) : null}
 

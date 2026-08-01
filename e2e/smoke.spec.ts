@@ -45,6 +45,25 @@ test('keeps the action interface usable on a phone viewport', async ({ page }) =
   await page.screenshot({ path: '/tmp/realmseed-mobile.png', fullPage: true })
 })
 
+test('shows common supplies and keeps unowned collectibles as empty 4 by 5 slots', async ({ page }) => {
+  await page.goto(appUrl)
+  await page.getByLabel('世界种子').fill('inventory-browser-seed')
+  await page.getByRole('button', { name: /展开这个世界/ }).click()
+
+  const collection = page.getByLabel('自定义收藏格，4 列 5 行')
+  await expect(collection.locator('.inventory-slot')).toHaveCount(20)
+  await expect(collection.getByRole('button')).toHaveCount(0)
+  await expect(page.getByText('红鳞鲤', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('金鲤', { exact: true })).toHaveCount(0)
+
+  const wood = page.locator('.inventory-common-grid button').filter({ hasText: '木材' })
+  await wood.hover()
+  await expect.poll(() => wood.evaluate((element) => getComputedStyle(element, '::after').opacity)).toBe('1')
+  await wood.click()
+  await expect(page.getByText('从森林资源点采集，用于营地核心与木制设施。')).toBeVisible()
+  await page.screenshot({ path: '/tmp/realmseed-inventory.png', fullPage: true })
+})
+
 test('double-clicks a visible tile to auto-route with interpolated movement', async ({ page }) => {
   await page.goto(appUrl)
   await page.getByLabel('世界种子').fill('navigation-browser-seed')
@@ -60,9 +79,17 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
   const originY = Math.max(0, Math.min(96 - 17, startY - 8))
   const screenX = box!.x + ((targetX - originX + .5) / 25) * box!.width
   const screenY = box!.y + ((startY - originY + .5) / 17) * box!.height
+  const interpolationSeen = page.waitForFunction(() => {
+    const element = document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')
+    if (!element) return false
+    const x = Number(element.dataset.playerVisualX)
+    const y = Number(element.dataset.playerVisualY)
+    return Math.abs(x - Math.round(x)) > .01 || Math.abs(y - Math.round(y)) > .01
+  })
   await page.mouse.dblclick(screenX, screenY, { delay: 45 })
   await expect(page.getByText('AUTO ROUTE')).toBeVisible()
   await page.screenshot({ path: '/tmp/realmseed-navigation.png', fullPage: true })
+  await interpolationSeen
   await page.waitForFunction(
     ([x, y]) => {
       const element = document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')
@@ -71,13 +98,6 @@ test('double-clicks a visible tile to auto-route with interpolated movement', as
     },
     [startX, startY],
   )
-  await page.waitForFunction(() => {
-    const element = document.querySelector<HTMLCanvasElement>('[aria-label="Realmseed 像素世界地图"]')
-    if (!element) return false
-    const x = Number(element.dataset.playerVisualX)
-    const y = Number(element.dataset.playerVisualY)
-    return Math.abs(x - Math.round(x)) > .01 || Math.abs(y - Math.round(y)) > .01
-  })
   await page.keyboard.press('ArrowUp')
   await expect(page.getByText('AUTO ROUTE')).toBeHidden()
 })
