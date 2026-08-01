@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { ActionDock } from './components/ActionDock'
 import { AudioControl } from './components/AudioControl'
 import { BattlePanel } from './components/BattlePanel'
@@ -13,8 +13,9 @@ import { StartScreen } from './components/StartScreen'
 import { WorldCanvas } from './components/WorldCanvas'
 import { artThemes, type ArtTheme } from './game/art'
 import { isWithinInteractionRange } from './game/geometry'
+import { findNavigationPath, navigationGoals, navigationStopsAdjacent } from './game/navigation'
 import { gameReducer, visibleCounts } from './game/simulation'
-import type { BattleMode, GameState, MapSize } from './game/types'
+import type { BattleMode, GameAction, GameState, MapSize, Position } from './game/types'
 import { createGame } from './game/world'
 
 function GameView({
@@ -33,6 +34,8 @@ function GameView({
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null)
   const [explorerFocus, setExplorerFocus] = useState<ExplorerFocus>({ kind: 'player' })
   const [activeExplorerTab, setActiveExplorerTab] = useState<ExplorerTab>('inventory')
+  const [navigationPath, setNavigationPath] = useState<Position[]>([])
+  const [navigationTarget, setNavigationTarget] = useState<Position | null>(null)
   const counts = useMemo(() => visibleCounts(state), [state])
   const activeAgent = state.agents.find((agent) => agent.id === activeAgentId)
   const activeAgentNearby = Boolean(activeAgent && isWithinInteractionRange(activeAgent, state.player))
@@ -40,6 +43,14 @@ function GameView({
     .filter((agent) => agent.role === 'wanderer')
     .map((agent) => ({ agent, distance: Math.abs(agent.x - state.player.x) + Math.abs(agent.y - state.player.y) }))
     .sort((a, b) => a.distance - b.distance)[0]
+  const cancelNavigation = useCallback(() => {
+    setNavigationPath([])
+    setNavigationTarget(null)
+  }, [])
+  const userDispatch = useCallback((action: GameAction) => {
+    if (action.type !== 'FISH_TICK') cancelNavigation()
+    dispatch(action)
+  }, [cancelNavigation])
   const setCombatPreference = (mode: BattleMode) => {
     window.localStorage.setItem('realmseed-combat-mode', mode)
     dispatch({ type: 'SET_COMBAT_PREFERENCE', mode })
@@ -49,6 +60,7 @@ function GameView({
     dispatch({ type: 'SET_RED_NAME_MODE', enabled })
   }
   const selectAgent = (agentId: string) => {
+    cancelNavigation()
     const agent = state.agents.find((item) => item.id === agentId)
     if (agent) {
       const position = { x: agent.x, y: agent.y }
@@ -58,10 +70,33 @@ function GameView({
     }
   }
   const selectPosition = (position: { x: number; y: number }) => {
+    cancelNavigation()
     setActiveAgentId(null)
     setExplorerFocus({ kind: 'map', position })
     dispatch({ type: 'SELECT', position })
   }
+  const navigateTo = useCallback((position: Position) => {
+    if (state.battle || state.fishing || state.player.stamina <= 0) return
+    const index = position.y * state.world.size + position.x
+    const tile = state.world.tiles[index]
+    if (!tile || state.fog[index] === 0) return
+    const stopAdjacent = navigationStopsAdjacent(tile) ||
+      state.agents.some((agent) => agent.role !== 'follower' && agent.x === position.x && agent.y === position.y) ||
+      state.monsters.some((monster) => monster.x === position.x && monster.y === position.y)
+    const path = findNavigationPath(state.world, state.player, position, stopAdjacent)
+    setActiveAgentId(null)
+    setExplorerFocus({ kind: 'map', position })
+    if (!path.length) {
+      const alreadyThere = navigationGoals(state.world, position, stopAdjacent)
+        .some((goal) => goal.x === state.player.x && goal.y === state.player.y)
+      if (alreadyThere) dispatch({ type: 'SELECT', position })
+      setNavigationPath([])
+      setNavigationTarget(null)
+      return
+    }
+    setNavigationTarget(position)
+    setNavigationPath(path)
+  }, [state.battle, state.fishing, state.fog, state.player, state.world])
   const changeExplorerTab = (tab: ExplorerTab) => {
     setActiveExplorerTab(tab)
     if (tab === 'inventory') setExplorerFocus({ kind: 'inventory', item: 'berries' })
@@ -82,12 +117,39 @@ function GameView({
       if (direction) {
         event.preventDefault()
         if (state.battle || state.fishing) return
-        dispatch({ type: 'MOVE', direction })
+        userDispatch({ type: 'MOVE', direction })
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [state.battle, state.fishing])
+  }, [state.battle, state.fishing, userDispatch])
+
+  useEffect(() => {
+    if (!navigationPath.length) return
+    if (state.battle || state.fishing || state.player.stamina <= 0) {
+      cancelNavigation()
+      return
+    }
+    const next = navigationPath[0]
+    const dx = next.x - state.player.x
+    const dy = next.y - state.player.y
+    if (Math.abs(dx) + Math.abs(dy) !== 1) {
+      cancelNavigation()
+      return
+    }
+    const direction = dx === 1 ? 'right' : dx === -1 ? 'left' : dy === 1 ? 'down' : 'up'
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'MOVE', direction })
+      setNavigationPath((path) => path.slice(1))
+    }, 150)
+    return () => window.clearTimeout(timer)
+  }, [cancelNavigation, navigationPath, state.battle, state.fishing, state.player.stamina, state.player.x, state.player.y])
+
+  useEffect(() => {
+    if (!navigationTarget || navigationPath.length || state.battle || state.fishing) return
+    dispatch({ type: 'SELECT', position: navigationTarget })
+    setNavigationTarget(null)
+  }, [navigationPath.length, navigationTarget, state.battle, state.fishing])
 
   useEffect(() => {
     if (state.battle) {
@@ -166,7 +228,7 @@ function GameView({
 
           <ExplorerTabs
             state={state}
-            dispatch={dispatch}
+            dispatch={userDispatch}
             activeTab={activeExplorerTab}
             selectedCampId={selectedCampId}
             onTabChange={changeExplorerTab}
@@ -186,23 +248,25 @@ function GameView({
           <WorldCanvas
             state={state}
             theme={theme}
-            dispatch={dispatch}
+            dispatch={userDispatch}
             activeAgentId={activeAgentId}
             onAgentClick={selectAgent}
             onSelect={selectPosition}
+            onNavigate={navigateTo}
+            navigationPath={navigationPath}
           />
           {!state.battle && activeAgent && activeAgentNearby ? (
             <InteractionPanel
               state={state}
               target={activeAgent}
               faction={state.factions.find((faction) => faction.id === activeAgent.factionId)}
-              dispatch={dispatch}
+              dispatch={userDispatch}
               onClose={() => setActiveAgentId(null)}
             />
           ) : null}
-          <FacilityEventPanel state={state} dispatch={dispatch} />
-          <BattlePanel state={state} dispatch={dispatch} />
-          <ActionDock state={state} dispatch={dispatch} />
+          <FacilityEventPanel state={state} dispatch={userDispatch} />
+          <BattlePanel state={state} dispatch={userDispatch} />
+          <ActionDock state={state} dispatch={userDispatch} />
         </section>
 
         <aside className="side-panel intel-panel">
@@ -214,7 +278,7 @@ function GameView({
               <div><span>未开宝箱</span><b>{state.world.tiles.filter((tile) => tile.structure === 'chest' && !tile.chestOpened).length}</b></div>
               <div><span>Boss</span><b>{state.activeDungeon.floor < 3 ? '更深处' : state.monsters.some((monster) => monster.rank === 'boss') ? '战斗中' : '已击败'}</b></div>
             </section>
-          ) : <SceneTransit state={state} dispatch={dispatch} />}
+          ) : <SceneTransit state={state} dispatch={userDispatch} />}
           <div className="map-panel-head">
             <div><p className="panel-kicker">WORLD MAP</p><strong>{Math.round((counts.explored / counts.total) * 100)}% 已探索</strong></div>
             <span>{counts.visible} 格明亮</span>

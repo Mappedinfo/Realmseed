@@ -19,7 +19,7 @@ directly to GitHub Pages.
 - deterministic procedural terrain and societies
 - three-state fog of war: visible, explored, unseen
 - villagers and the abstracted traveling party provide persistent vision
-- keyboard, button, and adjacent-tile movement
+- keyboard, button, adjacent-tile movement, and double-click shortest-path navigation
 - stamina, coins, affection, recruitment, camps, buildings, roads, and settlement income
 - recruited followers leave the crowded world canvas and move into a clickable
   party roster with switchable portraits
@@ -120,6 +120,10 @@ python3 scripts/ingest_facility_assets.py
 ## Controls
 
 - Move: `WASD`, arrow keys, direction pad, or click an adjacent tile
+- Auto-route: double-click any visible destination to follow a shortest passable
+  route one animated tile at a time. Water, resources, people, monsters, chests,
+  stairs, caves, and nests stop on an adjacent interaction tile. Any manual
+  action, encounter, fishing cast, or exhaustion cancels the route.
 - Talk: gain affection with an adjacent traveler and reputation with their faction
 - Interaction: adjacent people gain a speech bubble; click the bubble or person
   to open the lower-center dialogue and trade counter. Adjacency uses all eight

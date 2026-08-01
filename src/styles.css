@@ -849,6 +849,19 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   outline-offset: -3px;
   background: rgba(244, 211, 94, .12);
 }
+.auto-route-status {
+  position: absolute; z-index: 7; left: 10px; top: 10px; display: grid;
+  grid-template-columns: 22px auto auto; gap: 7px; align-items: center;
+  padding: 6px 8px; color: #dfe8d8; background: rgba(17, 27, 21, .92);
+  border: 1px solid #c5a84f; box-shadow: inset 0 0 0 1px #263b2c, 3px 3px 0 rgba(5, 10, 7, .7);
+  pointer-events: none;
+}
+.auto-route-status > i { color: #f4d35e; font-style: normal; animation: route-pulse .6s steps(2, end) infinite; }
+.auto-route-status b, .auto-route-status small { display: block; }
+.auto-route-status b { color: #f1cf69; font-size: 8px; letter-spacing: .14em; }
+.auto-route-status small { margin-top: 2px; color: #9eb09e; font-size: 7px; }
+.auto-route-status kbd { margin-left: 5px; padding: 3px 5px; color: #718276; background: #101914; border: 1px solid #34453a; font: inherit; font-size: 7px; }
+@keyframes route-pulse { 50% { opacity: .35; transform: translateX(2px); } }
 .talk-bubble {
   position: absolute;
   z-index: 3;
@@ -1466,6 +1479,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 
 @media (prefers-reduced-motion: reduce) {
   .combat-effect i { animation-duration: 80ms !important; animation-timing-function: step-end !important; }
+  .auto-route-status > i { animation: none; }
 }
 .action-dock { margin-top: 10px; padding: 10px; display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; }
 .dpad { display: grid; grid-template-columns: repeat(3, 31px); grid-template-rows: repeat(2, 28px); gap: 3px; }

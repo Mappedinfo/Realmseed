@@ -362,10 +362,12 @@ interface WorldCanvasProps {
   activeAgentId: string | null
   onAgentClick: (agentId: string) => void
   onSelect: (position: Position) => void
+  onNavigate: (position: Position) => void
+  navigationPath: Position[]
   dispatch: React.Dispatch<GameAction>
 }
 
-export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect, dispatch }: WorldCanvasProps) {
+export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelect, onNavigate, navigationPath, dispatch }: WorldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const atlasRef = useRef<HTMLImageElement | null>(null)
   const generatedTerrainRef = useRef<HTMLImageElement | null>(null)
@@ -375,6 +377,8 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
   const directionalMonstersRef = useRef<HTMLImageElement | null>(null)
   const facilitiesRef = useRef<HTMLImageElement | null>(null)
   const [assetRevision, setAssetRevision] = useState(0)
+  const visualPlayerRef = useRef({ x: state.player.x, y: state.player.y, motion: 1 })
+  const [visualPlayer, setVisualPlayer] = useState(visualPlayerRef.current)
   const origin = {
     x: Math.max(0, Math.min(state.world.size - VIEW_COLS, state.player.x - Math.floor(VIEW_COLS / 2))),
     y: Math.max(0, Math.min((state.world.height ?? state.world.size) - VIEW_ROWS, state.player.y - Math.floor(VIEW_ROWS / 2))),
@@ -420,6 +424,37 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       })
     }
   }, [theme])
+
+  useEffect(() => {
+    const from = visualPlayerRef.current
+    const to = { x: state.player.x, y: state.player.y }
+    const distance = Math.abs(to.x - from.x) + Math.abs(to.y - from.y)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (distance === 0) return
+    if (distance > 1 || reducedMotion) {
+      const settled = { ...to, motion: 1 }
+      visualPlayerRef.current = settled
+      setVisualPlayer(settled)
+      return
+    }
+    let frame = 0
+    const started = performance.now()
+    const duration = 125
+    const animate = (now: number) => {
+      const motion = Math.min(1, (now - started) / duration)
+      const eased = 1 - Math.pow(1 - motion, 3)
+      const current = {
+        x: from.x + (to.x - from.x) * eased,
+        y: from.y + (to.y - from.y) * eased,
+        motion,
+      }
+      visualPlayerRef.current = current
+      setVisualPlayer(current)
+      if (motion < 1) frame = window.requestAnimationFrame(animate)
+    }
+    frame = window.requestAnimationFrame(animate)
+    return () => window.cancelAnimationFrame(frame)
+  }, [state.player.x, state.player.y])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -565,8 +600,20 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       }
     }
 
-    const playerX = (state.player.x - origin.x) * TILE
-    const playerY = (state.player.y - origin.y) * TILE
+    navigationPath.forEach((position, index) => {
+      if (position.x < origin.x || position.x >= origin.x + VIEW_COLS || position.y < origin.y || position.y >= origin.y + VIEW_ROWS) return
+      const x = (position.x - origin.x) * TILE
+      const y = (position.y - origin.y) * TILE
+      const alpha = Math.max(.2, .62 - index * .025)
+      pixelRect(context, `rgba(244, 211, 94, ${alpha})`, x + 14, y + 14, 4, 4)
+      if (index === navigationPath.length - 1) {
+        context.strokeStyle = 'rgba(244, 211, 94, .82)'
+        context.strokeRect(x + 7.5, y + 7.5, 17, 17)
+      }
+    })
+
+    const playerX = (visualPlayer.x - origin.x) * TILE
+    const playerY = (visualPlayer.y - origin.y) * TILE - Math.sin(visualPlayer.motion * Math.PI) * 2
     if (state.redNameMode) {
       for (let viewY = 0; viewY < VIEW_ROWS; viewY += 1) {
         for (let viewX = 0; viewX < VIEW_COLS; viewX += 1) {
@@ -609,7 +656,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
       context.lineWidth = 2
       context.strokeRect(sx + 2, sy + 2, TILE - 4, TILE - 4)
     }
-  }, [activeAgentId, assetRevision, origin.x, origin.y, state])
+  }, [activeAgentId, assetRevision, navigationPath, origin.x, origin.y, state, visualPlayer])
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -627,6 +674,15 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
     },
     [onAgentClick, onSelect, origin.x, origin.y, state.agents, state.player.x, state.player.y, state.world.size],
   )
+
+  const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const scaleX = event.currentTarget.width / rect.width
+    const scaleY = event.currentTarget.height / rect.height
+    const x = origin.x + Math.floor(((event.clientX - rect.left) * scaleX) / TILE)
+    const y = origin.y + Math.floor(((event.clientY - rect.top) * scaleY) / TILE)
+    if (x >= 0 && y >= 0 && x < state.world.size && y < (state.world.height ?? state.world.size)) onNavigate({ x, y })
+  }, [onNavigate, origin.x, origin.y, state.world.height, state.world.size])
 
   const nearbyAgents = state.agents.filter(
     (agent) =>
@@ -676,6 +732,12 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         width={VIEW_COLS * TILE}
         height={VIEW_ROWS * TILE}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        data-player-x={state.player.x}
+        data-player-y={state.player.y}
+        data-player-visual-x={visualPlayer.x.toFixed(3)}
+        data-player-visual-y={visualPlayer.y.toFixed(3)}
+        data-navigation-steps={navigationPath.length}
         aria-label="Realmseed 像素世界地图"
       />
       {visibleTargets.map((position) => {
@@ -694,6 +756,11 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
               height: `${100 / VIEW_ROWS}%`,
             }}
             onClick={() => agent ? onAgentClick(agent.id) : onSelect(position)}
+            onDoubleClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onNavigate(position)
+            }}
             aria-label={`查看${detail.name}详情`}
             title={`查看${detail.name}详情`}
           />
@@ -741,6 +808,11 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         return <span key={`witness-${agent.id}`} className="npc-alert" style={{ left: `${left}%`, top: `${top}%` }} aria-label={`${agent.name}对红名者保持警惕`}>!</span>
       })}
       {state.redNameMode ? <RedNameOverlay state={state} origin={origin} dispatch={dispatch} /> : null}
+      {navigationPath.length ? (
+        <div className="auto-route-status" aria-live="polite">
+          <i>◆</i><span><b>AUTO ROUTE</b><small>自动行进 · 剩余 {navigationPath.length} 格</small></span><kbd>任意操作取消</kbd>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -73,7 +73,7 @@ export function ActionDock({ state, dispatch }: { state: GameState; dispatch: Re
           {!state.activeDungeon ? <button disabled={locked || state.resources.wood < 8 || state.resources.stone < 5} onClick={() => dispatch({ type: 'FOUND_CAMP' })}><span className="action-glyph">⌂</span><span className="action-copy"><b>建立营地</b><small>8 木 · 5 石</small></span></button> : null}
           <button disabled={locked} onClick={() => dispatch({ type: 'REST' })}><span className="action-glyph">☾</span><span className="action-copy"><b>休息整备</b><small>恢复体力并结算</small></span></button>
         </div>
-        <p className="keyboard-hint">点击相邻资源、水域或副本设施显示行动 · 移动 10 格推进 1 天 · 100 步消耗 1 体力</p>
+        <p className="keyboard-hint">双击地图自动寻路 · 任意手动操作取消 · 点击相邻资源、水域或设施显示行动</p>
       </section>
     </>
   )
