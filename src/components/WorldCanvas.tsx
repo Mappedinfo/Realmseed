@@ -21,6 +21,7 @@ import {
   type SpriteId,
 } from '../game/art'
 import { inspectPosition } from '../game/inspection'
+import { walkBobOffset } from '../game/motion'
 import { effectiveCampStats } from '../game/camps'
 import { isWithinInteractionRange } from '../game/geometry'
 import { tileIndex } from '../game/world'
@@ -613,7 +614,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
     })
 
     const playerX = (visualPlayer.x - origin.x) * TILE
-    const playerY = (visualPlayer.y - origin.y) * TILE - Math.sin(visualPlayer.motion * Math.PI) * 2
+    const playerY = (visualPlayer.y - origin.y) * TILE - walkBobOffset(visualPlayer.motion)
     if (state.redNameMode) {
       for (let viewY = 0; viewY < VIEW_ROWS; viewY += 1) {
         for (let viewX = 0; viewX < VIEW_COLS; viewX += 1) {
