@@ -227,6 +227,7 @@ function GameView({
                     {faction.name}
                     {faction.isOverlord ? <small>宗主</small> : null}
                     {faction.isVassal ? <small>附属</small> : null}
+                    {faction.autoAggro ? <small className="is-wanted">追缉中</small> : null}
                   </span>
                   <strong>{faction.relation >= 0 ? '+' : ''}{faction.relation}</strong>
                 </div>

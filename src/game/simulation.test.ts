@@ -178,16 +178,72 @@ describe('game simulation', () => {
     expect(next.chronicle[0].text).toContain('红名者')
   })
 
-  it('can hurt but not kill an NPC sharing the player tile without opening battle', () => {
+  it('can hurt but not kill an NPC on the map before its automatic counterattack opens battle', () => {
     const state = flatState('red-overlap-agent-check')
     state.redNameMode = true
     state.agents = [{ ...state.agents[0], id: 'overlap-agent', x: 20, y: 20, stamina: 2, maxStamina: 7, skillLevel: 1 }]
     let probe = 0
     while (!resolveCombatRoll(state.gameId, 'overlap-agent', 1, combatMove('quick-strike')).hit) state.gameId = `overlap-hit-${probe++}`
     const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 20, y: 20 }, moveId: 'quick-strike' })
-    expect(next.battle).toBeNull()
+    expect(next.battle).toMatchObject({ targetId: 'overlap-agent', targetKind: 'agent' })
     expect(next.agents[0].stamina).toBe(1)
-    expect(next.agents[0].hostility).toBe(3)
+    expect(next.agents[0].hostility).toBe(5)
+    expect(next.agents[0].autoAggro).toBe(true)
+    expect(next.factions.find((faction) => faction.id === next.agents[0].factionId)?.autoAggro).toBe(true)
+  })
+
+  it('turns a direct NPC attack into faction pursuit even when the strike misses', () => {
+    const state = flatState('faction-pursuit-miss')
+    state.redNameMode = true
+    state.agents = [{ ...state.agents[0], id: 'distant-target', factionId: 'moss', x: 23, y: 20, stamina: 20, maxStamina: 20 }]
+    let probe = 0
+    while (resolveCombatRoll(state.gameId, 'distant-target', 1, combatMove('arrow-shot')).hit) state.gameId = `pursuit-miss-${probe++}`
+    const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 23, y: 20 }, moveId: 'arrow-shot' })
+    expect(next.lastMapAttack?.hit).toBe(false)
+    expect(next.agents[0].autoAggro).toBe(true)
+    expect(next.factions.find((faction) => faction.id === 'moss')?.autoAggro).toBe(true)
+    expect(next.chronicle[0].text).toContain('持续追缉')
+  })
+
+  it('makes another member of the provoked faction chase and automatically open battle', () => {
+    const state = flatState('faction-pursuit-chase')
+    state.redNameMode = true
+    state.agents = [
+      { ...state.agents[0], id: 'faction-target', factionId: 'moss', x: 24, y: 20, stamina: 20, maxStamina: 20 },
+      { ...state.agents[1], id: 'faction-guard', factionId: 'moss', x: 22, y: 20, stamina: 20, maxStamina: 20 },
+      { ...state.agents[2], id: 'unrelated', factionId: 'tide', x: 30, y: 20, stamina: 20, maxStamina: 20 },
+    ]
+    const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 24, y: 20 }, moveId: 'arrow-shot' })
+    expect(next.battle).toMatchObject({ targetId: 'faction-guard', targetKind: 'agent' })
+    expect(next.agents.find((agent) => agent.id === 'faction-guard')).toMatchObject({ x: 21, hostility: 5 })
+    expect(next.factions.find((faction) => faction.id === 'tide')?.autoAggro).toBe(false)
+  })
+
+  it('requires exactly 100 gold to clear pursuit for the faction and cached members', () => {
+    const state = flatState('faction-ransom')
+    const target = { ...state.agents[0], id: 'ransom-agent', factionId: 'ember', x: 21, y: 20, autoAggro: true, hostility: 5, fear: 0 }
+    state.agents = [target]
+    state.factions = state.factions.map((faction) => faction.id === 'ember'
+      ? { ...faction, relation: -12, autoAggro: true }
+      : faction)
+    state.sceneCache['1,0'] = {
+      world: state.world,
+      fog: state.fog,
+      agents: [{ ...target, id: 'cached-ember' }],
+      monsters: [],
+      camps: [],
+    }
+    state.player.gold = 99
+    const rejected = gameReducer(state, { type: 'REPAIR_FACTION_AGGRO', factionId: 'ember', agentId: target.id })
+    expect(rejected.player.gold).toBe(99)
+    expect(rejected.factions.find((faction) => faction.id === 'ember')?.autoAggro).toBe(true)
+
+    state.player.gold = 135
+    const repaired = gameReducer(state, { type: 'REPAIR_FACTION_AGGRO', factionId: 'ember', agentId: target.id })
+    expect(repaired.player.gold).toBe(35)
+    expect(repaired.factions.find((faction) => faction.id === 'ember')).toMatchObject({ autoAggro: false, relation: 0 })
+    expect(repaired.agents[0]).toMatchObject({ autoAggro: false, hostility: 0, fear: 0 })
+    expect(repaired.sceneCache['1,0'].agents[0]).toMatchObject({ autoAggro: false, hostility: 0, fear: 0 })
   })
 
   it('allows an attacked elite NPC to start a real battle at a low deterministic chance', () => {

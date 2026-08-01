@@ -172,10 +172,14 @@ python3 scripts/ingest_facility_assets.py
 - Red-name mode: the persistent top-right `红名模式` switch draws melee and
   ranged reach around the controlled character. Select any non-party person,
   neutral/enemy structure, or monster and use the six-map attack strip; damage
-  lands after the effect animation without opening an encounter. Witnesses gain
-  hostility, display an exclamation mark, and move away. Hostile conversations
-  disable friendly recruitment, challenges, and trade; skilled NPCs retain a
-  small deterministic chance to retaliate through the normal encounter system.
+  lands after the effect animation. Directly attacking a person immediately
+  activates persistent pursuit for both that NPC and their faction, including
+  members restored from other scene caches; pursuers chase the player and open
+  a normal encounter when adjacent. Other witnesses gain hostility, display an
+  exclamation mark, and move away. The only way to revoke a faction pursuit is
+  a nearby 100-gold ransom trade with one of its members, which clears the
+  entire faction and its cached NPCs. Hostile conversations disable friendly
+  recruitment, challenges, and ordinary trade.
 - Combat: normal encounters and elite retaliation retain tactical-bar and
   left/right presentation. Six moves expose range, hit rate, critical rate,
   power, stamina cost, and bomb radius. Enabling game music automatically

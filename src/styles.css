@@ -1135,6 +1135,24 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .trade-counter button { display: flex; flex-direction: column; justify-content: center; }
 .trade-counter button span { margin-top: 3px; color: var(--gold); font-size: 8px; }
 .trade-counter button:hover:not(:disabled) span { color: #3a3214; }
+.pursuit-ransom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: .7fr 1.1fr 1.8fr 1.1fr;
+  gap: 7px;
+  align-items: center;
+  padding: 7px;
+  color: #edc7a2;
+  background:
+    repeating-linear-gradient(0deg, rgba(73, 23, 18, .24) 0 2px, transparent 2px 4px),
+    #38231d;
+  border: 1px solid #a54e3e;
+  box-shadow: inset 3px 0 #f06a4e, inset -3px 0 #f06a4e;
+}
+.pursuit-ransom > span { color: #ff8167; font-size: 8px; letter-spacing: .12em; }
+.pursuit-ransom > strong { color: #ffe0a6; font-size: 10px; }
+.pursuit-ransom > small { color: #c6967e; font-size: 7px; line-height: 1.45; }
+.pursuit-ransom > button { border-color: #c05b43; background: #51271f; }
 .close-interaction {
   position: absolute;
   top: 7px;
@@ -1492,6 +1510,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   background: var(--gold);
   font-size: 7px;
 }
+.faction-row span small.is-wanted { color: #ffe5b4; background: #9b3329; }
 .faction-row strong { color: #aab59f; }
 .faction-contract + .faction-contract { border-top: 1px dotted #37433a; }
 .contract-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 4px; margin: 1px 0 5px 16px; }

@@ -74,6 +74,7 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
     const role = agent.role === 'villager' ? '驻守村民' : '旅行者'
     const nearby = isWithinInteractionRange(agent, state.player)
     const skill = agentSkills[agent.skill]
+    const pursuit = Boolean(agent.autoAggro || faction?.autoAggro)
     return {
       ...base,
       category: '人物',
@@ -87,13 +88,15 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
         { label: '野果', value: agent.berries },
         { label: '专长', value: `${skill.title} Lv.${agent.skillLevel}` },
         { label: '挑战', value: agent.challengeWon ? '已通过' : '未通过' },
-        { label: '态度', value: (agent.hostility ?? 0) > 0 ? `敌意 ${agent.hostility}/5` : '中立' },
-        { label: '反应', value: (agent.fear ?? 0) > 0 ? '警觉逃离' : '正常' },
+        { label: '态度', value: pursuit ? '阵营追缉' : (agent.hostility ?? 0) > 0 ? `敌意 ${agent.hostility}/5` : '中立' },
+        { label: '反应', value: pursuit ? '追击并主动开战' : (agent.fear ?? 0) > 0 ? '警觉逃离' : '正常' },
       ],
-      hint: (agent.hostility ?? 0) > 0
+      hint: pursuit
+        ? '该阵营会跨场景持续追缉；靠近成员将自动开战。只能在周围 1 格内支付 100 金完成赎偿交易。'
+        : (agent.hostility ?? 0) > 0
         ? '对方目击过红名攻击；交涉带有敌意，精英可能直接发起对战。'
         : nearby ? '位于交谈距离内，可点击气泡对话或交易。' : '靠近到周围 1 格后可以交谈。',
-      tone: (agent.hostility ?? 0) > 0 ? 'danger' : nearby ? 'good' : 'neutral',
+      tone: pursuit || (agent.hostility ?? 0) > 0 ? 'danger' : nearby ? 'good' : 'neutral',
     }
   }
 

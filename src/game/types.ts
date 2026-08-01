@@ -47,6 +47,7 @@ export interface Faction {
   relation: number
   isVassal: boolean
   isOverlord: boolean
+  autoAggro: boolean
 }
 
 export interface Agent extends Position {
@@ -67,6 +68,7 @@ export interface Agent extends Position {
   challengeWon?: boolean
   hostility?: number
   fear?: number
+  autoAggro?: boolean
 }
 
 export interface Resident {
@@ -224,6 +226,7 @@ export type GameAction =
   | { type: 'SET_COMBAT_PREFERENCE'; mode: BattleMode }
   | { type: 'SET_RED_NAME_MODE'; enabled: boolean }
   | { type: 'RED_NAME_ATTACK'; position: Position; moveId: CombatMoveId }
+  | { type: 'REPAIR_FACTION_AGGRO'; factionId: string; agentId: string }
   | { type: 'SET_BATTLE_MODE'; mode: BattleMode }
   | { type: 'COMBAT_ACTION'; moveId: CombatMoveId }
   | { type: 'FLEE_BATTLE' }

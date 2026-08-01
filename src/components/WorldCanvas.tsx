@@ -681,7 +681,7 @@ export function WorldCanvas({ state, theme, activeAgentId, onAgentClick, onSelec
         )
       })}
       {state.agents.filter((agent) =>
-        agent.role !== 'follower' && ((agent.fear ?? 0) > 0 || (agent.hostility ?? 0) > 0) &&
+        agent.role !== 'follower' && ((agent.fear ?? 0) > 0 || (agent.hostility ?? 0) > 0 || agent.autoAggro || state.factions.some((faction) => faction.id === agent.factionId && faction.autoAggro)) &&
         agent.x >= origin.x && agent.x < origin.x + VIEW_COLS &&
         agent.y >= origin.y && agent.y < origin.y + VIEW_ROWS
       ).map((agent) => {
@@ -738,7 +738,7 @@ function RedNameOverlay({ state, origin, dispatch }: { state: GameState; origin:
             ? target.attackable ? `耐久 ${target.hp}/${target.maxHp}` : target.reason
             : state.lastMapAttack
               ? `${state.lastMapAttack.hit ? state.lastMapAttack.critical ? '暴击' : '命中' : '未命中'} · 伤害 ${state.lastMapAttack.damage} · 目标已移动或消失`
-              : '攻击不会进入对战面板；目击者可能逃离或反击。'}</small>
+              : '攻击人物会触发个人与阵营持续追缉；相邻追兵将自动开战。'}</small>
         </div>
         <div className="red-move-strip">
           {combatMoves.map((move) => {

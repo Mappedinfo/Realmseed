@@ -28,6 +28,7 @@ export const MONSTER_NOTICE_PERCENT = 35
 export const MONSTER_CHASE_PERCENT = 68
 export const MONSTER_AMBUSH_PERCENT = 42
 export const ROAD_STEP_COST = 0.35
+export const AUTO_AGGRO_REPAIR_COST = 100
 
 const directionDelta: Record<Direction, Position> = {
   up: { x: 0, y: -1 },
@@ -322,6 +323,10 @@ function interactableAgent(state: GameState, agentId?: string): Agent | undefine
     : candidates.find((agent) => agent.role === 'wanderer') ?? candidates[0]
 }
 
+function isAutoAggroAgent(state: GameState, agent: Agent): boolean {
+  return Boolean(agent.autoAggro || state.factions.find((faction) => faction.id === agent.factionId)?.autoAggro)
+}
+
 export function berryExchangeRate(
   state: Pick<GameState, 'gameId' | 'day'> & Partial<Pick<GameState, 'agents'>>,
   agentId: string,
@@ -366,6 +371,25 @@ function frightenedAgentStep(state: GameState, agent: Agent): Agent {
   return step
     ? { ...agent, x: step.x, y: step.y, facing: step.direction, fear: Math.max(0, (agent.fear ?? 0) - 1) }
     : { ...agent, fear: Math.max(0, (agent.fear ?? 0) - 1), facing: facingToward(agent, state.player) }
+}
+
+function hostileAgentStep(state: GameState, agent: Agent): Agent {
+  if (distance(agent, state.player) <= 1) {
+    return { ...agent, fear: 0, hostility: 5, facing: facingToward(agent, state.player) }
+  }
+  const occupied = new Set([
+    ...state.agents.filter((item) => item.id !== agent.id).map((item) => `${item.x},${item.y}`),
+    ...state.monsters.map((monster) => `${monster.x},${monster.y}`),
+    `${state.player.x},${state.player.y}`,
+  ])
+  const candidates = (Object.entries(directionDelta) as [Direction, Position][])
+    .map(([direction, delta]) => ({ direction, x: agent.x + delta.x, y: agent.y + delta.y }))
+    .filter((position) => isPassable(state.world, position.x, position.y) && !occupied.has(`${position.x},${position.y}`))
+    .sort((a, b) => distance(a, state.player) - distance(b, state.player) || a.direction.localeCompare(b.direction))
+  const step = candidates[0]
+  return step
+    ? { ...agent, x: step.x, y: step.y, facing: step.direction, fear: 0, hostility: 5 }
+    : { ...agent, fear: 0, hostility: 5, facing: facingToward(agent, state.player) }
 }
 
 function monsterChaseStep(state: GameState, monster: GameState['monsters'][number]): Position | undefined {
@@ -422,6 +446,7 @@ function advanceMonsters(state: GameState): GameState['monsters'] {
 function advanceAi(state: GameState): Pick<GameState, 'agents' | 'monsters' | 'turn'> {
   const agents = state.agents.map((agent, index) => {
     if (agent.role === 'follower') return followerStep(state, agent)
+    if (isAutoAggroAgent(state, agent)) return hostileAgentStep(state, agent)
     if ((agent.fear ?? 0) > 0) return frightenedAgentStep(state, agent)
     if (agent.role !== 'wanderer') return agent
     const cycle = (state.turn + index * 3) % 4
@@ -441,6 +466,12 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   const next = { ...merged, ...ai }
   const revealed = { ...next, fog: revealFog(next) }
   if (revealed.battle || revealed.player.stamina <= 0) return revealed
+  const pursuer = revealed.agents.find((agent) =>
+    agent.role !== 'follower' && agent.stamina > 0 && isAutoAggroAgent(revealed, agent) && distance(agent, revealed.player) <= 1,
+  )
+  if (pursuer) {
+    return beginAgentBattle(revealed, pursuer, `${pursuer.name}执行阵营追缉，主动向你发起攻击！`)
+  }
   const attacker = revealed.monsters.find((monster) => {
     if ((monster.alert ?? 0) <= 0 || distance(monster, revealed.player) > 1) return false
     const localCamp = campAt(revealed, revealed.player)
@@ -625,17 +656,22 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
   }
 
   const affectedAgentIds = new Set<string>()
+  const provokedAgentIds = new Set<string>()
   let agents = state.agents.map((agent) => {
     if (agent.role === 'follower') return agent
     const dealt = damageFor('agent', agent.id, agent)
+    const directlyAttacked = target.kind === 'agent' && agent.id === target.id
+    const provoked = directlyAttacked || dealt > 0
     const witnessed = distance(agent, position) <= 4 || distance(agent, state.player) <= 4
-    if (dealt <= 0 && !witnessed) return agent
+    if (!provoked && !witnessed) return agent
     if (dealt > 0) affectedAgentIds.add(agent.id)
+    if (provoked) provokedAgentIds.add(agent.id)
     return {
       ...agent,
       stamina: dealt > 0 ? Math.max(1, agent.stamina - dealt) : agent.stamina,
-      hostility: Math.min(5, Math.max(agent.hostility ?? 0, dealt > 0 ? 3 : 1)),
-      fear: Math.max(agent.fear ?? 0, dealt > 0 ? 3 : 2),
+      hostility: provoked ? 5 : Math.min(5, Math.max(agent.hostility ?? 0, 1)),
+      fear: provoked ? 0 : Math.max(agent.fear ?? 0, 2),
+      autoAggro: provoked ? true : agent.autoAggro,
       facing: facingToward(agent, state.player),
     }
   })
@@ -678,12 +714,19 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     COMBAT_STEP_MULTIPLIER * (move.size === 'large' ? 2 : 1),
   )
   const targetAgent = target.kind === 'agent' ? agents.find((agent) => agent.id === target.id) : undefined
+  const attackedFactionIds = new Set(
+    agents.filter((agent) => provokedAgentIds.has(agent.id)).map((agent) => agent.factionId),
+  )
   const relationPenaltyIds = new Set(
     agents.filter((agent) => affectedAgentIds.has(agent.id) || ((agent.hostility ?? 0) > (state.agents.find((old) => old.id === agent.id)?.hostility ?? 0)))
       .map((agent) => agent.factionId),
   )
   const factions = state.factions.map((faction) => relationPenaltyIds.has(faction.id)
-    ? { ...faction, relation: Math.max(-100, faction.relation - (targetAgent?.factionId === faction.id ? 12 : 3)) }
+    ? {
+        ...faction,
+        relation: Math.max(-100, faction.relation - (targetAgent?.factionId === faction.id ? 12 : 3)),
+        autoAggro: faction.autoAggro || attackedFactionIds.has(faction.id),
+      }
     : faction)
   const hitSummary = roll.hit
     ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害`
@@ -709,7 +752,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     selected: position,
     chronicle: log(
       state,
-      `红名攻击：${move.name}对${target.name}${hitSummary}${collateral ? `，并波及 ${collateral} 个目标` : ''}${destroyedStructures ? `，摧毁 ${destroyedStructures} 座设施` : ''}。附近 NPC 已经警觉。`,
+      `红名攻击：${move.name}对${target.name}${hitSummary}${collateral ? `，并波及 ${collateral} 个目标` : ''}${destroyedStructures ? `，摧毁 ${destroyedStructures} 座设施` : ''}。${attackedFactionIds.size ? '受攻击者及其阵营已开启持续追缉。' : '附近 NPC 已经警觉。'}`,
       roll.hit ? 'danger' : 'plain',
     ),
   }
@@ -725,7 +768,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     return hashString(`${state.gameId}:red-retaliation:${sequence}:${agent.id}`) % 100 < chance
   })
   if (retaliator) {
-    agents = agents.map((agent) => agent.id === retaliator.id ? { ...agent, fear: 0, hostility: 5 } : agent)
+    agents = agents.map((agent) => agent.id === retaliator.id ? { ...agent, fear: 0, hostility: 5, autoAggro: true } : agent)
     patched = { ...patched, agents }
     return beginAgentBattle(
       { ...patched, turn: patched.turn + 1, fog: revealFog(patched) },
@@ -825,6 +868,37 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     case 'RED_NAME_ATTACK':
       return redNameAttack(state, action.position, action.moveId)
+    case 'REPAIR_FACTION_AGGRO': {
+      if (state.battle) return { ...state, chronicle: log(state, '战斗中无法进行赎偿交易。', 'danger') }
+      const target = interactableAgent(state, action.agentId)
+      const faction = state.factions.find((item) => item.id === action.factionId)
+      if (!target || !faction || target.factionId !== faction.id) {
+        return { ...state, chronicle: log(state, '需要在阵营成员周围 1 格内完成赎偿交易。', 'danger') }
+      }
+      if (!faction.autoAggro && !target.autoAggro) {
+        return { ...state, chronicle: log(state, `${faction.name}当前没有发布针对你的追缉令。`) }
+      }
+      if (state.player.gold < AUTO_AGGRO_REPAIR_COST) {
+        return { ...state, chronicle: log(state, `解除${faction.name}追缉需要 ${AUTO_AGGRO_REPAIR_COST} 金。`, 'danger') }
+      }
+      const forgive = (agent: Agent): Agent => agent.factionId === faction.id
+        ? { ...agent, autoAggro: false, hostility: 0, fear: 0 }
+        : agent
+      const sceneCache = Object.fromEntries(Object.entries(state.sceneCache).map(([key, snapshot]) => [
+        key,
+        { ...snapshot, agents: snapshot.agents.map(forgive) },
+      ]))
+      return {
+        ...state,
+        player: { ...state.player, gold: state.player.gold - AUTO_AGGRO_REPAIR_COST },
+        agents: state.agents.map(forgive),
+        factions: state.factions.map((item) => item.id === faction.id
+          ? { ...item, autoAggro: false, relation: Math.max(0, item.relation) }
+          : item),
+        sceneCache,
+        chronicle: log(state, `你支付 ${AUTO_AGGRO_REPAIR_COST} 金完成赎偿交易；${faction.name}撤销全境追缉，所属成员停止主动攻击。`, 'good'),
+      }
+    }
     case 'SET_BATTLE_MODE':
       return state.battle
         ? {
@@ -961,7 +1035,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const target = interactableAgent(state, action.agentId)
       if (!target) return { ...state, chronicle: log(state, '附近没有可以交谈的旅人。') }
       const exertion = addFatigue(state, state.player.stamina, TALK_STEP_COST)
-      if ((target.hostility ?? 0) > 0) {
+      const factionPursuit = state.factions.find((faction) => faction.id === target.factionId)?.autoAggro ?? false
+      if ((target.hostility ?? 0) > 0 || target.autoAggro || factionPursuit) {
         const hostileAgents = state.agents.map((agent) => agent.id === target.id
           ? { ...agent, affection: Math.max(0, agent.affection - 1), fear: 0, facing: facingToward(agent, state.player) }
           : agent)

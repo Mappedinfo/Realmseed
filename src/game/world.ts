@@ -249,6 +249,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     relation: 0,
     isVassal: false,
     isOverlord: false,
+    autoAggro: false,
   }))
   const player: Agent = {
     id: 'player',

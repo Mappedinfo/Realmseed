@@ -1,4 +1,4 @@
-import { berryExchangeRate } from '../game/simulation'
+import { AUTO_AGGRO_REPAIR_COST, berryExchangeRate } from '../game/simulation'
 import { agentSkills, challengeChance } from '../game/skills'
 import type { Agent, Faction, GameAction, GameState } from '../game/types'
 
@@ -19,10 +19,13 @@ export function InteractionPanel({
   const sellRate = berryExchangeRate(state, target.id, 'sell')
   const skill = agentSkills[target.skill]
   const chance = challengeChance(state, target)
-  const hostile = (target.hostility ?? 0) > 0
+  const pursuit = Boolean(target.autoAggro || faction?.autoAggro)
+  const hostile = (target.hostility ?? 0) > 0 || pursuit
   const trustLine =
     hostile
-      ? '“别再靠近。大家都看见你拔出了武器。”'
+      ? pursuit
+        ? `“${faction?.name ?? '我们'}的追缉令还在。交出赎偿金，否则就拔剑。”`
+        : '“别再靠近。大家都看见你拔出了武器。”'
       : target.affection >= 3
       ? '“你走过的路，我愿意一起走。”'
       : target.affection > 0
@@ -34,9 +37,9 @@ export function InteractionPanel({
       <div className="interaction-person">
         <span className="merchant-mark" style={{ '--agent-color': faction?.color ?? '#d8deca' } as React.CSSProperties}>◆</span>
         <div>
-          <p className="panel-kicker">ROADSIDE EXCHANGE</p>
+          <p className="panel-kicker">{pursuit ? 'FACTION WANTED NOTICE' : 'ROADSIDE EXCHANGE'}</p>
           <h3>{target.name}</h3>
-          <small>{faction?.name ?? '自由旅人'} · {hostile ? `敌意 ${target.hostility}/5` : `好感 ${'♥'.repeat(target.affection)}${'♡'.repeat(5 - target.affection)}`}</small>
+          <small>{faction?.name ?? '自由旅人'} · {pursuit ? '阵营追缉中' : hostile ? `敌意 ${target.hostility ?? 0}/5` : `好感 ${'♥'.repeat(target.affection)}${'♡'.repeat(5 - target.affection)}`}</small>
         </div>
       </div>
 
@@ -73,6 +76,19 @@ export function InteractionPanel({
       ) : null}
 
       <div className="trade-counter">
+        {pursuit && faction ? (
+          <div className="pursuit-ransom">
+            <span>悬赏赎偿</span>
+            <strong>{faction.name} · 全境撤令</strong>
+            <small>这是唯一的修复方式，会同时清除该阵营所有成员的主动攻击。</small>
+            <button
+              onClick={() => dispatch({ type: 'REPAIR_FACTION_AGGRO', factionId: faction.id, agentId: target.id })}
+              disabled={state.player.gold < AUTO_AGGRO_REPAIR_COST}
+            >
+              支付 {AUTO_AGGRO_REPAIR_COST} 金 <span>{state.player.gold < AUTO_AGGRO_REPAIR_COST ? `还差 ${AUTO_AGGRO_REPAIR_COST - state.player.gold}` : '撤销追缉'}</span>
+            </button>
+          </div>
+        ) : null}
         <div className="market-rate">
           <span>今日行情</span>
           <strong>买入 {buyRate} / 卖出 {sellRate} <i>果/金</i></strong>
