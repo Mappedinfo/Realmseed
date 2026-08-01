@@ -85,6 +85,9 @@ export function BattlePanel({
   const targetHp = monster ? monster.hp : agent!.hp
   const hpPercent = Math.max(0, (targetHp / state.battle.targetMaxHp) * 100)
   const targetDistance = Math.max(1, Math.abs(target.x - state.player.x) + Math.abs(target.y - state.player.y))
+  const enemyWeapon = agent?.loadout.find((item) => item.equipped && item.moveId)
+  const enemyArmor = agent?.loadout.find((item) => item.equipped && item.slot === 'armor')
+  const enemyMove = enemyWeapon?.moveId ? combatMove(enemyWeapon.moveId) : null
 
   const performMove = (moveId: CombatMoveId) => {
     if (activeMoveId) return
@@ -143,6 +146,11 @@ export function BattlePanel({
             {lastResult.name} · {state.battle.lastHit ? `${state.battle.lastCritical ? '暴击 ' : '命中 '}${state.battle.lastDamage}` : '未命中'}
           </span>
         ) : null}
+        {state.battle.lastEnemyMoveId ? (
+          <span className={`battle-result enemy ${state.battle.lastEnemyHit ? 'hit' : 'miss'}`}>
+            敌方 {combatMove(state.battle.lastEnemyMoveId).name} · {state.battle.lastEnemyBlocked ? '格挡' : state.battle.lastEnemyHit ? '命中 1' : '落空'}
+          </span>
+        ) : null}
         <button className="flee-button" onClick={() => dispatch({ type: 'FLEE_BATTLE' })} disabled={Boolean(activeMoveId)}>撤离</button>
       </div>
 
@@ -161,6 +169,7 @@ export function BattlePanel({
               <span>{targetName}</span>
               <SpritePortrait type={targetType} column={targetColumn} facing="west" />
               <strong>生命 {targetHp}/{state.battle.targetMaxHp}</strong>
+              {agent ? <small className="enemy-kit">⚔ {enemyWeapon?.name ?? '徒手'} · ⬟ {enemyArmor?.defense ?? 0}</small> : null}
               <em><i style={{ width: `${hpPercent}%` }} /></em>
             </div>
           </div>
@@ -170,7 +179,7 @@ export function BattlePanel({
         <div className="field-combat-bar">
           <div className="field-target">
             <SpritePortrait type={targetType} column={targetColumn} facing="west" />
-            <span><small>对战目标 · 距离 {targetDistance} · 回合 {state.battle.round}</small><strong>{targetName}</strong><em><i style={{ width: `${hpPercent}%` }} /></em></span>
+            <span><small>对战目标 · 距离 {targetDistance} · 回合 {state.battle.round}</small><strong>{targetName}</strong>{agent ? <small className="enemy-kit">⚔ {enemyWeapon?.name ?? '徒手'} · {enemyMove?.name ?? '攻击'} {enemyMove?.minRange ?? 1}–{enemyMove?.maxRange ?? 1}格 · ⬟ {enemyArmor?.defense ?? 0}</small> : null}<em><i style={{ width: `${hpPercent}%` }} /></em></span>
           </div>
           {controls}
         </div>

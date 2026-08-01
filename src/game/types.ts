@@ -71,6 +71,7 @@ export interface Agent extends Position {
   hostility?: number
   fear?: number
   autoAggro?: boolean
+  loadout: EquipmentItem[]
 }
 
 export interface Resident {
@@ -120,6 +121,7 @@ export interface EquipmentItem {
   defense: number
   equipped: boolean
   description: string
+  moveId?: CombatMoveId
 }
 
 export interface BattleEncounter {
@@ -132,6 +134,9 @@ export interface BattleEncounter {
   lastDamage?: number
   lastHit?: boolean
   lastCritical?: boolean
+  lastEnemyMoveId?: CombatMoveId
+  lastEnemyHit?: boolean
+  lastEnemyBlocked?: boolean
 }
 
 export interface World {

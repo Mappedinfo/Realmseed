@@ -1064,6 +1064,17 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .interaction-person .panel-kicker { margin-bottom: 3px; font-size: 7px; }
 .interaction-person h3 { margin: 0; color: #f0e7ca; font-size: 14px; }
 .interaction-person small { color: #849184; font-size: 8px; line-height: 1.5; }
+.npc-loadout-mini {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 3px;
+  padding: 6px 7px;
+  color: #c9b487;
+  background: #1b2921;
+  border: 1px solid #445344;
+  box-shadow: inset 3px 0 #936a3d;
+}
+.npc-loadout-mini span { font-size: 7px; line-height: 1.35; }
 .dialogue-copy { padding-left: 12px; border-left: 1px dotted #526050; }
 .dialogue-copy p { min-height: 26px; margin: 0 0 7px; color: #d6d9c4; font-size: 10px; line-height: 1.4; }
 .dialogue-copy button, .trade-counter button {
@@ -1257,6 +1268,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 }
 .battle-result.hit { color: #e6d382; }
 .battle-result.miss { color: #d9846c; }
+.battle-result.enemy { color: #efb19c; border-color: #8f4c3d; background: #34201c; }
+.enemy-kit { display: block; margin-top: 3px; color: #bda781; font-size: 7px; font-weight: normal; }
 .duel-stage {
   min-height: 138px;
   display: grid;
@@ -1527,6 +1540,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .nearby-card strong { display: block; color: #d8deca; font-size: 12px; }
 .nearby-card span { display: block; color: #778477; font-size: 9px; margin: 3px 0 5px; }
 .nearby-card .nearby-health { display: grid; grid-template-columns: auto 1fr; gap: 7px; align-items: center; color: #b98d78; }
+.nearby-card .nearby-weapon { color: #c4aa73; }
 .nearby-health i { height: 4px; overflow: hidden; background: #271a18; border: 1px solid #59352e; }
 .nearby-health b { display: block; height: 100%; background: #c9523e; }
 .affection { color: var(--ember); letter-spacing: .08em; font-size: 11px; }

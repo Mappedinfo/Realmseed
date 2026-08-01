@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { berryExchangeRate, gameReducer } from './simulation'
-import { combatMove, resolveCombatRoll } from './combat'
+import { combatMove, createNpcLoadout, resolveCombatRoll } from './combat'
 import { hashString } from './rng'
 import { facilityEventKind } from './facilities'
 import { createGame, isPassable, revealFog } from './world'
@@ -218,14 +218,16 @@ describe('game simulation', () => {
       maxStamina: 7,
       gold: 7,
       berries: 9,
+      skill: 'duelist' as const,
       skillLevel: 3 as const,
+      loadout: createNpcLoadout('loot-elite', 'duelist', 3),
     }
     state.agents = [target]
     state.battle = { targetId: target.id, targetKind: 'agent', mode: 'field', round: 1, targetMaxHp: target.maxHp }
     let probe = 0
     while (
       !resolveCombatRoll(state.gameId, target.id, 1, combatMove('quick-strike')).hit ||
-      hashString(`${state.gameId}:agent-loot:${target.id}:battle-1`) % 100 >= 65
+      hashString(`${state.gameId}:agent-gear-drop:${target.id}:${target.loadout[0].id}:battle-1`) % 100 >= 65
     ) state.gameId = `npc-loot-${probe++}`
     const equipmentBefore = state.equipment.length
     const staminaBefore = state.player.maxStamina
@@ -233,7 +235,9 @@ describe('game simulation', () => {
     expect(next.agents).toHaveLength(0)
     expect(next.player.gold).toBe(state.player.gold + 7)
     expect(next.player.berries).toBeGreaterThan(state.player.berries)
-    expect(next.equipment).toHaveLength(equipmentBefore + 1)
+    expect(next.equipment.length).toBeGreaterThan(equipmentBefore)
+    expect(next.equipment.slice(equipmentBefore).every((item) => target.loadout.some((worn) => worn.id === item.id))).toBe(true)
+    expect(next.equipment.some((item) => item.id === target.loadout[0].id && !item.equipped)).toBe(true)
     expect(next.player.maxStamina).toBe(staminaBefore + 1)
     expect(next.combatWins).toBe(state.combatWins + 1)
     expect(next.chronicle[0].text).toContain('击败')
@@ -259,13 +263,67 @@ describe('game simulation', () => {
     state.redNameMode = true
     state.agents = [
       { ...state.agents[0], id: 'faction-target', factionId: 'moss', x: 24, y: 20, stamina: 20, maxStamina: 20 },
-      { ...state.agents[1], id: 'faction-guard', factionId: 'moss', x: 22, y: 20, stamina: 20, maxStamina: 20 },
+      { ...state.agents[1], id: 'faction-guard', factionId: 'moss', x: 22, y: 20, stamina: 20, maxStamina: 20, skill: 'scout', skillLevel: 3, loadout: createNpcLoadout('faction-guard', 'scout', 3) },
       { ...state.agents[2], id: 'unrelated', factionId: 'tide', x: 30, y: 20, stamina: 20, maxStamina: 20 },
     ]
     const next = gameReducer(state, { type: 'RED_NAME_ATTACK', position: { x: 24, y: 20 }, moveId: 'arrow-shot' })
     expect(next.battle).toMatchObject({ targetId: 'faction-guard', targetKind: 'agent' })
-    expect(next.agents.find((agent) => agent.id === 'faction-guard')).toMatchObject({ x: 21, hostility: 5 })
+    expect(next.agents.find((agent) => agent.id === 'faction-guard')).toMatchObject({ x: 22, hostility: 5 })
+    expect(next.battle?.lastEnemyMoveId).toBe('rifle-shot')
+    expect([0, 1]).toContain(state.player.stamina - next.player.stamina)
     expect(next.factions.find((faction) => faction.id === 'tide')?.autoAggro).toBe(false)
+  })
+
+  it('holds ranged pursuers at weapon range while melee pursuers must close distance', () => {
+    const ranged = flatState('ranged-pursuer')
+    ranged.agents = [{
+      ...ranged.agents[0], id: 'ranged-pursuer', x: 25, y: 20, autoAggro: true,
+      skill: 'scout', skillLevel: 3, loadout: createNpcLoadout('ranged-pursuer', 'scout', 3),
+    }]
+    const rangedTurn = gameReducer(ranged, { type: 'REST' })
+    expect(rangedTurn.agents[0].x).toBe(25)
+    expect(rangedTurn.battle).toMatchObject({ targetId: 'ranged-pursuer', lastEnemyMoveId: 'rifle-shot' })
+    expect([0, 1]).toContain(ranged.player.stamina - rangedTurn.player.stamina)
+
+    let melee = flatState('melee-pursuer')
+    melee.agents = [{
+      ...melee.agents[0], id: 'melee-pursuer', x: 23, y: 20, autoAggro: true,
+      skill: 'duelist', skillLevel: 1, loadout: createNpcLoadout('melee-pursuer', 'duelist', 1),
+    }]
+    melee = gameReducer(melee, { type: 'REST' })
+    expect(melee.battle).toBeNull()
+    expect(melee.agents[0].x).toBe(22)
+    melee = gameReducer(melee, { type: 'REST' })
+    expect(melee.agents[0].x).toBe(21)
+    expect(melee.battle?.targetId).toBe('melee-pursuer')
+  })
+
+  it('does not let a neutral armed NPC attack until personal or faction pursuit is active', () => {
+    const state = flatState('neutral-armed-npc')
+    state.agents = [{
+      ...state.agents[0], id: 'neutral-rifle', x: 25, y: 20,
+      autoAggro: false, hostility: 0, fear: 0,
+      skill: 'scout', skillLevel: 3, loadout: createNpcLoadout('neutral-rifle', 'scout', 3),
+    }]
+    const next = gameReducer(state, { type: 'REST' })
+    expect(next.battle).toBeNull()
+  })
+
+  it('applies NPC armor to both encounter damage and map damage with a one-damage floor', () => {
+    const base = flatState('npc-armor-mitigation')
+    const weapon = createNpcLoadout('armored-target', 'guard', 1)[0]
+    const armor = { id: 'test-armor', name: '测试重甲', slot: 'armor' as const, power: 0, defense: 2, equipped: true, description: '伤害 -2' }
+    const target = { ...base.agents[0], id: 'armored-target', x: 21, y: 20, hp: 20, maxHp: 20, loadout: [weapon, armor] }
+    base.agents = [target]
+    base.battle = { targetId: target.id, targetKind: 'agent', mode: 'field', round: 1, targetMaxHp: 20 }
+    let probe = 0
+    while (!resolveCombatRoll(base.gameId, target.id, 1, combatMove('quick-strike')).hit) base.gameId = `npc-armor-${probe++}`
+    const encounter = gameReducer(base, { type: 'COMBAT_ACTION', moveId: 'quick-strike' })
+    expect(encounter.agents[0].hp).toBe(19)
+
+    const mapState = { ...base, redNameMode: true, battle: null, agents: [target] }
+    const mapAttack = gameReducer(mapState, { type: 'RED_NAME_ATTACK', position: { x: 21, y: 20 }, moveId: 'quick-strike' })
+    expect(mapAttack.agents[0].hp).toBe(19)
   })
 
   it('requires exactly 100 gold to clear pursuit for the faction and cached members', () => {
@@ -293,6 +351,8 @@ describe('game simulation', () => {
     expect(repaired.factions.find((faction) => faction.id === 'ember')).toMatchObject({ autoAggro: false, relation: 0 })
     expect(repaired.agents[0]).toMatchObject({ autoAggro: false, hostility: 0, fear: 0 })
     expect(repaired.sceneCache['1,0'].agents[0]).toMatchObject({ autoAggro: false, hostility: 0, fear: 0 })
+    const peacefulTurn = gameReducer({ ...repaired, monsters: [] }, { type: 'REST' })
+    expect(peacefulTurn.battle).toBeNull()
   })
 
   it('allows an attacked elite NPC to start a real battle at a low deterministic chance', () => {
@@ -683,6 +743,7 @@ describe('game simulation', () => {
     const recalled = gameReducer(assigned, { type: 'RECALL_CAMP_OFFICIAL', campId: state.camps[0].id, office: 'mayor' })
     expect(recalled.camps[0].offices.mayor).toBeUndefined()
     expect(recalled.agents.find((agent) => agent.id === follower.id)?.role).toBe('follower')
+    expect(recalled.agents.find((agent) => agent.id === follower.id)?.loadout).toEqual(follower.loadout)
   })
 
   it('requires the corresponding facility before assigning specialist offices', () => {
@@ -756,6 +817,8 @@ describe('game simulation', () => {
 
   it('travels across infinite scenes and restores the previous scene state on return', () => {
     const state = createGame('scene-cache-check', 'small')
+    const homeAgentId = state.agents[0].id
+    const homeLoadout = state.agents[0].loadout
     const homeIndex = state.player.y * state.world.size + state.player.x
     state.world.tiles[homeIndex] = { ...state.world.tiles[homeIndex], structure: 'camp' }
     state.fog[homeIndex] = 2
@@ -771,5 +834,6 @@ describe('game simulation', () => {
     expect(home.world.sceneY).toBe(0)
     expect(home.world.tiles[homeIndex].structure).toBe('camp')
     expect(home.fog[homeIndex]).toBeGreaterThan(0)
+    expect(home.agents.find((agent) => agent.id === homeAgentId)?.loadout).toEqual(homeLoadout)
   })
 })

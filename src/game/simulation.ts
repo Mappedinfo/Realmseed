@@ -1,6 +1,6 @@
 import type { Agent, Camp, ChronicleEntry, CombatMoveId, Direction, EquipmentItem, FacilityEventKind, FogLevel, GameAction, GameState, Position, SceneSnapshot, World } from './types'
 import { hashString } from './rng'
-import { combatMove, equipmentDefense, equipmentPower, relicEquipment, resolveCombatRoll } from './combat'
+import { combatMove, createNpcLoadout, equipmentDefense, equipmentPower, mitigateNpcDamage, npcArmorDefense, npcAttackEquipment, npcAttackMove, relicEquipment, resolveCombatRoll } from './combat'
 import {
   buildingCount,
   campBuildingDefinitions,
@@ -119,19 +119,24 @@ function monsterName(species: GameState['monsters'][number]['species']): string 
 interface AgentLoot {
   gold: number
   berries: number
-  equipment?: EquipmentItem
+  equipment: EquipmentItem[]
 }
 
 function resolveAgentLoot(state: GameState, agent: Agent, salt: string): AgentLoot {
   const roll = hashString(`${state.gameId}:agent-loot:${agent.id}:${salt}`)
-  const equipmentChance = 20 + agent.skillLevel * 15
-  const template = relicEquipment[roll % relicEquipment.length]
+  const weaponChance = 20 + agent.skillLevel * 15
+  const armorChance = 10 + agent.skillLevel * 15
+  const equipment = agent.loadout
+    .filter((item) => {
+      const chance = item.slot === 'armor' ? armorChance : weaponChance
+      return hashString(`${state.gameId}:agent-gear-drop:${agent.id}:${item.id}:${salt}`) % 100 < chance
+    })
+    .filter((item) => !state.equipment.some((owned) => owned.id === item.id))
+    .map((item) => ({ ...item, equipped: false }))
   return {
     gold: Math.max(1, agent.gold),
     berries: Math.min(agent.berries, 1 + (Math.floor(roll / 7) % 4)),
-    equipment: roll % 100 < equipmentChance
-      ? { ...template, id: `${template.id}-${agent.id}-${salt}`, equipped: false }
-      : undefined,
+    equipment,
   }
 }
 
@@ -166,8 +171,32 @@ function beginMonsterBattle(
   }
 }
 
-function beginAgentBattle(state: GameState, agent: Agent, message: string): GameState {
+function applyNpcAttack(state: GameState, agent: Agent, nonce: string): GameState {
+  const equipment = npcAttackEquipment(agent)
+  const move = npcAttackMove(agent)
+  const hitChance = Math.min(96, move.accuracy + equipment.power * 2 + agent.skillLevel)
+  const hit = hashString(`${state.gameId}:npc-hit:${nonce}:${agent.id}:${move.id}`) % 100 < hitChance
+  const blockChance = Math.min(90, equipmentDefense(state.equipment) * 20 + partyBonuses(state.agents).guardChance)
+  const blocked = hit && hashString(`${state.gameId}:npc-block:${nonce}:${agent.id}:${move.id}`) % 100 < blockChance
+  const staminaLoss = hit && !blocked ? 1 : 0
+  const stamina = Math.max(0, state.player.stamina - staminaLoss)
   return {
+    ...state,
+    battle: state.battle && stamina > 0
+      ? { ...state.battle, lastEnemyMoveId: move.id, lastEnemyHit: hit, lastEnemyBlocked: blocked }
+      : null,
+    player: { ...state.player, stamina, facing: facingToward(state.player, agent) },
+    agents: state.agents.map((item) => item.id === agent.id ? { ...item, facing: facingToward(item, state.player) } : item),
+    chronicle: log(
+      state,
+      `${agent.name}使用${equipment.name}发动${move.name}；${blocked ? '被你的护具挡下' : hit ? '命中并造成 1 点体力损失' : '攻击落空'}。`,
+      staminaLoss ? 'danger' : 'plain',
+    ),
+  }
+}
+
+function beginAgentBattle(state: GameState, agent: Agent, message: string, openingAttack = false): GameState {
+  const started: GameState = {
     ...state,
     battle: {
       targetId: agent.id,
@@ -182,6 +211,7 @@ function beginAgentBattle(state: GameState, agent: Agent, message: string): Game
       : item),
     chronicle: log(state, message, 'danger'),
   }
+  return openingAttack ? applyNpcAttack(started, agent, `opening-${state.turn}`) : started
 }
 
 function facilityNotice(
@@ -298,7 +328,9 @@ function resolveRuinEvent(state: GameState, position: Position): GameState {
     facing: state.player.facing,
     skill: agentSkillIds[roll % agentSkillIds.length],
     skillLevel: (1 + (roll % 3)) as 1 | 2 | 3,
+    loadout: [],
   }
+  companion.loadout = createNpcLoadout(companion.id, companion.skill, companion.skillLevel)
   const description = `${definition.description} ${companion.name}成为随从，并收纳到左侧队伍列表。`
   return {
     ...state,
@@ -404,7 +436,8 @@ function frightenedAgentStep(state: GameState, agent: Agent): Agent {
 }
 
 function hostileAgentStep(state: GameState, agent: Agent): Agent {
-  if (distance(agent, state.player) <= 1) {
+  const attackRange = npcAttackMove(agent).maxRange
+  if (Math.max(1, distance(agent, state.player)) <= attackRange) {
     return { ...agent, fear: 0, hostility: 5, facing: facingToward(agent, state.player) }
   }
   const occupied = new Set([
@@ -496,11 +529,12 @@ function finishTurn(state: GameState, patch: Partial<GameState>): GameState {
   const next = { ...merged, ...ai }
   const revealed = { ...next, fog: revealFog(next) }
   if (revealed.battle || revealed.player.stamina <= 0) return revealed
-  const pursuer = revealed.agents.find((agent) =>
-    agent.role !== 'follower' && agent.hp > 0 && isAutoAggroAgent(revealed, agent) && distance(agent, revealed.player) <= 1,
-  )
+  const pursuer = revealed.agents
+    .filter((agent) => agent.role !== 'follower' && agent.hp > 0 && isAutoAggroAgent(revealed, agent) && Math.max(1, distance(agent, revealed.player)) <= npcAttackMove(agent).maxRange)
+    .sort((a, b) => distance(a, revealed.player) - distance(b, revealed.player) || a.id.localeCompare(b.id))[0]
   if (pursuer) {
-    return beginAgentBattle(revealed, pursuer, `${pursuer.name}执行阵营追缉，主动向你发起攻击！`)
+    const move = npcAttackMove(pursuer)
+    return beginAgentBattle(revealed, pursuer, `${pursuer.name}进入${move.name}射程，执行阵营追缉！`, true)
   }
   const attacker = revealed.monsters.find((monster) => {
     if ((monster.alert ?? 0) <= 0 || distance(monster, revealed.player) > 1) return false
@@ -689,7 +723,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
   const provokedAgentIds = new Set<string>()
   const damagedAgents = state.agents.map((agent) => {
     if (agent.role === 'follower') return agent
-    const dealt = damageFor('agent', agent.id, agent)
+    const dealt = mitigateNpcDamage(agent, damageFor('agent', agent.id, agent))
     const directlyAttacked = target.kind === 'agent' && agent.id === target.id
     const provoked = directlyAttacked || dealt > 0
     const witnessed = distance(agent, position) <= 4 || distance(agent, state.player) <= 4
@@ -710,7 +744,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
   const agentLoot = defeatedAgents.map((agent) => resolveAgentLoot(state, agent, `map-${sequence}`))
   const agentLootGold = agentLoot.reduce((total, loot) => total + loot.gold, 0)
   const agentLootBerries = agentLoot.reduce((total, loot) => total + loot.berries, 0)
-  const agentLootEquipment = agentLoot.flatMap((loot) => loot.equipment ? [loot.equipment] : [])
+  const agentLootEquipment = agentLoot.flatMap((loot) => loot.equipment)
   let agents = damagedAgents.filter((agent) => !defeatedAgentIds.has(agent.id))
 
   const affectedMonsterIds = new Set<string>()
@@ -751,6 +785,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     COMBAT_STEP_MULTIPLIER * (move.size === 'large' ? 2 : 1),
   )
   const targetAgent = target.kind === 'agent' ? state.agents.find((agent) => agent.id === target.id) : undefined
+  const targetDamage = targetAgent ? mitigateNpcDamage(targetAgent, damage) : damage
   const attackedFactionIds = new Set(
     damagedAgents.filter((agent) => provokedAgentIds.has(agent.id)).map((agent) => agent.factionId),
   )
@@ -766,7 +801,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
       }
     : faction)
   const hitSummary = roll.hit
-    ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害`
+    ? `${roll.critical ? '暴击，' : ''}造成 ${targetDamage} 点伤害${targetAgent && npcArmorDefense(targetAgent) ? `（护甲减免 ${damage - targetDamage}）` : ''}`
     : '没有命中'
   const collateral = Math.max(0, affectedAgentIds.size + affectedMonsterIds.size - 1) + destroyedStructures
   const defeatedCount = defeatedMonsters + defeatedAgents.length
@@ -794,7 +829,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
     fatigue: exertion.fatigue,
     combatWins: state.combatWins + defeatedCount,
     attackSequence: sequence,
-    lastMapAttack: { sequence, targetName: target.name, moveId, hit: roll.hit, critical: roll.critical, damage },
+    lastMapAttack: { sequence, targetName: target.name, moveId, hit: roll.hit, critical: roll.critical, damage: targetDamage },
     selected: position,
     chronicle: log(
       state,
@@ -820,6 +855,7 @@ function redNameAttack(state: GameState, position: Position, moveId: CombatMoveI
       { ...patched, turn: patched.turn + 1, fog: revealFog(patched) },
       agents.find((agent) => agent.id === retaliator.id)!,
       `${retaliator.name}压住恐惧，直接向红名者发起对战！`,
+      true,
     )
   }
   return finishTurn(patched, {})
@@ -987,9 +1023,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const workshopBonus = localCamp && buildingCount(localCamp, 'workshop') > 0 ? 1 : 0
       const roll = resolveCombatRoll(state.gameId, target.id, state.battle.round, move)
       const baseDamage = move.power + equipmentPower(state.equipment, move.kind) + bonuses.combatPower + workshopBonus
-      const damage = Math.floor(baseDamage * roll.multiplier)
+      const rawDamage = Math.floor(baseDamage * roll.multiplier)
+      const damage = agent ? mitigateNpcDamage(agent, rawDamage) : rawDamage
       const remainingHp = Math.max(0, targetHp - damage)
-      const splashDamage = roll.hit && move.target === 'area' ? Math.max(1, Math.floor(damage * move.splashRatio)) : 0
+      const splashDamage = roll.hit && move.target === 'area' ? Math.max(1, Math.floor(rawDamage * move.splashRatio)) : 0
       const splashTargets = splashDamage > 0
         ? state.monsters.filter((item) => item.id !== monster?.id && distance(item, target) <= move.blastRadius)
         : []
@@ -1011,14 +1048,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (agent) {
           const loot = resolveAgentLoot(state, agent, `battle-${state.battle.round}`)
           const maxStamina = Math.min(MAX_STAMINA_CAP, state.player.maxStamina + 1)
-          const lootText = `${loot.gold} 金${loot.berries ? `、${loot.berries} 果` : ''}${loot.equipment ? `和装备「${loot.equipment.name}」` : ''}`
+          const lootText = `${loot.gold} 金${loot.berries ? `、${loot.berries} 果` : ''}${loot.equipment.length ? `和装备「${loot.equipment.map((item) => item.name).join('、')}」` : ''}`
           return {
             ...state,
             battle: null,
             agents: damagedAgents.filter((item) => item.id !== agent.id),
             monsters: damagedMonsters.filter((item) => item.hp > 0),
             camps: clearAgentFromCampOffices(state.camps, agent.id),
-            equipment: loot.equipment ? [...state.equipment, loot.equipment] : state.equipment,
+            equipment: [...state.equipment, ...loot.equipment],
             player: {
               ...state.player,
               stamina: exertion.stamina,
@@ -1051,14 +1088,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ),
         }
       }
-      const rawHit = hashString(`${state.gameId}:counter:${state.day}:${target.id}:${state.battle.round}`) % 2
-      const blockRoll = hashString(`${state.gameId}:block:${state.day}:${target.id}:${state.battle.round}`) % 100
-      const blocked = rawHit > 0 && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
-      const hit = blocked ? 0 : rawHit
-      const stamina = Math.max(0, exertion.stamina - hit)
-      return {
+      const continued: GameState = {
         ...state,
-        battle: stamina <= 0
+        battle: exertion.stamina <= 0
           ? null
           : {
               ...state.battle,
@@ -1070,13 +1102,29 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             },
         monsters: damagedMonsters.filter((item) => item.hp > 0),
         agents: damagedAgents,
-        player: { ...state.player, stamina },
+        player: { ...state.player, stamina: exertion.stamina },
         fatigue: exertion.fatigue,
         chronicle: log(
           state,
-          `${move.name}${roll.hit ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害${splashTargets.length ? `并波及 ${splashTargets.length} 个目标` : ''}` : '未命中'}；${blocked ? '旅衣挡下反击' : hit ? `${targetName}反击造成 1 点体力损失` : `${targetName}反击落空`}。`,
-          hit || !roll.hit ? 'danger' : 'plain',
+          `${move.name}${roll.hit ? `${roll.critical ? '暴击，' : ''}造成 ${damage} 点伤害${agent && npcArmorDefense(agent) ? `（对方护甲 ${npcArmorDefense(agent)}）` : ''}${splashTargets.length ? `并波及 ${splashTargets.length} 个目标` : ''}` : '未命中'}。`,
+          !roll.hit ? 'danger' : 'plain',
         ),
+      }
+      if (agent && continued.battle && continued.player.stamina > 0) {
+        const damagedAgent = damagedAgents.find((item) => item.id === agent.id)!
+        return applyNpcAttack(continued, damagedAgent, `counter-${state.battle.round}`)
+      }
+      if (!monster || !continued.battle) return continued
+      const rawHit = hashString(`${state.gameId}:counter:${state.day}:${target.id}:${state.battle.round}`) % 2
+      const blockRoll = hashString(`${state.gameId}:block:${state.day}:${target.id}:${state.battle.round}`) % 100
+      const blocked = rawHit > 0 && blockRoll < Math.min(90, equipmentDefense(state.equipment) * 20 + bonuses.guardChance)
+      const hit = blocked ? 0 : rawHit
+      const stamina = Math.max(0, exertion.stamina - hit)
+      return {
+        ...continued,
+        battle: stamina <= 0 ? null : continued.battle,
+        player: { ...continued.player, stamina },
+        chronicle: log(continued, `${blocked ? '旅衣挡下反击' : hit ? `${targetName}反击造成 1 点体力损失` : `${targetName}反击落空`}。`, hit ? 'danger' : 'plain'),
       }
     }
     case 'FLEE_BATTLE':
@@ -1112,7 +1160,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ? 3 + target.skillLevel * 3 + (target.skill === 'duelist' || target.skill === 'guard' ? 5 : 0)
           : 0
         if (hashString(`${state.gameId}:hostile-talk:${state.turn}:${target.id}`) % 100 < counterChance) {
-          return beginAgentBattle(hostileState, hostileAgents.find((agent) => agent.id === target.id)!, `${target.name}拒绝交谈，并直接拔出武器！`)
+          return beginAgentBattle(hostileState, hostileAgents.find((agent) => agent.id === target.id)!, `${target.name}拒绝交谈，并直接拔出武器！`, true)
         }
         return hostileState
       }

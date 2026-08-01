@@ -1,4 +1,5 @@
 import { AUTO_AGGRO_REPAIR_COST, berryExchangeRate } from '../game/simulation'
+import { combatMove } from '../game/combat'
 import { agentSkills, challengeChance } from '../game/skills'
 import type { Agent, Faction, GameAction, GameState } from '../game/types'
 
@@ -21,6 +22,9 @@ export function InteractionPanel({
   const chance = challengeChance(state, target)
   const pursuit = Boolean(target.autoAggro || faction?.autoAggro)
   const hostile = (target.hostility ?? 0) > 0 || pursuit
+  const weapon = target.loadout.find((item) => item.equipped && item.moveId)
+  const armor = target.loadout.find((item) => item.equipped && item.slot === 'armor')
+  const weaponMove = weapon?.moveId ? combatMove(weapon.moveId) : undefined
   const trustLine =
     hostile
       ? pursuit
@@ -40,6 +44,10 @@ export function InteractionPanel({
           <p className="panel-kicker">{pursuit ? 'FACTION WANTED NOTICE' : 'ROADSIDE EXCHANGE'}</p>
           <h3>{target.name}</h3>
           <small>{faction?.name ?? '自由旅人'} · {pursuit ? '阵营追缉中' : hostile ? `敌意 ${target.hostility ?? 0}/5` : `好感 ${'♥'.repeat(target.affection)}${'♡'.repeat(5 - target.affection)}`}</small>
+        </div>
+        <div className="npc-loadout-mini">
+          <span>⚔ {weapon?.name ?? '徒手'}{weaponMove ? ` · ${weaponMove.name} ${weaponMove.minRange}–${weaponMove.maxRange}格` : ''}</span>
+          <span>⬟ {armor ? `${armor.name} · 防 ${armor.defense}` : '无护甲'}</span>
         </div>
       </div>
 

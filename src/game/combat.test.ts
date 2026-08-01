@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { combatMove, combatMoves, combatPowerSummary, equipmentDefense, resolveCombatRoll } from './combat'
+import { combatMove, combatMoves, combatPowerSummary, createNpcLoadout, equipmentDefense, mitigateNpcDamage, npcArmorDefense, npcAttackMove, resolveCombatRoll } from './combat'
 import { createGame } from './world'
 
 describe('combat and equipment contract', () => {
@@ -41,5 +41,19 @@ describe('combat and equipment contract', () => {
       explosive: 0,
     })
     expect(equipmentDefense(state.equipment)).toBe(0)
+  })
+
+  it('creates deterministic skill-led NPC weapons and optional armor without mutable randomness', () => {
+    const scout = createNpcLoadout('stable-scout', 'scout', 3)
+    expect(createNpcLoadout('stable-scout', 'scout', 3)).toEqual(scout)
+    expect(scout.some((item) => item.equipped && item.moveId)).toBe(true)
+    expect(['arrow-shot', 'rifle-shot']).toContain(scout.find((item) => item.moveId)?.moveId)
+
+    const state = createGame('npc-kit-contract', 'small')
+    const agent = state.agents[0]
+    expect(agent.loadout.some((item) => item.moveId)).toBe(true)
+    expect(npcAttackMove(agent).maxRange).toBeGreaterThanOrEqual(1)
+    expect(mitigateNpcDamage(agent, 0)).toBe(0)
+    expect(mitigateNpcDamage(agent, 5)).toBe(Math.max(1, 5 - npcArmorDefense(agent)))
   })
 })

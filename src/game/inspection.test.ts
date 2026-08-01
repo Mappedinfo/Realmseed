@@ -30,6 +30,7 @@ describe('map inspection', () => {
       maxStamina: 7,
       hp: 12,
       maxHp: 12,
+      loadout: [],
       gold: 4,
       berries: 9,
       skill: 'trader',

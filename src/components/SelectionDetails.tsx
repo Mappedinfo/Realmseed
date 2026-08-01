@@ -49,6 +49,8 @@ function personDetail(state: GameState, agent: Agent, isPlayer = false): DetailV
   const role = isPlayer ? '远征队长' : agent.role === 'follower' ? '随行队友' : agent.role === 'villager' ? '驻守村民' : '旅行者'
   const skill = agentSkills[agent.skill]
   const masteryMarks = Object.values(state.challengeMarks).reduce((total, value) => total + value, 0)
+  const weapon = agent.loadout.find((item) => item.equipped && item.moveId)
+  const armor = agent.loadout.find((item) => item.equipped && item.slot === 'armor')
   return {
     category: '人物',
     meta: isPlayer ? '当前控制角色' : faction?.name ?? '自由角色',
@@ -59,6 +61,8 @@ function personDetail(state: GameState, agent: Agent, isPlayer = false): DetailV
       { label: '身份', value: role },
       { label: '体力', value: `${agent.stamina}/${agent.maxStamina}` },
       ...(!isPlayer ? [{ label: '生命', value: `${agent.hp}/${agent.maxHp}` }] : []),
+      ...(!isPlayer ? [{ label: '武器', value: weapon?.name ?? '徒手' }] : []),
+      ...(!isPlayer ? [{ label: '护甲', value: armor ? `${armor.name} · 防 ${armor.defense}` : '无' }] : []),
       { label: '金币', value: agent.gold },
       { label: '野果', value: agent.berries },
       ...(isPlayer ? [{ label: '专精印记', value: masteryMarks }] : []),

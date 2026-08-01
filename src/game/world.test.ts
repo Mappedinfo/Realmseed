@@ -6,6 +6,19 @@ describe('procedural world', () => {
     expect(createWorld('willow-reach', 'small')).toEqual(createWorld('willow-reach', 'small'))
   })
 
+  it('replays NPC identity, position, and equipment from the same world seed', () => {
+    const project = () => createGame('stable-society', 'small').agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      x: agent.x,
+      y: agent.y,
+      skill: agent.skill,
+      skillLevel: agent.skillLevel,
+      loadout: agent.loadout,
+    }))
+    expect(project()).toEqual(project())
+  })
+
   it('deterministically unfolds distinct neighboring scenes without a fixed world edge', () => {
     const origin = createWorld('endless-check', 'small', 0, 0)
     const east = createWorld('endless-check', 'small', 1, 0)

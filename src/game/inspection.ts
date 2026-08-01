@@ -75,6 +75,8 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
     const nearby = isWithinInteractionRange(agent, state.player)
     const skill = agentSkills[agent.skill]
     const pursuit = Boolean(agent.autoAggro || faction?.autoAggro)
+    const weapon = agent.loadout.find((item) => item.equipped && item.moveId)
+    const armor = agent.loadout.find((item) => item.equipped && item.slot === 'armor')
     return {
       ...base,
       category: '人物',
@@ -84,6 +86,8 @@ export function inspectPosition(state: GameState, position: Position): Inspectio
       stats: [
         { label: '身份', value: role },
         { label: '生命', value: `${agent.hp}/${agent.maxHp}` },
+        { label: '武器', value: weapon?.name ?? '徒手' },
+        { label: '护甲', value: armor ? `${armor.name} · 防 ${armor.defense}` : '无' },
         { label: '好感', value: `${agent.affection}/5` },
         { label: '金币', value: agent.gold },
         { label: '野果', value: agent.berries },

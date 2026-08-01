@@ -1,4 +1,4 @@
-import type { CombatMoveId, DamageKind, EquipmentItem, GameState } from './types'
+import type { Agent, AgentSkillId, CombatMoveId, DamageKind, EquipmentItem, GameState } from './types'
 import { hashString } from './rng'
 
 export interface CombatMove {
@@ -246,4 +246,84 @@ export function combatPowerSummary(state: Pick<GameState, 'equipment'>): Record<
     firearm: equipmentPower(state.equipment, 'firearm'),
     explosive: equipmentPower(state.equipment, 'explosive'),
   }
+}
+
+const npcSkillMoves: Record<AgentSkillId, [CombatMoveId, CombatMoveId]> = {
+  scout: ['arrow-shot', 'rifle-shot'],
+  forager: ['arrow-shot', 'quick-strike'],
+  guard: ['quick-strike', 'heavy-cleave'],
+  medic: ['seed-bolt', 'seed-bolt'],
+  trader: ['rifle-shot', 'seed-bolt'],
+  duelist: ['quick-strike', 'heavy-cleave'],
+}
+
+const npcWeaponNames: Record<CombatMoveId, string> = {
+  'quick-strike': '巡路短刃',
+  'heavy-cleave': '边境重斧',
+  'arrow-shot': '榛木猎弓',
+  'seed-bolt': '苔纹法器',
+  'rifle-shot': '旧式长铳',
+  'field-bomb': '晶尘爆弹',
+}
+
+const npcWeaponSlots: Record<CombatMoveId, EquipmentItem['slot']> = {
+  'quick-strike': 'weapon',
+  'heavy-cleave': 'weapon',
+  'arrow-shot': 'weapon',
+  'seed-bolt': 'focus',
+  'rifle-shot': 'firearm',
+  'field-bomb': 'explosive',
+}
+
+export function createNpcLoadout(agentId: string, skill: AgentSkillId, skillLevel: 1 | 2 | 3): EquipmentItem[] {
+  const choices = npcSkillMoves[skill]
+  const moveId = skillLevel === 1
+    ? choices[0]
+    : skillLevel === 3
+      ? choices[1]
+      : choices[hashString(`${agentId}:npc-weapon-choice`) % choices.length]
+  const move = combatMove(moveId)
+  const tierName = skillLevel === 1 ? '旧制' : skillLevel === 2 ? '精工' : '遗迹'
+  const weapon: EquipmentItem = {
+    id: `npc-gear-${agentId}-${moveId}`,
+    name: `${tierName}${npcWeaponNames[moveId]}`,
+    slot: npcWeaponSlots[moveId],
+    kind: move.kind,
+    power: skillLevel,
+    defense: 0,
+    equipped: true,
+    moveId,
+    description: `${move.name} · 射程 ${move.minRange}–${move.maxRange} · 威力 +${skillLevel}`,
+  }
+  const armorChance = 35 + skillLevel * 20
+  if (hashString(`${agentId}:npc-armor`) % 100 >= armorChance) return [weapon]
+  const defense = skillLevel === 3 ? 2 : 1
+  return [
+    weapon,
+    {
+      id: `npc-gear-${agentId}-armor`,
+      name: skillLevel === 3 ? '守望者鳞肩' : skillLevel === 2 ? '加固旅衣' : '旧皮护衣',
+      slot: 'armor',
+      power: 0,
+      defense,
+      equipped: true,
+      description: `受到的伤害 -${defense}`,
+    },
+  ]
+}
+
+export function npcAttackEquipment(agent: Agent): EquipmentItem {
+  return agent.loadout.find((item) => item.equipped && item.moveId) ?? createNpcLoadout(agent.id, agent.skill, agent.skillLevel)[0]
+}
+
+export function npcAttackMove(agent: Agent): CombatMove {
+  return combatMove(npcAttackEquipment(agent).moveId ?? 'quick-strike')
+}
+
+export function npcArmorDefense(agent: Agent): number {
+  return equipmentDefense(agent.loadout)
+}
+
+export function mitigateNpcDamage(agent: Agent, damage: number): number {
+  return damage <= 0 ? 0 : Math.max(1, damage - npcArmorDefense(agent))
 }

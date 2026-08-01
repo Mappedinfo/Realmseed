@@ -168,9 +168,10 @@ python3 scripts/ingest_facility_assets.py
   and selling in opposite directions.
 - Combat growth: every victory raises maximum stamina by 1, capped at 30
 - NPC health and loot: people use independent health instead of stamina as
-  combat HP. Defeated NPCs leave the map, drop their carried gold and a small
-  amount of food, and have a deterministic equipment chance that rises with
-  skill level; staffed camp offices are cleared if their official is defeated.
+  combat HP and receive a deterministic skill-led weapon plus level-weighted
+  armor. Armor mitigates encounter and red-name map damage with a 1-damage
+  floor. Defeated NPCs leave the map, drop carried gold and food, and can only
+  drop items they actually wore (weapon 35/50/65%, armor 25/40/55% by level).
 - Rest: restore full stamina normally; at zero, manual or automatic exhausted
   rest recovers to 3, resets step fatigue, collects income, and advances the world
 - Red-name mode: the persistent top-right `红名模式` switch draws melee and
@@ -178,8 +179,9 @@ python3 scripts/ingest_facility_assets.py
   neutral/enemy structure, or monster and use the six-map attack strip; damage
   lands after the effect animation. Directly attacking a person immediately
   activates persistent pursuit for both that NPC and their faction, including
-  members restored from other scene caches; pursuers chase the player and open
-  a normal encounter when adjacent. Other witnesses gain hostility, display an
+  members restored from other scene caches; pursuers chase to their equipped
+  weapon range, open a normal encounter, and immediately use that weapon before
+  continuing equipment-driven counterattacks. Other witnesses gain hostility, display an
   exclamation mark, and move away. The only way to revoke a faction pursuit is
   a nearby 100-gold ransom trade with one of its members, which clears the
   entire faction and its cached NPCs. Hostile conversations disable friendly

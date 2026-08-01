@@ -1,5 +1,5 @@
 import { hashString, pick, seededRandom } from './rng'
-import { starterEquipment } from './combat'
+import { createNpcLoadout, starterEquipment } from './combat'
 import { agentSkillIds, partyBonuses } from './skills'
 import { effectiveCampStats } from './camps'
 import type { Agent, Direction, Faction, FogLevel, GameState, MapSize, Monster, Position, SceneSnapshot, Terrain, Tile, World } from './types'
@@ -225,6 +225,7 @@ export function createScene(
       facing,
       skill,
       skillLevel,
+      loadout: createNpcLoadout(`agent-${sceneId}-${index}`, skill, skillLevel),
     }
   })
   const monsters: Monster[] = Array.from({ length: mapSize === 'large' ? 34 : 14 }, (_, index) => ({
@@ -282,6 +283,7 @@ export function createGame(seed: string, mapSize: MapSize): GameState {
     facing: 'down',
     skill: 'scout',
     skillLevel: 1,
+    loadout: [],
   }
   const fog = new Array<FogLevel>(world.tiles.length).fill(0)
   const initial: GameState = {
